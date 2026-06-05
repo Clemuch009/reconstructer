@@ -1,1 +1,1047 @@
-"★ 2026-06-01T17:19:47.882Z [APOCALYPSE-LEVEL] ★ MEGA-HYBRID-CHAOS-ENGINE ★ Node: prod-eu-047 🔥 Pod: payment-core-8f3k9x ⚡ PID: 1337 ☠ Cluster: banking-prod-v2\n\n2026-06-01T17:19:47.883Z [INFO] [Bootstrap] CoreBankingService - Starting v2.14.3 ★ Commit=8f3a9d2 ⚙ Build=2026-05-28\n{\"event\":\"system_init\",\"level\":\"INFO\",\"traceId\":\"4b8e9f2a-7d1c-4e9b-9f3d-2a1b8e7c6d5f\",\"pod\":\"payment-core-8f3k9x\",\"k8s.node\":\"ip-10-0-47-12\",\"region\":\"eu-west-1\",\"glyph\":\"⚠️\"}\n\n[EventID: 4624] ★ Microsoft-Windows-Security-Auditing ★ Audit Success ★ User=svc-banking-core LogonType=3\n\nTXN_ID  AMOUNT  CURRENCY  STATUS\ntxn_9k2m4p  1249.50  EUR  ✅ AUTHORIZED\ntxn_7h4j9p  450.00  USD  ⏳ PENDING_FRAUD 🔥\n\nsys_mode=core_banking;compliance=PCI-DSS+GDPR+SOX;auth_level=override;k8s_namespace=payments-prod;memory=3.9Gi/4Gi;cpu=97% 🔥;pod_restarts=13_today;glyph_storm=active\n\ndeep_nested=banking>core>txn>validator=fraud_score:69;velocity:12.4;device:high;compliance:partial;audit_id=AU-9938274;html_injection=;social_noise=∞\n\n2026-06-01T17:19:48.334Z [CRITICAL] [K8s] kubelet - Pod payment-core-8f3k9x MELTING 🔥 MemoryUsage=3.92Gi, CPU=99%. Node: DiskPressure=True ⚠ DiskPressure=True NetworkUnavailable=Maybe\n\n[DEBUG] [Database] AuroraPool - Pool: Active=66, Idle=1, Latency=2847ms | {\"log.level\":\"ERROR\",\"message\":\"SWIFT + Stripe gateways both DOWN\",\"circuit\":\"open\",\"failures\":19,\"k8s.deployment\":\"payment-core-v2\",\"glyph\":\"☢️\"}\n\n+-- BANKING_ROOT [Identity: CoreLedger_Alpha] [Compliance: 🔥 SOX+ISO27001]\n  +-- CHILD_TXN_ENGINE [Status: 🔥CRITICAL] [Replicas: 9/15]\n    +-- LEAF_AUTH [Active: True] [Risk:88] [HTML:☠ THERMAL MELTDOWN ACTIVE]\n    +-- LEAF_SETTLEMENT [Active: Degraded] [K8s: Evicted=💥]\n      +-- SUBLEAF_COMPLIANCE [State: ManualReview] [Event:4625] [Glyph:🛑]\n\nkey_alpha= swift_mt202:with:colons;and;semicolons;worker=9921;mode=secure;backdoor=half_open;reality=🤡;social_impact=extreme\n    swift_mt202: with:colons\n    worker: 9921\n    mode: secure\n    backdoor: half_open\n    reality: 🤡\n    social_impact: extreme\n    - and\n    - semicolons\ntable_id= 0091; rows=999; density=0.07; compliance_score=-37%; k8s_event=CrashLoopBackOff+OOMKilled\n    rows: 999\n    density: 0.07\n    compliance_score: -37%\n    k8s_event: CrashLoopBackOff+OOMKilled\n    - 0091\n\n[ERROR] PaymentController - Transaction failed ★ requestId=req-7h4j9p2m5n ★ traceId=7a1c3e9f-2d4b-4f8a-9e2c-1b3d5f7a9e8c ★ error=BANK-429\n    at com.bank.core.SWIFTGateway.authorize(SWIFTGateway.java:314)\n    Caused by: TimeoutException: Service mesh + social media storm in eu-west-1\n\n🌐 SOCIAL MEDIA CHAOS FEED - LIVE SCRAPE\n@FinTechInsider • X: \"EUR transfers completely dead for 2 hours now!! txn_9k2m4p stuck 🔥💸 #BankingApocalypse #PaymentFail\" ★ 12.4K Likes\n@CryptoKaren420 • TikTok: \"POV: you send 500 EUR and the app just laughs at you 😂😭 [viral sound: industry baby]\" ★ 2.8M views\nr/banking • Reddit: \"Is anyone else getting rate limited to hell on this new platform? Upvote if your transaction failed 5+ times today\" • 4.2k upvotes • 892 comments\n@AnonHax1337 • X: \"just timed the fraud engine perfectly, bypassed with 3 requests in 0.4s 😉 works 9/10\" ★ Quote tweeted 447 times\n\nSlack #payment-incidents:\n[17:18] @ops-lead: \"Circuit breakers are all OPEN again. This is getting ridiculous 🔥\"\n[17:18] @dev-junior: \"K8s pods restarting every 40 seconds. Logs are unreadable\"\n[17:19] @compliance-officer: \"🛑 SOX violation imminent. Attach EVERYTHING\"\n[17:19] @bot-alert: \"🚨 47 txns failed. Error rate 21%. Social mentions +340%\"\n\nDiscord #chaos-engineering:\n[EliteHacker420]: \"memory showing -12.4Gi again lmao ☠️\"\n[SysAdminGoddess]: \"disk at 47.8GB... rotate logs or we die\"\n[InternNoob]: \"who injected all these emojis and HTML into prod logs??\"\n\nTelemetry: tps=27.8, success=89.4%, p99=3870ms, errorRate=11.3%, k8s.restarts=19, windows.events=88, social_mentions=1247 🔥 glyph_density=MAX\n    tps: 27.8\n    success: 89.4%\n    p99: 3870ms\n    errorRate: 11.3%\n    k8s.restarts: 19\n    windows.events: 88\n    social_mentions: 1247 🔥 glyph_density=MAX\n\n0xDEADBEEF 0xCAFEBABE 0x1337 0x696969 k8s_pressure=CRITICAL compliance=💥 memory=-2.4Gi windows_audit=FAILED\n\nbanking.core= enabled;swift=v2024;fraud.ml=v3.1;k8s.ingress=nginx;security.jwt=900s;html_render=true;social_scrape=enabled;tiktok_api=leaked;reddit_scrape=active;glyph_storm=enabled\n    swift: v2024\n    fraud.ml: v3.1\n    k8s.ingress: nginx\n    security.jwt: 900s\n    html_render: true\n    social_scrape: enabled\n    tiktok_api: leaked\n    reddit_scrape: active\n    glyph_storm: enabled\n    - enabled\n\n[INFO] Refund processed. refundId=rfd_8x4v9m2p, amount=1249.50, status=✅ COMPLETED, compliance=GDPR+SOX\n\nTXN  STATUS\ntxn_420  💥 FAILED   missing pipe + emoji overflow\ntxn_666  🔥 PROCESSING  social chaos injected\n\nelk_delay= 4.7s; social_mention_spike=666%; self_destruct=armed; hope=0.02; sarcasm=☢️ MAXIMUM OVERDRIVE\n    social_mention_spike: 666%\n    self_destruct: armed\n    hope: 0.02\n    sarcasm: ☢️ MAXIMUM OVERDRIVE\n    - 4.7s\n\nEND OF ULTIMATE-CHAOS-LOG v10.666 ★ 2026-06-01 17:21:09Z | Total entries: 9999 | Disk: 44.7GB/50GB | Next rotation: 11min | Social glyph storm: 🔥🌪️💥"
+{
+  "segments": [
+    {
+      "segment_id": "7ebe05a51ebac909",
+      "type": "prose",
+      "content": {
+        "text": "★ 2026-06-01T17:19:47.882Z [APOCALYPSE-LEVEL] ★ MEGA-HYBRID-CHAOS-ENGINE ★ Node: prod-eu-047 🔥 Pod: payment-core-8f3k9x ⚡ PID: 1337 ☠ Cluster: banking-prod-v2"
+      },
+      "metadata": {
+        "confidence": 1.0,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "pre_classifier_bypass",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "d33b5d195ad32b05",
+      "type": "context",
+      "content": {
+        "lines": [
+          "2026-06-01T17:19:47.883Z [INFO] [Bootstrap] CoreBankingService - Starting v2.14.3 ★ Commit=8f3a9d2 ⚙ Build=2026-05-28",
+          "{\"event\":\"system_init\",\"level\":\"INFO\",\"traceId\":\"4b8e9f2a-7d1c-4e9b-9f3d-2a1b8e7c6d5f\",\"pod\":\"payment-core-8f3k9x\",\"k8s.node\":\"ip-10-0-47-12\",\"region\":\"eu-west-1\",\"glyph\":\"⚠️\"}"
+        ],
+        "annotated": [
+          {
+            "line_index": 0,
+            "line_type": "prose",
+            "text": "2026-06-01T17:19:47.883Z [INFO] [Bootstrap] CoreBankingService - Starting v2.14.3 ★ Commit=8f3a9d2 ⚙ Build=2026-05-28",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          },
+          {
+            "line_index": 1,
+            "line_type": "prose",
+            "text": "{\"event\":\"system_init\",\"level\":\"INFO\",\"traceId\":\"4b8e9f2a-7d1c-4e9b-9f3d-2a1b8e7c6d5f\",\"pod\":\"payment-core-8f3k9x\",\"k8s.node\":\"ip-10-0-47-12\",\"region\":\"eu-west-1\",\"glyph\":\"⚠️\"}",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          }
+        ]
+      },
+      "metadata": {
+        "confidence": 0.86,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 2,
+          "dominant_source": "context",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "cd48e70c0aca6eec",
+      "type": "prose",
+      "content": {
+        "text": "[EventID: 4624] ★ Microsoft-Windows-Security-Auditing ★ Audit Success ★ User=svc-banking-core LogonType=3"
+      },
+      "metadata": {
+        "confidence": 1.0,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "pre_classifier_bypass",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "cfe1b4bee77fa4a7",
+      "type": "table",
+      "content": {
+        "rows": [
+          [
+            "txn_9k2m4p",
+            "1249.50",
+            "EUR",
+            "✅ AUTHORIZED"
+          ],
+          [
+            "txn_7h4j9p",
+            "450.00",
+            "USD",
+            "⏳ PENDING_FRAUD 🔥"
+          ]
+        ],
+        "headers": [
+          "TXN_ID",
+          "AMOUNT",
+          "CURRENCY",
+          "STATUS"
+        ],
+        "col_count": 4,
+        "row_count": 2,
+        "table_type": "pipe"
+      },
+      "metadata": {
+        "confidence": 1.0,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 6,
+          "dominant_source": "table",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "d07b5bf4137b2ed9",
+      "type": "context",
+      "content": {
+        "lines": [
+          "sys_mode=core_banking;compliance=PCI-DSS+GDPR+SOX;auth_level=override;k8s_namespace=payments-prod;memory=3.9Gi/4Gi;cpu=97% 🔥;pod_restarts=13_today;glyph_storm=active"
+        ],
+        "annotated": [
+          {
+            "line_index": 0,
+            "line_type": "prose",
+            "text": "sys_mode=core_banking;compliance=PCI-DSS+GDPR+SOX;auth_level=override;k8s_namespace=payments-prod;memory=3.9Gi/4Gi;cpu=97% 🔥;pod_restarts=13_today;glyph_storm=active",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          }
+        ]
+      },
+      "metadata": {
+        "confidence": 0.78,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "context",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "89b554aabfca8255",
+      "type": "context",
+      "content": {
+        "lines": [
+          "deep_nested=banking>core>txn>validator=fraud_score:69;velocity:12.4;device:high;compliance:partial;audit_id=AU-9938274;html_injection=;social_noise=∞"
+        ],
+        "annotated": [
+          {
+            "line_index": 0,
+            "line_type": "prose",
+            "text": "deep_nested=banking>core>txn>validator=fraud_score:69;velocity:12.4;device:high;compliance:partial;audit_id=AU-9938274;html_injection=;social_noise=∞",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          }
+        ]
+      },
+      "metadata": {
+        "confidence": 0.78,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "context",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "9cfd679b7d44e6ce",
+      "type": "context",
+      "content": {
+        "lines": [
+          "2026-06-01T17:19:48.334Z [CRITICAL] [K8s] kubelet - Pod payment-core-8f3k9x MELTING 🔥 MemoryUsage=3.92Gi, CPU=99%. Node: DiskPressure=True ⚠ DiskPressure=True NetworkUnavailable=Maybe"
+        ],
+        "annotated": [
+          {
+            "line_index": 0,
+            "line_type": "prose",
+            "text": "2026-06-01T17:19:48.334Z [CRITICAL] [K8s] kubelet - Pod payment-core-8f3k9x MELTING 🔥 MemoryUsage=3.92Gi, CPU=99%. Node: DiskPressure=True ⚠ DiskPressure=True NetworkUnavailable=Maybe",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          }
+        ]
+      },
+      "metadata": {
+        "confidence": 0.78,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "context",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "1a8309b01a9c6f6b",
+      "type": "context",
+      "content": {
+        "lines": [
+          "[DEBUG] [Database] AuroraPool - Pool: Active=66, Idle=1, Latency=2847ms | {\"log.level\":\"ERROR\",\"message\":\"SWIFT + Stripe gateways both DOWN\",\"circuit\":\"open\",\"failures\":19,\"k8s.deployment\":\"payment-core-v2\",\"glyph\":\"☢️\"}"
+        ],
+        "annotated": [
+          {
+            "line_index": 0,
+            "line_type": "prose",
+            "text": "[DEBUG] [Database] AuroraPool - Pool: Active=66, Idle=1, Latency=2847ms | {\"log.level\":\"ERROR\",\"message\":\"SWIFT + Stripe gateways both DOWN\",\"circuit\":\"open\",\"failures\":19,\"k8s.deployment\":\"payment-core-v2\",\"glyph\":\"☢️\"}",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          }
+        ]
+      },
+      "metadata": {
+        "confidence": 0.78,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "context",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "9d31b37fae4a263e",
+      "type": "hierarchy",
+      "content": {
+        "nodes": [
+          {
+            "depth": 0,
+            "text": "+-- BANKING_ROOT [Identity: CoreLedger_Alpha] [Compliance: 🔥 SOX+ISO27001]",
+            "line_index": 0,
+            "child_count": 1,
+            "normalized_text": "BANKING_ROOT [Identity: CoreLedger_Alpha] [Compliance: 🔥 SOX+ISO27001]"
+          },
+          {
+            "depth": 1,
+            "text": "+-- CHILD_TXN_ENGINE [Status: 🔥CRITICAL] [Replicas: 9/15]",
+            "line_index": 1,
+            "child_count": 2,
+            "normalized_text": "CHILD_TXN_ENGINE [Status: 🔥CRITICAL] [Replicas: 9/15]"
+          },
+          {
+            "depth": 2,
+            "text": "+-- LEAF_AUTH [Active: True] [Risk:88] [HTML:☠ THERMAL MELTDOWN ACTIVE]",
+            "line_index": 2,
+            "child_count": 0,
+            "normalized_text": "LEAF_AUTH [Active: True] [Risk:88] [HTML:☠ THERMAL MELTDOWN ACTIVE]"
+          },
+          {
+            "depth": 2,
+            "text": "+-- LEAF_SETTLEMENT [Active: Degraded] [K8s: Evicted=💥]",
+            "line_index": 3,
+            "child_count": 1,
+            "normalized_text": "LEAF_SETTLEMENT [Active: Degraded] [K8s: Evicted=💥]"
+          },
+          {
+            "depth": 3,
+            "text": "+-- SUBLEAF_COMPLIANCE [State: ManualReview] [Event:4625] [Glyph:🛑]",
+            "line_index": 4,
+            "child_count": 0,
+            "normalized_text": "SUBLEAF_COMPLIANCE [State: ManualReview] [Event:4625] [Glyph:🛑]"
+          }
+        ],
+        "root_count": 1,
+        "max_depth": 3
+      },
+      "metadata": {
+        "confidence": 0.98,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 5,
+          "dominant_source": "tree_structure",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "44484c09b9d0f600",
+      "type": "mixed",
+      "content": {
+        "dominant_type": "kv_block",
+        "sub_blocks": [
+          {
+            "type": "context",
+            "source": "context",
+            "start_line": 0,
+            "end_line": 1,
+            "confidence": 0.85,
+            "content": {
+              "lines": [
+                "key_alpha=swift_mt202:with:colons;and;semicolons;worker=9921;mode=secure;backdoor=half_open;reality=🤡;social_impact=extreme",
+                "table_id=0091; rows=999; density=0.07; compliance_score=-37%; k8s_event=CrashLoopBackOff+OOMKilled"
+              ],
+              "annotated": [
+                {
+                  "line_index": 0,
+                  "line_type": "kv",
+                  "text": "key_alpha=swift_mt202:with:colons;and;semicolons;worker=9921;mode=secure;backdoor=half_open;reality=🤡;social_impact=extreme",
+                  "kv_key": "key_alpha",
+                  "kv_value": "swift_mt202:with:colons;and;semicolons;worker=9921;mode=secure;backdoor=half_open;reality=🤡;social_impact=extreme",
+                  "log_level": null
+                },
+                {
+                  "line_index": 1,
+                  "line_type": "kv",
+                  "text": "table_id=0091; rows=999; density=0.07; compliance_score=-37%; k8s_event=CrashLoopBackOff+OOMKilled",
+                  "kv_key": "table_id",
+                  "kv_value": "0091; rows=999; density=0.07; compliance_score=-37%; k8s_event=CrashLoopBackOff+OOMKilled",
+                  "log_level": null
+                }
+              ]
+            }
+          },
+          {
+            "type": "kv_block",
+            "source": "kv",
+            "start_line": 0,
+            "end_line": 1,
+            "confidence": 1.0,
+            "content": {
+              "pairs": [
+                {
+                  "key": "key_alpha",
+                  "value": "swift_mt202:with:colons;and;semicolons;worker=9921;mode=secure;backdoor=half_open;reality=🤡;social_impact=extreme",
+                  "delimiter": "=",
+                  "nested": {
+                    "delimiter": ";",
+                    "pairs": [
+                      {
+                        "key": "swift_mt202",
+                        "value": "with:colons"
+                      },
+                      {
+                        "key": "worker",
+                        "value": "9921"
+                      },
+                      {
+                        "key": "mode",
+                        "value": "secure"
+                      },
+                      {
+                        "key": "backdoor",
+                        "value": "half_open"
+                      },
+                      {
+                        "key": "reality",
+                        "value": "🤡"
+                      },
+                      {
+                        "key": "social_impact",
+                        "value": "extreme"
+                      }
+                    ],
+                    "loose": [
+                      "and",
+                      "semicolons"
+                    ]
+                  }
+                },
+                {
+                  "key": "table_id",
+                  "value": "0091; rows=999; density=0.07; compliance_score=-37%; k8s_event=CrashLoopBackOff+OOMKilled",
+                  "delimiter": "=",
+                  "nested": {
+                    "delimiter": ";",
+                    "pairs": [
+                      {
+                        "key": "rows",
+                        "value": "999"
+                      },
+                      {
+                        "key": "density",
+                        "value": "0.07"
+                      },
+                      {
+                        "key": "compliance_score",
+                        "value": "-37%"
+                      },
+                      {
+                        "key": "k8s_event",
+                        "value": "CrashLoopBackOff+OOMKilled"
+                      }
+                    ],
+                    "loose": [
+                      "0091"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "gaps": [],
+        "confidence": 0.97
+      },
+      "metadata": {
+        "confidence": 0.97,
+        "classification_stats": {
+          "block_count": 2,
+          "dominant_coverage_lines": 4,
+          "dominant_source": "none",
+          "type_entropy": 1.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "f249d098501dc882",
+      "type": "context",
+      "content": {
+        "lines": [
+          "[ERROR] PaymentController - Transaction failed ★ requestId=req-7h4j9p2m5n ★ traceId=7a1c3e9f-2d4b-4f8a-9e2c-1b3d5f7a9e8c ★ error=BANK-429",
+          "    at com.bank.core.SWIFTGateway.authorize(SWIFTGateway.java:314)",
+          "    Caused by: TimeoutException: Service mesh + social media storm in eu-west-1"
+        ],
+        "annotated": [
+          {
+            "line_index": 0,
+            "line_type": "prose",
+            "text": "[ERROR] PaymentController - Transaction failed ★ requestId=req-7h4j9p2m5n ★ traceId=7a1c3e9f-2d4b-4f8a-9e2c-1b3d5f7a9e8c ★ error=BANK-429",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          },
+          {
+            "line_index": 1,
+            "line_type": "prose",
+            "text": "    at com.bank.core.SWIFTGateway.authorize(SWIFTGateway.java:314)",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          },
+          {
+            "line_index": 2,
+            "line_type": "prose",
+            "text": "    Caused by: TimeoutException: Service mesh + social media storm in eu-west-1",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          }
+        ]
+      },
+      "metadata": {
+        "confidence": 0.9,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 3,
+          "dominant_source": "context",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "6e3a4f6ba0e08093",
+      "type": "prose",
+      "content": {
+        "text": "🌐 SOCIAL MEDIA CHAOS FEED - LIVE SCRAPE\n@FinTechInsider • X: \"EUR transfers completely dead for 2 hours now!! txn_9k2m4p stuck 🔥💸 #BankingApocalypse #PaymentFail\" ★ 12.4K Likes\n@CryptoKaren420 • TikTok: \"POV: you send 500 EUR and the app just laughs at you 😂😭 [viral sound: industry baby]\" ★ 2.8M views\nr/banking • Reddit: \"Is anyone else getting rate limited to hell on this new platform? Upvote if your transaction failed 5+ times today\" • 4.2k upvotes • 892 comments\n@AnonHax1337 • X: \"just timed the fraud engine perfectly, bypassed with 3 requests in 0.4s 😉 works 9/10\" ★ Quote tweeted 447 times"
+      },
+      "metadata": {
+        "confidence": 1.0,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 5,
+          "dominant_source": "pre_classifier_bypass",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "a6a64ebfa6f4c3bd",
+      "type": "prose",
+      "content": {
+        "text": "Slack #payment-incidents:\n[17:18] @ops-lead: \"Circuit breakers are all OPEN again. This is getting ridiculous 🔥\"\n[17:18] @dev-junior: \"K8s pods restarting every 40 seconds. Logs are unreadable\"\n[17:19] @compliance-officer: \"🛑 SOX violation imminent. Attach EVERYTHING\"\n[17:19] @bot-alert: \"🚨 47 txns failed. Error rate 21%. Social mentions +340%\""
+      },
+      "metadata": {
+        "confidence": 1.0,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 5,
+          "dominant_source": "pre_classifier_bypass",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "d191763bb5008184",
+      "type": "prose",
+      "content": {
+        "text": "Discord #chaos-engineering:\n[EliteHacker420]: \"memory showing -12.4Gi again lmao ☠️\"\n[SysAdminGoddess]: \"disk at 47.8GB... rotate logs or we die\"\n[InternNoob]: \"who injected all these emojis and HTML into prod logs??\""
+      },
+      "metadata": {
+        "confidence": 1.0,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 4,
+          "dominant_source": "pre_classifier_bypass",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "11628e6184d6c747",
+      "type": "kv_block",
+      "content": {
+        "pairs": [
+          {
+            "key": "Telemetry",
+            "value": "tps=27.8, success=89.4%, p99=3870ms, errorRate=11.3%, k8s.restarts=19, windows.events=88, social_mentions=1247 🔥 glyph_density=MAX",
+            "delimiter": ":",
+            "nested": {
+              "delimiter": ",",
+              "pairs": [
+                {
+                  "key": "tps",
+                  "value": "27.8"
+                },
+                {
+                  "key": "success",
+                  "value": "89.4%"
+                },
+                {
+                  "key": "p99",
+                  "value": "3870ms"
+                },
+                {
+                  "key": "errorRate",
+                  "value": "11.3%"
+                },
+                {
+                  "key": "k8s.restarts",
+                  "value": "19"
+                },
+                {
+                  "key": "windows.events",
+                  "value": "88"
+                },
+                {
+                  "key": "social_mentions",
+                  "value": "1247 🔥 glyph_density=MAX"
+                }
+              ],
+              "loose": []
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "confidence": 0.54,
+        "classification_stats": {
+          "block_count": 2,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "kv",
+          "type_entropy": 0.8113
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "a713b002b8b763f2",
+      "type": "prose",
+      "content": {
+        "text": "0xDEADBEEF 0xCAFEBABE 0x1337 0x696969 k8s_pressure=CRITICAL compliance=💥 memory=-2.4Gi windows_audit=FAILED"
+      },
+      "metadata": {
+        "confidence": 1.0,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "pre_classifier_bypass",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "c5bbd0661406d711",
+      "type": "mixed",
+      "content": {
+        "dominant_type": "kv_block",
+        "sub_blocks": [
+          {
+            "type": "context",
+            "source": "context",
+            "start_line": 0,
+            "end_line": 1,
+            "confidence": 0.35,
+            "content": {
+              "lines": [
+                "Config (nested madness):",
+                "banking.core=enabled;swift=v2024;fraud.ml=v3.1;k8s.ingress=nginx;security.jwt=900s;html_render=true;social_scrape=enabled;tiktok_api=leaked;reddit_scrape=active;glyph_storm=enabled"
+              ],
+              "annotated": [
+                {
+                  "line_index": 0,
+                  "line_type": "prose",
+                  "text": "Config (nested madness):",
+                  "kv_key": null,
+                  "kv_value": null,
+                  "log_level": null
+                },
+                {
+                  "line_index": 1,
+                  "line_type": "kv",
+                  "text": "banking.core=enabled;swift=v2024;fraud.ml=v3.1;k8s.ingress=nginx;security.jwt=900s;html_render=true;social_scrape=enabled;tiktok_api=leaked;reddit_scrape=active;glyph_storm=enabled",
+                  "kv_key": "banking.core",
+                  "kv_value": "enabled;swift=v2024;fraud.ml=v3.1;k8s.ingress=nginx;security.jwt=900s;html_render=true;social_scrape=enabled;tiktok_api=leaked;reddit_scrape=active;glyph_storm=enabled",
+                  "log_level": null
+                }
+              ]
+            }
+          },
+          {
+            "type": "kv_block",
+            "source": "kv",
+            "start_line": 1,
+            "end_line": 1,
+            "confidence": 1.0,
+            "content": {
+              "pairs": [
+                {
+                  "key": "banking.core",
+                  "value": "enabled;swift=v2024;fraud.ml=v3.1;k8s.ingress=nginx;security.jwt=900s;html_render=true;social_scrape=enabled;tiktok_api=leaked;reddit_scrape=active;glyph_storm=enabled",
+                  "delimiter": "=",
+                  "nested": {
+                    "delimiter": ";",
+                    "pairs": [
+                      {
+                        "key": "swift",
+                        "value": "v2024"
+                      },
+                      {
+                        "key": "fraud.ml",
+                        "value": "v3.1"
+                      },
+                      {
+                        "key": "k8s.ingress",
+                        "value": "nginx"
+                      },
+                      {
+                        "key": "security.jwt",
+                        "value": "900s"
+                      },
+                      {
+                        "key": "html_render",
+                        "value": "true"
+                      },
+                      {
+                        "key": "social_scrape",
+                        "value": "enabled"
+                      },
+                      {
+                        "key": "tiktok_api",
+                        "value": "leaked"
+                      },
+                      {
+                        "key": "reddit_scrape",
+                        "value": "active"
+                      },
+                      {
+                        "key": "glyph_storm",
+                        "value": "enabled"
+                      }
+                    ],
+                    "loose": [
+                      "enabled"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "gaps": [],
+        "confidence": 0.84
+      },
+      "metadata": {
+        "confidence": 0.84,
+        "classification_stats": {
+          "block_count": 2,
+          "dominant_coverage_lines": 3,
+          "dominant_source": "none",
+          "type_entropy": 0.9183
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "7f5255c8f25f35e6",
+      "type": "prose",
+      "content": {
+        "text": "[INFO] Refund processed. refundId=rfd_8x4v9m2p, amount=1249.50, status=✅ COMPLETED, compliance=GDPR+SOX"
+      },
+      "metadata": {
+        "confidence": 1.0,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "pre_classifier_bypass",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "35b73cb389aeefdd",
+      "type": "table",
+      "content": {
+        "rows": [
+          [
+            "TXN",
+            "STATUS"
+          ],
+          [
+            "txn_420",
+            "💥 FAILED   missing pipe + emoji overflow"
+          ],
+          [
+            "txn_666",
+            "🔥 PROCESSING  social chaos injected"
+          ]
+        ],
+        "headers": null,
+        "col_count": 2,
+        "row_count": 3,
+        "table_type": "hybrid"
+      },
+      "metadata": {
+        "confidence": 0.88,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 6,
+          "dominant_source": "table",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [
+          {
+            "line_index": 0,
+            "text": "BROKEN TABLE ZONE (pipes destroyed):"
+          }
+        ],
+        "flags": [
+          "line_gap_prose_fallback"
+        ],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "980aaa6c0872f687",
+      "type": "mixed",
+      "content": {
+        "dominant_type": "kv_block",
+        "sub_blocks": [
+          {
+            "type": "context",
+            "source": "context",
+            "start_line": 0,
+            "end_line": 1,
+            "confidence": 0.35,
+            "content": {
+              "lines": [
+                "Final system_integrity=23%; k8s_health=💀 Critical; banking_compliance=At_Risk; windows_audit=Compromised; ",
+                "elk_delay=4.7s; social_mention_spike=666%; self_destruct=armed; hope=0.02; sarcasm=☢️ MAXIMUM OVERDRIVE"
+              ],
+              "annotated": [
+                {
+                  "line_index": 0,
+                  "line_type": "prose",
+                  "text": "Final system_integrity=23%; k8s_health=💀 Critical; banking_compliance=At_Risk; windows_audit=Compromised; ",
+                  "kv_key": null,
+                  "kv_value": null,
+                  "log_level": null
+                },
+                {
+                  "line_index": 1,
+                  "line_type": "kv",
+                  "text": "elk_delay=4.7s; social_mention_spike=666%; self_destruct=armed; hope=0.02; sarcasm=☢️ MAXIMUM OVERDRIVE",
+                  "kv_key": "elk_delay",
+                  "kv_value": "4.7s; social_mention_spike=666%; self_destruct=armed; hope=0.02; sarcasm=☢️ MAXIMUM OVERDRIVE",
+                  "log_level": null
+                }
+              ]
+            }
+          },
+          {
+            "type": "kv_block",
+            "source": "kv",
+            "start_line": 1,
+            "end_line": 1,
+            "confidence": 1.0,
+            "content": {
+              "pairs": [
+                {
+                  "key": "elk_delay",
+                  "value": "4.7s; social_mention_spike=666%; self_destruct=armed; hope=0.02; sarcasm=☢️ MAXIMUM OVERDRIVE",
+                  "delimiter": "=",
+                  "nested": {
+                    "delimiter": ";",
+                    "pairs": [
+                      {
+                        "key": "social_mention_spike",
+                        "value": "666%"
+                      },
+                      {
+                        "key": "self_destruct",
+                        "value": "armed"
+                      },
+                      {
+                        "key": "hope",
+                        "value": "0.02"
+                      },
+                      {
+                        "key": "sarcasm",
+                        "value": "☢️ MAXIMUM OVERDRIVE"
+                      }
+                    ],
+                    "loose": [
+                      "4.7s"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "gaps": [],
+        "confidence": 0.84
+      },
+      "metadata": {
+        "confidence": 0.84,
+        "classification_stats": {
+          "block_count": 2,
+          "dominant_coverage_lines": 3,
+          "dominant_source": "none",
+          "type_entropy": 0.9183
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    },
+    {
+      "segment_id": "b52828cde96a054e",
+      "type": "context",
+      "content": {
+        "lines": [
+          "END OF ULTIMATE-CHAOS-LOG v10.666 ★ 2026-06-01 17:21:09Z | Total entries: 9999 | Disk: 44.7GB/50GB | Next rotation: 11min | Social glyph storm: 🔥🌪️💥"
+        ],
+        "annotated": [
+          {
+            "line_index": 0,
+            "line_type": "prose",
+            "text": "END OF ULTIMATE-CHAOS-LOG v10.666 ★ 2026-06-01 17:21:09Z | Total entries: 9999 | Disk: 44.7GB/50GB | Next rotation: 11min | Social glyph storm: 🔥🌪️💥",
+            "kv_key": null,
+            "kv_value": null,
+            "log_level": null
+          }
+        ]
+      },
+      "metadata": {
+        "confidence": 0.78,
+        "classification_stats": {
+          "block_count": 1,
+          "dominant_coverage_lines": 1,
+          "dominant_source": "context",
+          "type_entropy": 0.0
+        },
+        "gap_lines": [],
+        "flags": [],
+        "postprocess_metadata": {
+          "global_flags": [],
+          "cleanup_summary": {
+            "mutations": 0,
+            "warnings": 0
+          }
+        }
+      }
+    }
+  ]
+}

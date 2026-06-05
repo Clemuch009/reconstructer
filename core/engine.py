@@ -50,6 +50,10 @@ from postprocess.validation import validate
 # classifier result type
 from analysis.structure_engine.classifier import ClassificationResult
 
+# adapters
+from adapters.human   import HumanAdapter
+from adapters.ai      import AIAdapter
+from adapters.machine import MachineAdapter
 
 # ---------------------------------
 # Prose fallback classification (used on processing failure)
@@ -323,6 +327,31 @@ class TextReconstructionEngine:
         """
         return self.run(text)["human_readable"]
 
+    def run_human(self, text: str) -> str:
+        """
+        Full pipeline + human-readable terminal output.
+        """
+        output = self.run(text)
+        return HumanAdapter().adapt(output)
+
+    def run_ai(
+        self,
+        text: str,
+        include_confidence: bool = False,
+    ) -> dict:
+        """
+        Full pipeline + Logical Document Model for LLM consumption.
+        """
+        output = self.run(text)
+        return AIAdapter(include_confidence=include_confidence).adapt(output)
+
+    def run_machine(self, text: str) -> list:
+        """
+        Full pipeline + flat analytics records for DB ingestion.
+        """
+        output = self.run(text)
+        return MachineAdapter().adapt(output)
+
 
 # ---------------------------------
 # INTERACTIVE TEST
@@ -336,10 +365,13 @@ if __name__ == "__main__":
     print("TEXT RECONSTRUCTION ENGINE — FULL PIPELINE")
     print("=" * 60)
     print("Commands after input:")
-    print("  [h] human readable only")
-    print("  [m] machine readable")
+    print("  [h] human readable (raw)")
+    print("  [H] human adapter (formatted terminal)")
+    print("  [m] machine readable (raw segments)")
+    print("  [M] machine adapter (analytics records)")
+    print("  [a] AI adapter (Logical Document Model)")
     print("  [v] validation report")
-    print("  [a] all\n")
+    print("  [A] all outputs\n")
 
     engine = TextReconstructionEngine()
 
@@ -356,7 +388,7 @@ if __name__ == "__main__":
 
         raw = raw.replace("\\n", "\n")
 
-        print("VIEW [h/m/v/a]> ", end="", flush=True)
+        print("VIEW [h/H/m/M/a/v/A]> ", end="", flush=True)
         try:
             view = input().strip().lower() or "h"
         except EOFError:
@@ -365,19 +397,28 @@ if __name__ == "__main__":
         try:
             result = engine.run(raw)
             with open("result.json", "w") as f:
-                json.dump(result["human_readable"], f, ensure_ascii=False, indent=2)
-
+                json.dump(result["machine_readable"], f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"ERROR: {e}")
             print("-" * 60)
             continue
 
+        # Raw human readable
         if view in ("h", "a"):
-            print("\n--- HUMAN READABLE ---")
+            print("\n--- HUMAN READABLE (raw) ---")
             print(result["human_readable"])
 
+        # Human adapter
+        if view in ("H", "a"):
+            print("\n--- HUMAN ADAPTER (formatted terminal) ---")
+            try:
+                print(engine.run_human.__func__(engine, raw) if view == "a" else HumanAdapter().adapt(result))
+            except Exception as e:
+                print(f"  [ERROR] {e}")
+
+        # Raw machine readable
         if view in ("m", "a"):
-            print("\n--- MACHINE READABLE ---")
+            print("\n--- MACHINE READABLE (raw segments) ---")
             for seg in result["machine_readable"]["segments"]:
                 print(f"  [{seg['segment_id']}] type={seg['type']}")
                 print(f"    flags   : {seg['metadata'].get('flags', [])}")
@@ -386,6 +427,38 @@ if __name__ == "__main__":
                 )[:300]
                 print(f"    content : {content_preview}")
 
+        # Machine adapter
+        if view in ("M", "a"):
+            print("\n--- MACHINE ADAPTER (analytics records) ---")
+            try:
+                records = MachineAdapter().adapt(result)
+                for rec in records:
+                    print(f"  [{rec['segment_id']}] type={rec['type']}"
+                          f"  conf={rec['confidence']:.2f}"
+                          f"  label={rec['section_label']}")
+                    content_preview = json.dumps(
+                        rec["content"], default=str
+                    )[:200]
+                    print(f"    content: {content_preview}")
+            except Exception as e:
+                print(f"  [ERROR] {e}")
+
+        # AI adapter
+        if view in ("a",):
+            print("\n--- AI ADAPTER (Logical Document Model) ---")
+            try:
+                ldm = AIAdapter(include_confidence=True).adapt(result)
+                print(f"  is_valid : {ldm['is_valid']}")
+                print(f"  blocks   : {len(ldm['blocks'])}")
+                for block in ldm["blocks"]:
+                    print(f"    type={block['type']:12}"
+                          f"  tags={block['tags']}"
+                          f"  label={block['label']}"
+                          f"  conf={block['confidence']}")
+            except Exception as e:
+                print(f"  [ERROR] {e}")
+
+        # Validation
         if view in ("v", "a"):
             v = result["validation"]
             if v:
