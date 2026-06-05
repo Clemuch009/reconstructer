@@ -1,0 +1,55 @@
+
+text_reconstruction_engine/
+│
+├── core/
+│   ├── engine.py              # single entry decision runtime
+│   ├── segmentation.py        # ONLY boundary/paragraph authority
+│   ├── state.py               # runtime state container
+│   ├── decision.py            # rule evaluation layer (non-ML)
+│   ├── rules.py               # deterministic constraints
+|   |── config.py              # system toggles / thresholds
+|   |__contracts_signal.py
+│
+├── preprocess/
+│   ├── normalize.py           # ftfy-based repair
+│   ├── sanitize.py            # bleach-based cleanup
+│   ├── regex_signals.py       # structural markers extraction
+│   └── pipeline.py            # orchestrates preprocessing flow
+│
+├── hints/
+│   ├── token_observations.py  # token-level measurements only
+│   ├── text_signals.py        # raw structural indicators
+│   └── spacy_adapter.py       # spaCy ONLY as suggestion generator
+│
+├── analysis/
+│   ├── structural_metrics.py  # non-semantic numeric features only
+│   └── features.py            # feature aggregation layer
+│
+├── postprocess/
+│   ├── formatter.py           # paragraph assembly
+│   ├── cleanup.py             # final formatting fixes
+│   └── validation.py          # consistency + sanity checks
+│
+├── data/
+│   ├── test_cases.py
+│   ├── dirty_samples.txt
+│   └── expected_outputs.json
+│
+├── tests/
+│   ├── test_preprocess.py
+│   ├── test_segmentation.py
+│   ├── test_engine.py
+│   └── stress_tests.py
+│
+├── experiments/
+│   ├── segmentation_trials.py
+│   ├── noise_robustness_tests.py
+│   └── rule_ablation.py
+│
+├── utils/
+│   ├── logging.py
+│   ├── debug.py
+│   └── timers.py
+│
+├── main.py
+└── README.md

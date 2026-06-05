@@ -1,0 +1,13 @@
+
+analysis/
+structure_engine/init.py
+line_model.py          # builds line objects
+pattern_extractor.py   # converts lines → patterns
+detectors/
+kv_detector.py
+table_detector.py
+hierarchy_detector.py
+builder/
+tree_builder.py     # builds hierarchical trees
+block_builder.py    # builds structured blocks
+classifier.py          # decides structure type
