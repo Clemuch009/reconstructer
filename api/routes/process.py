@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-
+from fastapi import Request
 from core.engine import TextReconstructionEngine
 from adapters.human   import HumanAdapter
 from adapters.ai      import AIAdapter
@@ -142,6 +142,24 @@ async def process_machine(
         "records":   records,
     }
 
+
+@router.post("/process/raw")
+async def process_raw(
+    request: Request,
+    engine:  TextReconstructionEngine = Depends(get_engine),
+    _:       str = Depends(verify_api_key),
+) -> dict:
+    """
+    Process raw plain text directly.
+    No JSON wrapping required.
+    Accepts Content-Type: text/plain
+    Handles any encoding — logs, HTML dumps, chaos inputs.
+    """
+    body = await request.body()
+    text = body.decode("utf-8", errors="replace")
+    validate_input_text(text)
+    envelope = await _process(text, engine)
+    return envelope
 
 @router.get("/stream")
 async def stream(
