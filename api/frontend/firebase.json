@@ -1,12 +1,21 @@
 {
   "hosting": {
     "public": "public",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ],
     "rewrites": [
+      {
+        "source": "/console",
+        "destination": "/console.html"
+      },
+      {
+        "source": "/observer",
+        "destination": "/observer.html"
+      },
       {
         "source": "/ingest",
         "run": {
