@@ -1,0 +1,118 @@
+{
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/ingest",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/resolve",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/export",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/process/**",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/stream",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/webhook/**",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/session/**",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/document/**",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/documents",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/health",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/docs",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/redoc",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/openapi.json",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "us-central1"
+        }
+      }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          }
+        ]
+      }
+    ]
+  }
+}

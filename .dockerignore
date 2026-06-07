@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.git
+.gitignore
+.env
+*.md
+tests/
+result.json
+public/
+firebase.json
+human.txt
+webhook_receiver.py
+layout.txt
