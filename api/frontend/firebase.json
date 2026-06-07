@@ -11,91 +11,91 @@
         "source": "/ingest",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/resolve",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/export",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/process/**",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/stream",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/webhook/**",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/session/**",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/document/**",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/documents",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/health",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/docs",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/redoc",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       },
       {
         "source": "/openapi.json",
         "run": {
           "serviceId": "qrynt",
-          "region": "us-central1"
+          "region": "europe-west1"
         }
       }
     ],
