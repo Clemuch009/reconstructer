@@ -1,1 +1,4 @@
-_pycache__
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
