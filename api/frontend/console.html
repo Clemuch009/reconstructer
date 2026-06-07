@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRE — Developer Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0d0d0d;
+    --surface:   #141414;
+    --surface2:  #1a1a1a;
+    --border:    #1e1e1e;
+    --border2:   #2a2a2a;
+    --text:      #e8e8e8;
+    --text-dim:  #666;
+    --text-muted:#444;
+    --primary:   #00ff88;
+    --primary-dim:#00ff8822;
+    --blue:      #3b82f6;
+    --green:     #22c55e;
+    --purple:    #a855f7;
+    --orange:    #f97316;
+    --yellow:    #eab308;
+    --grey:      #6b7280;
+    --red:       #ef4444;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scan line effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,255,136,0.015) 2px,
+      rgba(0,255,136,0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Header */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--primary);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .api-key-input {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    width: 200px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .api-key-input:focus {
+    border-color: var(--primary);
+  }
+
+  .api-key-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: var(--primary-dim);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    letter-spacing: 0.05em;
+  }
+
+  /* Main layout */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: calc(100vh - 52px);
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Left panel */
+  .panel-left {
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .panel-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 12px;
+    border-radius: 3px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .btn-primary {
+    background: var(--primary);
+    color: #000;
+    border-color: var(--primary);
+    font-weight: 600;
+  }
+
+  .btn-primary:hover {
+    background: #00cc6e;
+    border-color: #00cc6e;
+    color: #000;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .toggle-group {
+    display: flex;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .toggle-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .toggle-btn.active {
+    background: var(--surface2);
+    color: var(--primary);
+  }
+
+  textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 20px;
+    resize: none;
+    outline: none;
+  }
+
+  textarea::placeholder {
+    color: var(--text-muted);
+  }
+
+  .drop-zone {
+    margin: 12px 20px;
+    border: 1px dashed var(--border2);
+    border-radius: 4px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .drop-zone:hover,
+  .drop-zone.drag-over {
+    border-color: var(--primary);
+    background: var(--primary-dim);
+  }
+
+  .drop-zone-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .drop-zone.drag-over .drop-zone-text {
+    color: var(--primary);
+  }
+
+  #file-input { display: none; }
+
+  .process-bar {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+  }
+
+  /* Right panel */
+  .panel-right {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .tab {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 12px 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    text-transform: uppercase;
+  }
+
+  .tab:hover { color: var(--text-dim); }
+
+  .tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+
+  .tab-content {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .tab-content.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Output area */
+  .output-area {
+    flex: 1;
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    overflow-y: auto;
+  }
+
+  .output-area.json {
+    font-size: 11px;
+  }
+
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-muted);
+  }
+
+  .empty-icon {
+    font-size: 32px;
+    opacity: 0.3;
+  }
+
+  .empty-text {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+  }
+
+  /* Output footer */
+  .output-footer {
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .stats-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .stat-value {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .validation-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .validation-badge.valid {
+    background: rgba(34,197,94,0.1);
+    color: var(--green);
+    border: 1px solid var(--green);
+  }
+
+  .validation-badge.invalid {
+    background: rgba(239,68,68,0.1);
+    color: var(--red);
+    border: 1px solid var(--red);
+  }
+
+  .footer-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  /* curl snippet */
+  .curl-section {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .curl-header {
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .curl-header:hover .panel-title {
+    color: var(--primary);
+  }
+
+  .curl-body {
+    padding: 0 20px 16px;
+    display: none;
+  }
+
+  .curl-body.open { display: block; }
+
+  .curl-code {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .curl-code .keyword { color: var(--primary); }
+  .curl-code .string  { color: var(--orange); }
+  .curl-code .flag    { color: var(--blue); }
+
+  /* Loading state */
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border2);
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* JSON syntax highlight */
+  .json-key    { color: var(--blue); }
+  .json-string { color: var(--orange); }
+  .json-number { color: var(--green); }
+  .json-bool   { color: var(--purple); }
+  .json-null   { color: var(--text-muted); }
+
+  /* Copy schema button */
+  .copy-schema-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .copy-schema-btn:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  /* Status bar */
+  .status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 24px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+    z-index: 50;
+  }
+
+  .status-item {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--primary);
+  }
+
+  .status-dot.idle { background: var(--text-muted); }
+  .status-dot.error { background: var(--red); }
+
+  /* Error state */
+  .error-state {
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--red);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    TRE / DEVELOPER CONSOLE
+  </div>
+  <div class="header-right">
+    <input
+      type="text"
+      class="api-key-input"
+      id="api-key"
+      placeholder="X-API-Key"
+      value="test-key"
+    />
+    <span class="badge">v1.0</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT PANEL -->
+  <div class="panel-left">
+    <div class="panel-header">
+      <span class="panel-title">INPUT</span>
+      <div class="panel-actions">
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="toggle-raw" onclick="setInputMode('raw')">RAW</button>
+          <button class="toggle-btn" id="toggle-preview" onclick="setInputMode('preview')">PREVIEW</button>
+        </div>
+        <button class="btn" onclick="clearInput()">CLEAR</button>
+      </div>
+    </div>
+
+    <textarea
+      id="input-text"
+      placeholder="Paste logs, configs, messy data, any text...
+
+user_id: usr_123
+status: active
+region: eu-west-1
+
+| ID | Name  | Score |
+|----|-------|-------|
+| 1  | Alice | 99    |
+| 2  | Bob   | 87    |"
+    ></textarea>
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <span class="drop-zone-text">↑ DROP FILE OR CLICK TO UPLOAD</span>
+      <span class="drop-zone-text" id="file-name">txt, log, csv, json, yaml</span>
+    </div>
+    <input type="file" id="file-input" accept=".txt,.log,.csv,.json,.yaml,.yml,.md">
+
+    <div class="process-bar">
+      <button class="btn btn-primary" id="process-btn" onclick="processText()">
+        PROCESS →
+      </button>
+      <div class="stat">
+        <span>LINES</span>
+        <span class="stat-value" id="line-count">0</span>
+      </div>
+      <div class="stat">
+        <span>CHARS</span>
+        <span class="stat-value" id="char-count">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel-right">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('human')">HUMAN</button>
+      <button class="tab" onclick="switchTab('machine')">MACHINE</button>
+      <button class="tab" onclick="switchTab('ai')">AI / LDM</button>
+    </div>
+
+    <!-- Human tab -->
+    <div class="tab-content active" id="tab-human">
+      <div class="empty-state" id="human-empty">
+        <div class="empty-icon">◈</div>
+        <div class="empty-text">AWAITING INPUT</div>
+      </div>
+      <div class="output-area" id="human-output" style="display:none"></div>
+    </div>
+
+    <!-- Machine tab -->
+    <div class="tab-content" id="tab-machine">
+      <div class="empty-state" id="machine-empty">
+        <div class="empty-icon">◈</div>
+        <div class="empty-text">AWAITING INPUT</div>
+      </div>
+      <div class="output-area json" id="machine-output" style="display:none"></div>
+      <div class="panel-header" id="machine-schema-bar" style="display:none; border-top: 1px solid var(--border);">
+        <span class="panel-title">SCHEMA</span>
+        <button class="copy-schema-btn" onclick="copySchema()">COPY JSON SCHEMA</button>
+      </div>
+    </div>
+
+    <!-- AI tab -->
+    <div class="tab-content" id="tab-ai">
+      <div class="empty-state" id="ai-empty">
+        <div class="empty-icon">◈</div>
+        <div class="empty-text">AWAITING INPUT</div>
+      </div>
+      <div class="output-area json" id="ai-output" style="display:none"></div>
+    </div>
+
+    <!-- Output footer -->
+    <div class="output-footer" id="output-footer" style="display:none">
+      <div class="stats-row">
+        <div class="stat">
+          <span>SEGMENTS</span>
+          <span class="stat-value" id="seg-count">—</span>
+        </div>
+        <div class="stat">
+          <span>QUALITY</span>
+          <span class="stat-value" id="quality-score">—</span>
+        </div>
+        <span class="validation-badge" id="validation-badge">—</span>
+      </div>
+      <div class="footer-actions">
+        <button class="btn" onclick="copyOutput()">COPY</button>
+        <button class="btn" onclick="downloadHuman()" id="download-btn">↓ TXT</button>
+      </div>
+    </div>
+
+    <!-- curl snippet -->
+    <div class="curl-section">
+      <div class="curl-header" onclick="toggleCurl()">
+        <span class="panel-title">CURL SNIPPET</span>
+        <span class="panel-title" id="curl-toggle">▶ SHOW</span>
+      </div>
+      <div class="curl-body" id="curl-body">
+        <div class="curl-code" id="curl-code">
+<span class="comment"># Stage 1 — ingest</span>
+<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">https://api.yourdomain.com/ingest</span> <span class="flag">\</span>
+  <span class="flag">-H</span> <span class="string">"X-API-Key: &lt;your-key&gt;"</span> <span class="flag">\</span>
+  <span class="flag">-H</span> <span class="string">"Content-Type: text/plain"</span> <span class="flag">\</span>
+  <span class="flag">--data-binary</span> <span class="string">@your-file.txt</span>
+
+<span class="comment"># Stage 2 — resolve</span>
+<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">https://api.yourdomain.com/resolve</span> <span class="flag">\</span>
+  <span class="flag">-H</span> <span class="string">"X-API-Key: &lt;your-key&gt;"</span> <span class="flag">\</span>
+  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\</span>
+  <span class="flag">-d</span> <span class="string">'{"session_id": "&lt;from-ingest&gt;"}'</span>
+
+<span class="comment"># Stage 3 — export</span>
+<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">https://api.yourdomain.com/export</span> <span class="flag">\</span>
+  <span class="flag">-H</span> <span class="string">"X-API-Key: &lt;your-key&gt;"</span> <span class="flag">\</span>
+  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\</span>
+  <span class="flag">-d</span> <span class="string">'{"session_id": "&lt;from-ingest&gt;", "format": "machine"}'</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Status bar -->
+<div class="status-bar">
+  <div class="status-item">
+    <div class="status-dot idle" id="status-dot"></div>
+    <span id="status-text">IDLE</span>
+  </div>
+  <div class="status-item" id="session-display" style="display:none">
+    SESSION <span style="color: var(--primary)" id="session-id-display">—</span>
+  </div>
+  <div class="status-item" id="time-display" style="display:none">
+    <span id="proc-time">—</span>ms
+  </div>
+</div>
+
+<script>
+const API_BASE = 'http://localhost:8000';
+let currentSessionId = null;
+let currentResult    = null;
+let currentHuman     = null;
+let currentMachine   = null;
+let currentAI        = null;
+let activeTab        = 'human';
+let curlOpen         = false;
+
+// Input stats
+const inputText = document.getElementById('input-text');
+inputText.addEventListener('input', updateInputStats);
+
+function updateInputStats() {
+  const text = inputText.value;
+  document.getElementById('line-count').textContent =
+    text ? text.split('\n').length : 0;
+  document.getElementById('char-count').textContent = text.length;
+}
+
+function clearInput() {
+  inputText.value = '';
+  updateInputStats();
+}
+
+function setInputMode(mode) {
+  document.getElementById('toggle-raw').classList.toggle('active', mode === 'raw');
+  document.getElementById('toggle-preview').classList.toggle('active', mode === 'preview');
+}
+
+// File upload
+const fileInput = document.getElementById('file-input');
+const dropZone  = document.getElementById('drop-zone');
+
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  readFile(file);
+});
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', () => {
+  dropZone.classList.remove('drag-over');
+});
+
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+
+function readFile(file) {
+  document.getElementById('file-name').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    inputText.value = e.target.result;
+    updateInputStats();
+  };
+  reader.readAsText(file);
+}
+
+// Tabs
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', ['human','machine','ai'][i] === tab);
+  });
+  document.querySelectorAll('.tab-content').forEach((c, i) => {
+    c.classList.toggle('active', ['human','machine','ai'][i] === tab);
+  });
+}
+
+// Process
+async function processText() {
+  const text   = inputText.value.trim();
+  const apiKey = document.getElementById('api-key').value.trim();
+
+  if (!text) return;
+
+  setStatus('processing', 'PROCESSING');
+  document.getElementById('process-btn').disabled = true;
+
+  showLoading();
+
+  const startTime = Date.now();
+
+  try {
+    // Stage 1 — ingest
+    const ingestRes = await fetch(`${API_BASE}/ingest`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key':    apiKey,
+      },
+      body: JSON.stringify({ payload: text }),
+    });
+
+    if (!ingestRes.ok) {
+      const err = await ingestRes.json();
+      throw new Error(err.detail || 'Ingest failed');
+    }
+
+    const ingest = await ingestRes.json();
+    currentSessionId = ingest.session_id;
+
+    document.getElementById('session-id-display').textContent =
+      currentSessionId.substring(0, 8) + '...';
+    document.getElementById('session-display').style.display = 'flex';
+
+    // Stage 2 — resolve
+    const resolveRes = await fetch(`${API_BASE}/resolve`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key':    apiKey,
+      },
+      body: JSON.stringify({ session_id: currentSessionId }),
+    });
+
+    if (!resolveRes.ok) {
+      const err = await resolveRes.json();
+      throw new Error(err.detail || 'Resolve failed');
+    }
+
+    const resolved = await resolveRes.json();
+    currentResult  = resolved.envelope;
+
+    const elapsed = Date.now() - startTime;
+    document.getElementById('proc-time').textContent = elapsed;
+    document.getElementById('time-display').style.display = 'flex';
+
+    // Stage 3 — export all three formats
+    await Promise.all([
+      exportFormat('human'),
+      exportFormat('machine'),
+      exportFormat('ai'),
+    ]);
+
+    updateStats(currentResult);
+    updateCurlSnippet(currentSessionId, apiKey);
+    setStatus('ready', 'READY');
+
+  } catch (err) {
+    showError(err.message);
+    setStatus('error', 'ERROR');
+  } finally {
+    document.getElementById('process-btn').disabled = false;
+  }
+}
+
+async function exportFormat(format) {
+  const apiKey = document.getElementById('api-key').value.trim();
+
+  const res = await fetch(`${API_BASE}/export`, {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key':    apiKey,
+    },
+    body: JSON.stringify({
+      session_id: currentSessionId,
+      format:     format,
+      include_confidence: true,
+    }),
+  });
+
+  if (!res.ok) return;
+
+  if (format === 'human') {
+    currentHuman = await res.text();
+    renderHuman(currentHuman);
+  } else if (format === 'machine') {
+    const data   = await res.json();
+    currentMachine = data.content;
+    renderMachine(currentMachine);
+  } else if (format === 'ai') {
+    const data = await res.json();
+    currentAI  = data.content;
+    renderAI(currentAI);
+  }
+}
+
+function renderHuman(text) {
+  document.getElementById('human-empty').style.display  = 'none';
+  const el = document.getElementById('human-output');
+  el.style.display = 'block';
+  el.textContent   = text;
+  document.getElementById('output-footer').style.display = 'flex';
+  document.getElementById('download-btn').style.display  = 'inline-block';
+}
+
+function renderMachine(data) {
+  document.getElementById('machine-empty').style.display = 'none';
+  const el = document.getElementById('machine-output');
+  el.style.display  = 'block';
+  el.innerHTML      = syntaxHighlight(JSON.stringify(data, null, 2));
+  document.getElementById('machine-schema-bar').style.display = 'flex';
+}
+
+function renderAI(data) {
+  document.getElementById('ai-empty').style.display = 'none';
+  const el = document.getElementById('ai-output');
+  el.style.display = 'block';
+  el.innerHTML     = syntaxHighlight(JSON.stringify(data, null, 2));
+}
+
+function showLoading() {
+  ['human','machine','ai'].forEach(t => {
+    document.getElementById(`${t}-empty`).innerHTML =
+      `<div class="loading"><div class="spinner"></div>PROCESSING...</div>`;
+    document.getElementById(`${t}-empty`).style.display = 'flex';
+    document.getElementById(`${t}-output`).style.display = 'none';
+  });
+  document.getElementById('output-footer').style.display = 'none';
+  document.getElementById('machine-schema-bar').style.display = 'none';
+}
+
+function showError(msg) {
+  ['human','machine','ai'].forEach(t => {
+    document.getElementById(`${t}-empty`).innerHTML =
+      `<div class="error-state">ERROR: ${msg}</div>`;
+    document.getElementById(`${t}-empty`).style.display = 'flex';
+  });
+}
+
+function updateStats(envelope) {
+  const validation = envelope?.payload?.validation;
+  const segments   = envelope?.payload?.machine_readable?.segments || [];
+
+  document.getElementById('seg-count').textContent = segments.length;
+
+  if (validation) {
+    const score = validation.quality_score;
+    document.getElementById('quality-score').textContent =
+      score !== undefined ? (score * 100).toFixed(0) + '%' : '—';
+
+    const badge = document.getElementById('validation-badge');
+    if (validation.is_valid) {
+      badge.textContent = '✓ VALID';
+      badge.className   = 'validation-badge valid';
+    } else {
+      badge.textContent = '✗ INVALID';
+      badge.className   = 'validation-badge invalid';
+    }
+  }
+}
+
+function updateCurlSnippet(sessionId, apiKey) {
+  document.getElementById('curl-code').innerHTML = `
+<span class="comment"># Stage 1 — ingest</span>
+<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">http://localhost:8000/ingest</span> <span class="flag">\\</span>
+  <span class="flag">-H</span> <span class="string">"X-API-Key: ${apiKey}"</span> <span class="flag">\\</span>
+  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\\</span>
+  <span class="flag">-d</span> <span class="string">'{"payload": "your text here"}'</span>
+
+<span class="comment"># → returns session_id: "${sessionId}"</span>
+
+<span class="comment"># Stage 2 — resolve</span>
+<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">http://localhost:8000/resolve</span> <span class="flag">\\</span>
+  <span class="flag">-H</span> <span class="string">"X-API-Key: ${apiKey}"</span> <span class="flag">\\</span>
+  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\\</span>
+  <span class="flag">-d</span> <span class="string">'{"session_id": "${sessionId}"}'</span>
+
+<span class="comment"># Stage 3 — export</span>
+<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">http://localhost:8000/export</span> <span class="flag">\\</span>
+  <span class="flag">-H</span> <span class="string">"X-API-Key: ${apiKey}"</span> <span class="flag">\\</span>
+  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\\</span>
+  <span class="flag">-d</span> <span class="string">'{"session_id": "${sessionId}", "format": "machine"}'</span>
+  `.trim();
+}
+
+// JSON syntax highlight
+function syntaxHighlight(json) {
+  return json
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      match => {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          cls = /:$/.test(match) ? 'json-key' : 'json-string';
+        } else if (/true|false/.test(match)) {
+          cls = 'json-bool';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
+        }
+        return `<span class="${cls}">${match}</span>`;
+      }
+    );
+}
+
+// Actions
+function copyOutput() {
+  let text = '';
+  if (activeTab === 'human' && currentHuman) text = currentHuman;
+  else if (activeTab === 'machine' && currentMachine)
+    text = JSON.stringify(currentMachine, null, 2);
+  else if (activeTab === 'ai' && currentAI)
+    text = JSON.stringify(currentAI, null, 2);
+  if (text) navigator.clipboard.writeText(text);
+}
+
+function copySchema() {
+  if (!currentMachine) return;
+  const schema = currentMachine.map(seg => ({
+    segment_id:    'string',
+    type:          seg.type,
+    content:       Object.fromEntries(
+      Object.entries(seg.content || {}).map(([k, v]) => [k, typeof v])
+    ),
+    confidence:    'number',
+    flags:         'string[]',
+    section_label: 'string|null',
+    source_span:   'object|null',
+  }));
+  navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
+}
+
+function downloadHuman() {
+  if (!currentHuman) return;
+  const blob = new Blob([currentHuman], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `session_${currentSessionId || 'output'}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function toggleCurl() {
+  curlOpen = !curlOpen;
+  document.getElementById('curl-body').classList.toggle('open', curlOpen);
+  document.getElementById('curl-toggle').textContent =
+    curlOpen ? '▼ HIDE' : '▶ SHOW';
+}
+
+// Status
+function setStatus(state, text) {
+  const dot  = document.getElementById('status-dot');
+  const label = document.getElementById('status-text');
+  dot.className  = `status-dot ${state === 'processing' ? '' : state === 'error' ? 'error' : 'idle'}`;
+  label.textContent = text;
+  if (state === 'ready') {
+    dot.style.background = 'var(--primary)';
+    dot.className = 'status-dot';
+  }
+}
+
+// Init
+updateInputStats();
+</script>
+</body>
+</html>

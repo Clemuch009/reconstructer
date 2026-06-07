@@ -7,6 +7,8 @@ from api.routes.health  import router as health_router
 from api.routes.process import router as process_router
 from api.routes.document import router as document_router
 from api.routes.ingest import router as ingest_router
+from fastapi.responses import FileResponse
+import os
 
 # ---------------------------------
 # App
@@ -49,6 +51,18 @@ app.include_router(ingest_router, tags=["Pipeline"])
 # ---------------------------------
 # Startup
 # ---------------------------------
+
+
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
+
+@app.get("/console", include_in_schema=False)
+async def developer_console():
+    return FileResponse(os.path.join(FRONTEND_DIR, "console.html"))
+
+@app.get("/observer", include_in_schema=False)
+async def enterprise_observer():
+    return FileResponse(os.path.join(FRONTEND_DIR, "observer.html"))
+
 
 @app.on_event("startup")
 async def startup() -> None:

@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRE — Enterprise Observer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0a0a0a;
+    --surface:   #111111;
+    --surface2:  #181818;
+    --border:    #1c1c1c;
+    --border2:   #242424;
+    --text:      #e0e0e0;
+    --text-dim:  #666;
+    --text-muted:#333;
+    --primary:   #00ff88;
+    --primary-dim:#00ff8815;
+    --blue:      #3b82f6;
+    --green:     #22c55e;
+    --purple:    #a855f7;
+    --orange:    #f97316;
+    --yellow:    #eab308;
+    --grey:      #6b7280;
+    --red:       #ef4444;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+
+    /* Segment type colors */
+    --c-prose:     #6b7280;
+    --c-table:     #3b82f6;
+    --c-kv:        #22c55e;
+    --c-hierarchy: #a855f7;
+    --c-context:   #f97316;
+    --c-mixed:     #eab308;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Grid noise background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Header */
+  header {
+    position: relative;
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+    letter-spacing: 0.12em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-sep {
+    color: var(--text-muted);
+  }
+
+  .logo-sub {
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+
+  .header-center {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .session-info {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .session-id {
+    color: var(--primary);
+    font-weight: 500;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .api-input {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    width: 160px;
+    outline: none;
+  }
+
+  .api-input:focus { border-color: var(--primary); }
+  .api-input::placeholder { color: var(--text-muted); }
+
+  /* Layout */
+  .layout {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 300px 1fr 260px;
+    grid-template-rows: calc(100vh - 52px - 28px);
+    gap: 0;
+  }
+
+  /* Panels */
+  .panel {
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel:last-child { border-right: none; }
+
+  .panel-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .panel-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  /* Input panel */
+  .input-textarea {
+    width: 100%;
+    height: 180px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    padding: 12px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .input-textarea:focus { border-color: var(--primary); }
+  .input-textarea::placeholder { color: var(--text-muted); }
+
+  .upload-area {
+    margin-top: 10px;
+    border: 1px dashed var(--border2);
+    border-radius: 3px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .upload-area:hover {
+    border-color: var(--primary);
+    background: var(--primary-dim);
+  }
+
+  .upload-text {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  #obs-file-input { display: none; }
+
+  .input-meta {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .meta-field {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    padding: 8px 10px;
+  }
+
+  .meta-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .meta-value {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--primary);
+    font-weight: 500;
+  }
+
+  .btn-row {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 6px 14px;
+    border-radius: 3px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.06em;
+  }
+
+  .btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .btn-run {
+    flex: 1;
+    background: var(--primary);
+    color: #000;
+    border-color: var(--primary);
+    font-weight: 600;
+  }
+
+  .btn-run:hover {
+    background: #00cc6e;
+    border-color: #00cc6e;
+  }
+
+  .btn-run:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-replay {
+    background: transparent;
+    color: var(--text-dim);
+  }
+
+  /* Middle panel — segment map */
+  .segment-map-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  .segment-map-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+
+  .segment-flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+
+  .seg-block {
+    height: 32px;
+    min-width: 40px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    position: relative;
+    padding: 0 8px;
+  }
+
+  .seg-block:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.2);
+  }
+
+  .seg-block.selected {
+    border-color: white;
+    transform: translateY(-2px);
+  }
+
+  .seg-block[data-type="prose"]     { background: rgba(107,114,128,0.2); color: var(--c-prose); border-color: rgba(107,114,128,0.3); }
+  .seg-block[data-type="table"]     { background: rgba(59,130,246,0.2);  color: var(--c-table); border-color: rgba(59,130,246,0.3); }
+  .seg-block[data-type="kv_block"]  { background: rgba(34,197,94,0.2);   color: var(--c-kv);    border-color: rgba(34,197,94,0.3); }
+  .seg-block[data-type="hierarchy"] { background: rgba(168,85,247,0.2);  color: var(--c-hierarchy); border-color: rgba(168,85,247,0.3); }
+  .seg-block[data-type="context"]   { background: rgba(249,115,22,0.2);  color: var(--c-context); border-color: rgba(249,115,22,0.3); }
+  .seg-block[data-type="mixed"]     { background: rgba(234,179,8,0.2);   color: var(--c-mixed); border-color: rgba(234,179,8,0.3); }
+
+  /* Segment detail */
+  .seg-detail {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .seg-detail-head {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .seg-type-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-weight: 600;
+  }
+
+  .seg-detail-body {
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .detail-section {
+    margin-bottom: 12px;
+  }
+
+  .detail-section-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .detail-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .detail-key {
+    color: var(--text-dim);
+    min-width: 140px;
+  }
+
+  .detail-val {
+    color: var(--text);
+  }
+
+  .detail-val.primary { color: var(--primary); }
+  .detail-val.blue    { color: var(--blue); }
+  .detail-val.orange  { color: var(--orange); }
+
+  .raw-lines {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    padding: 8px 10px;
+    font-size: 10px;
+    color: var(--text-dim);
+    max-height: 80px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  /* Download bar */
+  .download-bar {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .download-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-right: 4px;
+  }
+
+  /* Stats panel */
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+
+  .stat-card-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .stat-big {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--primary);
+    line-height: 1;
+  }
+
+  .stat-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .type-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .type-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .type-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    width: 80px;
+    flex-shrink: 0;
+  }
+
+  .type-bar-wrap {
+    flex: 1;
+    height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .type-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  .type-count {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    width: 20px;
+    text-align: right;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .metric-cell {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    padding: 8px 10px;
+  }
+
+  .metric-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .metric-value {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .metric-value.good  { color: var(--green); }
+  .metric-value.warn  { color: var(--yellow); }
+  .metric-value.bad   { color: var(--red); }
+
+  /* Session trace */
+  .trace-section {
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .trace-head {
+    padding: 8px 12px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .trace-head:hover .panel-label {
+    color: var(--primary);
+  }
+
+  .trace-body {
+    padding: 10px 12px;
+    display: none;
+  }
+
+  .trace-body.open { display: block; }
+
+  .trace-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 5px;
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+
+  .trace-key {
+    color: var(--text-muted);
+    min-width: 130px;
+    flex-shrink: 0;
+  }
+
+  .trace-val { color: var(--text-dim); }
+  .trace-val.accent { color: var(--primary); }
+
+  /* Rule triggers */
+  .rule-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .rule-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 8px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 2px;
+  }
+
+  .rule-name { color: var(--orange); }
+  .rule-count {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  /* Empty state */
+  .empty-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-muted);
+    padding: 20px;
+    text-align: center;
+  }
+
+  .empty-glyph {
+    font-size: 28px;
+    opacity: 0.2;
+  }
+
+  .empty-msg {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  /* Loading */
+  .spinner {
+    width: 12px; height: 12px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Status bar */
+  .status-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 28px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 24px;
+    z-index: 50;
+  }
+
+  .status-item {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  .status-dot.live  { background: var(--primary); animation: pulse 2s infinite; }
+  .status-dot.error { background: var(--red); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    TRE
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">ENTERPRISE OBSERVER</span>
+  </div>
+  <div class="header-center">
+    <div class="session-info" id="session-info" style="display:none">
+      SESSION <span class="session-id" id="session-id-disp">—</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <input type="text" class="api-input" id="obs-api-key"
+      placeholder="X-API-Key" value="test-key">
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- PANEL 1 — Input -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-label">INPUT</span>
+      <span class="panel-label" id="input-status">READY</span>
+    </div>
+    <div class="panel-body">
+
+      <textarea class="input-textarea" id="obs-input"
+        placeholder="Paste logs, configs, mixed data..."></textarea>
+
+      <div class="upload-area" onclick="document.getElementById('obs-file-input').click()">
+        <span class="upload-text">↑ UPLOAD FILE</span>
+        <span class="upload-text" id="obs-file-name">txt / log / csv</span>
+      </div>
+      <input type="file" id="obs-file-input" accept=".txt,.log,.csv,.json,.yaml,.yml">
+
+      <div class="input-meta">
+        <div class="meta-field">
+          <span class="meta-label">LINES</span>
+          <span class="meta-value" id="obs-lines">0</span>
+        </div>
+        <div class="meta-field">
+          <span class="meta-label">CHARS</span>
+          <span class="meta-value" id="obs-chars">0</span>
+        </div>
+        <div class="meta-field">
+          <span class="meta-label">SESSION</span>
+          <span class="meta-value" id="obs-session-short" style="font-size:10px">—</span>
+        </div>
+        <div class="meta-field">
+          <span class="meta-label">STATUS</span>
+          <span class="meta-value" id="obs-pipeline-status" style="font-size:10px">IDLE</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-run" id="obs-run-btn" onclick="runPipeline()">
+          RUN PIPELINE →
+        </button>
+        <button class="btn btn-replay" onclick="replayLast()" title="Re-run last session">
+          ↺ REPLAY
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PANEL 2 — Segment Map -->
+  <div class="panel" style="border-right: 1px solid var(--border);">
+    <div class="panel-head">
+      <span class="panel-label">SEGMENT MAP</span>
+      <span class="panel-label" id="seg-count-label">0 SEGMENTS</span>
+    </div>
+
+    <div class="segment-map-area" id="segment-map-area">
+      <div class="empty-center" id="map-empty">
+        <div class="empty-glyph">◈</div>
+        <div class="empty-msg">RUN PIPELINE TO SEE<br>SEGMENT STRUCTURE</div>
+      </div>
+
+      <div id="map-content" style="display:none">
+        <div class="segment-map-label">DOCUMENT FLOW →</div>
+        <div class="segment-flow" id="segment-flow"></div>
+        <div class="seg-detail" id="seg-detail" style="display:none">
+          <div class="seg-detail-head">
+            <span class="seg-type-badge" id="detail-type-badge">—</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--text-muted)"
+              id="detail-seg-id">—</span>
+          </div>
+          <div class="seg-detail-body" id="detail-body"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--c-prose)"></div>PROSE
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--c-table)"></div>TABLE
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--c-kv)"></div>KV
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--c-hierarchy)"></div>HIERARCHY
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--c-context)"></div>CONTEXT
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--c-mixed)"></div>MIXED
+      </div>
+    </div>
+
+    <div class="download-bar">
+      <span class="download-label">EXPORT</span>
+      <button class="btn" onclick="downloadExport('human')">↓ HUMAN</button>
+      <button class="btn" onclick="downloadExport('machine')">↓ MACHINE</button>
+      <button class="btn" onclick="downloadExport('ai')">↓ AI LDM</button>
+    </div>
+  </div>
+
+  <!-- PANEL 3 — Stats -->
+  <div class="panel" style="border-right:none">
+    <div class="panel-head">
+      <span class="panel-label">TELEMETRY</span>
+    </div>
+    <div class="panel-body" id="stats-panel">
+
+      <div class="empty-center" id="stats-empty">
+        <div class="empty-glyph">◉</div>
+        <div class="empty-msg">AWAITING<br>PIPELINE RUN</div>
+      </div>
+
+      <div id="stats-content" style="display:none">
+
+        <!-- Validation -->
+        <div class="stat-card">
+          <span class="stat-card-label">QUALITY SCORE</span>
+          <div class="stat-big" id="st-quality">—</div>
+          <div class="stat-sub" id="st-valid-label">—</div>
+        </div>
+
+        <!-- Segment count -->
+        <div class="metrics-grid">
+          <div class="metric-cell">
+            <span class="metric-label">SEGMENTS</span>
+            <span class="metric-value" id="st-segments">—</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-label">PROC TIME</span>
+            <span class="metric-value" id="st-time">—</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-label">CONFLICT RATE</span>
+            <span class="metric-value" id="st-conflict">—</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-label">DISAGREEMENT</span>
+            <span class="metric-value" id="st-disagree">—</span>
+          </div>
+        </div>
+
+        <!-- Type breakdown -->
+        <div class="stat-card">
+          <span class="stat-card-label">TYPE BREAKDOWN</span>
+          <div class="type-breakdown" id="type-breakdown"></div>
+        </div>
+
+        <!-- Rule triggers -->
+        <div class="stat-card" id="rule-card" style="display:none">
+          <span class="stat-card-label">RULE TRIGGERS</span>
+          <div class="rule-list" id="rule-list"></div>
+        </div>
+
+        <!-- Session trace (collapsible) -->
+        <div class="trace-section">
+          <div class="trace-head" onclick="toggleTrace()">
+            <span class="panel-label">SESSION TRACE</span>
+            <span class="panel-label" id="trace-toggle">▶</span>
+          </div>
+          <div class="trace-body" id="trace-body">
+            <div class="trace-row">
+              <span class="trace-key">session_id</span>
+              <span class="trace-val accent" id="tr-session">—</span>
+            </div>
+            <div class="trace-row">
+              <span class="trace-key">pipeline_version</span>
+              <span class="trace-val" id="tr-version">—</span>
+            </div>
+            <div class="trace-row">
+              <span class="trace-key">timestamp</span>
+              <span class="trace-val" id="tr-timestamp">—</span>
+            </div>
+            <div class="trace-row">
+              <span class="trace-key">raw_line_count</span>
+              <span class="trace-val" id="tr-lines">—</span>
+            </div>
+            <div class="trace-row">
+              <span class="trace-key">segment_count</span>
+              <span class="trace-val" id="tr-segs">—</span>
+            </div>
+            <div class="trace-row">
+              <span class="trace-key">valid_segments</span>
+              <span class="trace-val" id="tr-valid">—</span>
+            </div>
+            <div class="trace-row">
+              <span class="trace-key">conflicted_segments</span>
+              <span class="trace-val" id="tr-conflicted">—</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Status bar -->
+<div class="status-bar">
+  <div class="status-item">
+    <div class="status-dot" id="obs-status-dot"></div>
+    <span id="obs-status-text">IDLE</span>
+  </div>
+  <div class="status-item" id="obs-session-bar" style="display:none">
+    SESSION <span style="color:var(--primary)" id="obs-session-label">—</span>
+  </div>
+  <div class="status-item" id="obs-anomaly-bar" style="display:none">
+    ANOMALIES <span style="color:var(--red)" id="obs-anomaly-count">0</span>
+  </div>
+</div>
+
+<script>
+const API_BASE    = 'http://localhost:8000';
+let lastSessionId = null;
+let lastEnvelope  = null;
+let traceOpen     = false;
+let startTime     = null;
+
+// Input tracking
+const obsInput = document.getElementById('obs-input');
+obsInput.addEventListener('input', updateInputMeta);
+
+function updateInputMeta() {
+  const t = obsInput.value;
+  document.getElementById('obs-lines').textContent =
+    t ? t.split('\n').length : 0;
+  document.getElementById('obs-chars').textContent = t.length;
+}
+
+// File upload
+document.getElementById('obs-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('obs-file-name').textContent = file.name;
+  new FileReader().onload = ev => {
+    obsInput.value = ev.target.result;
+    updateInputMeta();
+  };
+  document.getElementById('obs-file-input').onload = null;
+  const r = new FileReader();
+  r.onload = ev => {
+    obsInput.value = ev.target.result;
+    updateInputMeta();
+  };
+  r.readAsText(file);
+});
+
+// Run pipeline
+async function runPipeline() {
+  const text   = obsInput.value.trim();
+  const apiKey = document.getElementById('obs-api-key').value.trim();
+  if (!text) return;
+
+  setStatus('processing', 'PROCESSING');
+  document.getElementById('obs-run-btn').disabled = true;
+  document.getElementById('obs-pipeline-status').textContent = 'RUNNING';
+  startTime = Date.now();
+
+  try {
+    // Ingest
+    const ingestRes = await fetch(`${API_BASE}/ingest`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key':    apiKey,
+      },
+      body: JSON.stringify({ payload: text }),
+    });
+
+    if (!ingestRes.ok) throw new Error('Ingest failed');
+    const ingest  = await ingestRes.json();
+    lastSessionId = ingest.session_id;
+
+    updateSessionDisplay(lastSessionId);
+
+    // Resolve
+    const resolveRes = await fetch(`${API_BASE}/resolve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key':    apiKey,
+      },
+      body: JSON.stringify({ session_id: lastSessionId }),
+    });
+
+    if (!resolveRes.ok) throw new Error('Resolve failed');
+    const resolved = await resolveRes.json();
+    lastEnvelope   = resolved.envelope;
+
+    const elapsed = Date.now() - startTime;
+
+    renderSegmentMap(lastEnvelope);
+    renderStats(lastEnvelope, elapsed);
+    setStatus('live', 'LIVE');
+    document.getElementById('obs-pipeline-status').textContent = 'COMPLETE';
+
+  } catch (err) {
+    setStatus('error', 'ERROR: ' + err.message);
+    document.getElementById('obs-pipeline-status').textContent = 'ERROR';
+  } finally {
+    document.getElementById('obs-run-btn').disabled = false;
+  }
+}
+
+function replayLast() {
+  if (!lastEnvelope) return;
+  runPipeline();
+}
+
+function updateSessionDisplay(id) {
+  const short = id.substring(0, 8);
+  document.getElementById('session-info').style.display = 'flex';
+  document.getElementById('session-id-disp').textContent = short + '...';
+  document.getElementById('obs-session-short').textContent = short;
+  document.getElementById('obs-session-bar').style.display = 'flex';
+  document.getElementById('obs-session-label').textContent = short;
+}
+
+// Segment map
+const TYPE_LABELS = {
+  prose:     'PROSE',
+  table:     'TABLE',
+  kv_block:  'KV',
+  hierarchy: 'HIER',
+  context:   'CTX',
+  mixed:     'MIX',
+};
+
+function renderSegmentMap(envelope) {
+  const segments = envelope?.payload?.machine_readable?.segments || [];
+  document.getElementById('map-empty').style.display    = 'none';
+  document.getElementById('map-content').style.display  = 'block';
+  document.getElementById('seg-count-label').textContent =
+    `${segments.length} SEGMENTS`;
+
+  const flow = document.getElementById('segment-flow');
+  flow.innerHTML = '';
+
+  segments.forEach((seg, idx) => {
+    const block = document.createElement('div');
+    block.className = 'seg-block';
+    block.dataset.type  = seg.type;
+    block.dataset.index = idx;
+    block.textContent   = TYPE_LABELS[seg.type] || seg.type.toUpperCase();
+    block.title         = `${seg.type} — ${seg.segment_id}`;
+    block.onclick       = () => showSegmentDetail(seg, block);
+    flow.appendChild(block);
+  });
+}
+
+function showSegmentDetail(seg, blockEl) {
+  // Deselect all
+  document.querySelectorAll('.seg-block').forEach(b =>
+    b.classList.remove('selected')
+  );
+  blockEl.classList.add('selected');
+
+  const detail = document.getElementById('seg-detail');
+  detail.style.display = 'block';
+
+  // Type badge
+  const badge = document.getElementById('detail-type-badge');
+  badge.textContent   = seg.type.toUpperCase();
+  badge.style.background =
+    `rgba(${typeRGB(seg.type)}, 0.15)`;
+  badge.style.color       = typeColor(seg.type);
+  badge.style.borderColor = typeColor(seg.type);
+  badge.style.border      = `1px solid ${typeColor(seg.type)}`;
+
+  document.getElementById('detail-seg-id').textContent =
+    seg.segment_id.substring(0, 12) + '...';
+
+  const body = document.getElementById('detail-body');
+  body.innerHTML = '';
+
+  // Pre-classifier route
+  const stats = seg.metadata?.classification_stats || {};
+  addDetailSection(body, 'CLASSIFICATION', [
+    ['dominant_source',  stats.dominant_source || '—',    'orange'],
+    ['confidence',       formatConf(seg.metadata?.confidence), 'primary'],
+    ['type_entropy',     stats.type_entropy?.toFixed(4) || '—', ''],
+    ['block_count',      stats.block_count ?? '—',         ''],
+  ]);
+
+  // Flags
+  const flags = seg.metadata?.flags || [];
+  if (flags.length) {
+    addDetailSection(body, 'FLAGS', flags.map(f => [f, '', '']));
+  }
+
+  // Raw lines preview
+  const rawLines = getRawLines(seg);
+  if (rawLines) {
+    const sec = document.createElement('div');
+    sec.className = 'detail-section';
+    const lbl = document.createElement('span');
+    lbl.className   = 'detail-section-label';
+    lbl.textContent = 'RAW CONTENT';
+    const pre = document.createElement('div');
+    pre.className   = 'raw-lines';
+    pre.textContent = rawLines.substring(0, 300) +
+      (rawLines.length > 300 ? '...' : '');
+    sec.appendChild(lbl);
+    sec.appendChild(pre);
+    body.appendChild(sec);
+  }
+}
+
+function addDetailSection(parent, label, rows) {
+  const sec = document.createElement('div');
+  sec.className = 'detail-section';
+
+  const lbl = document.createElement('span');
+  lbl.className   = 'detail-section-label';
+  lbl.textContent = label;
+  sec.appendChild(lbl);
+
+  rows.forEach(([key, val, cls]) => {
+    if (!key) return;
+    const row = document.createElement('div');
+    row.className = 'detail-row';
+    const k = document.createElement('span');
+    k.className   = 'detail-key';
+    k.textContent = key;
+    const v = document.createElement('span');
+    v.className   = `detail-val ${cls || ''}`;
+    v.textContent = val || '—';
+    row.appendChild(k);
+    row.appendChild(v);
+    sec.appendChild(row);
+  });
+
+  parent.appendChild(sec);
+}
+
+function getRawLines(seg) {
+  const c = seg.content;
+  if (!c) return null;
+  if (c.text) return c.text;
+  if (c.lines) return c.lines.join('\n');
+  if (c.raw_lines) return c.raw_lines.join('\n');
+  if (c.rows) return JSON.stringify(c.rows.slice(0, 3));
+  if (c.nodes) return c.nodes.map(n =>
+    '  '.repeat(n.depth) + (n.text || n.normalized_text || '')
+  ).join('\n');
+  return null;
+}
+
+function typeColor(type) {
+  const map = {
+    prose:     'var(--c-prose)',
+    table:     'var(--c-table)',
+    kv_block:  'var(--c-kv)',
+    hierarchy: 'var(--c-hierarchy)',
+    context:   'var(--c-context)',
+    mixed:     'var(--c-mixed)',
+  };
+  return map[type] || 'var(--text-dim)';
+}
+
+function typeRGB(type) {
+  const map = {
+    prose:     '107,114,128',
+    table:     '59,130,246',
+    kv_block:  '34,197,94',
+    hierarchy: '168,85,247',
+    context:   '249,115,22',
+    mixed:     '234,179,8',
+  };
+  return map[type] || '102,102,102';
+}
+
+// Stats
+function renderStats(envelope, elapsed) {
+  document.getElementById('stats-empty').style.display   = 'none';
+  document.getElementById('stats-content').style.display = 'block';
+
+  const validation = envelope?.payload?.validation;
+  const segments   = envelope?.payload?.machine_readable?.segments || [];
+  const trace      = envelope?.session_trace;
+  const telemetry  = trace?.telemetry;
+
+  // Quality score
+  const score = validation?.quality_score ?? 0;
+  document.getElementById('st-quality').textContent =
+    (score * 100).toFixed(0) + '%';
+  document.getElementById('st-valid-label').textContent =
+    validation?.is_valid ? '✓ VALID' : '✗ INVALID';
+  document.getElementById('st-quality').className =
+    'stat-big ' + (score >= 0.8 ? '' : score >= 0.5 ? 'warn' : 'bad');
+
+  // Metrics
+  document.getElementById('st-segments').textContent = segments.length;
+  document.getElementById('st-time').textContent     = elapsed + 'ms';
+
+  const cr = telemetry?.conflict_rate ?? 0;
+  const dr = telemetry?.classifier_disagreement_rate ?? 0;
+
+  const crEl = document.getElementById('st-conflict');
+  crEl.textContent = (cr * 100).toFixed(1) + '%';
+  crEl.className   = 'metric-value ' +
+    (cr < 0.1 ? 'good' : cr < 0.3 ? 'warn' : 'bad');
+
+  const drEl = document.getElementById('st-disagree');
+  drEl.textContent = (dr * 100).toFixed(1) + '%';
+  drEl.className   = 'metric-value ' +
+    (dr < 0.1 ? 'good' : dr < 0.3 ? 'warn' : 'bad');
+
+  // Type breakdown
+  const counts = {};
+  segments.forEach(s => { counts[s.type] = (counts[s.type] || 0) + 1; });
+  const breakdown = document.getElementById('type-breakdown');
+  breakdown.innerHTML = '';
+  const total = segments.length || 1;
+  Object.entries(counts).sort((a,b) => b[1]-a[1]).forEach(([type, cnt]) => {
+    const row = document.createElement('div');
+    row.className = 'type-row';
+    row.innerHTML = `
+      <span class="type-label">${TYPE_LABELS[type] || type}</span>
+      <div class="type-bar-wrap">
+        <div class="type-bar"
+          style="width:${(cnt/total*100).toFixed(0)}%;
+                 background:${typeColor(type)}"></div>
+      </div>
+      <span class="type-count">${cnt}</span>
+    `;
+    breakdown.appendChild(row);
+  });
+
+  // Rule triggers
+  const rules = telemetry?.rule_trigger_counts || {};
+  const ruleEntries = Object.entries(rules).filter(([,v]) => v > 0);
+  if (ruleEntries.length) {
+    document.getElementById('rule-card').style.display = 'block';
+    const ruleList = document.getElementById('rule-list');
+    ruleList.innerHTML = '';
+    ruleEntries.sort((a,b) => b[1]-a[1]).forEach(([rule, count]) => {
+      const item = document.createElement('div');
+      item.className = 'rule-item';
+      item.innerHTML = `
+        <span class="rule-name">${rule}</span>
+        <span class="rule-count">${count}</span>
+      `;
+      ruleList.appendChild(item);
+    });
+  }
+
+  // Session trace
+  if (trace) {
+    document.getElementById('tr-session').textContent    = trace.session_id || '—';
+    document.getElementById('tr-version').textContent    = trace.pipeline_version || '—';
+    document.getElementById('tr-timestamp').textContent  =
+      trace.timestamp ? trace.timestamp.replace('T',' ').split('.')[0] : '—';
+    document.getElementById('tr-lines').textContent      = trace.raw_line_count ?? '—';
+    document.getElementById('tr-segs').textContent       = trace.segment_count ?? '—';
+    document.getElementById('tr-valid').textContent      = telemetry?.valid_segments ?? '—';
+    document.getElementById('tr-conflicted').textContent = telemetry?.conflicted_segments ?? '—';
+  }
+
+  // Anomaly count in status bar
+  const anomalies = validation?.anomalies?.length || 0;
+  if (anomalies > 0) {
+    document.getElementById('obs-anomaly-bar').style.display = 'flex';
+    document.getElementById('obs-anomaly-count').textContent = anomalies;
+  }
+}
+
+// Downloads
+async function downloadExport(format) {
+  if (!lastSessionId) return;
+  const apiKey = document.getElementById('obs-api-key').value.trim();
+
+  const res = await fetch(`${API_BASE}/export`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key':    apiKey,
+    },
+    body: JSON.stringify({
+      session_id:         lastSessionId,
+      format:             format,
+      include_confidence: true,
+    }),
+  });
+
+  if (!res.ok) return;
+
+  let blob, filename;
+  if (format === 'human') {
+    const text = await res.text();
+    blob       = new Blob([text], { type: 'text/plain' });
+    filename   = `session_${lastSessionId}.txt`;
+  } else {
+    const data = await res.json();
+    blob       = new Blob(
+      [JSON.stringify(data.content, null, 2)],
+      { type: 'application/json' }
+    );
+    filename = `session_${lastSessionId}_${format}.json`;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href    = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Helpers
+function formatConf(v) {
+  if (v === undefined || v === null) return '—';
+  return (v * 100).toFixed(0) + '%';
+}
+
+function toggleTrace() {
+  traceOpen = !traceOpen;
+  document.getElementById('trace-body').classList.toggle('open', traceOpen);
+  document.getElementById('trace-toggle').textContent = traceOpen ? '▼' : '▶';
+}
+
+function setStatus(state, text) {
+  const dot   = document.getElementById('obs-status-dot');
+  const label = document.getElementById('obs-status-text');
+  dot.className   = 'status-dot ' + state;
+  label.textContent = text;
+}
+
+// Init
+updateInputMeta();
+</script>
+</body>
+</html>
