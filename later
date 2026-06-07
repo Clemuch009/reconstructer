@@ -1,0 +1,5 @@
+config.py      — centralize thresholds (post-launch)
+resolver       — signal arbitration layer (post-launch)
+Python SDK     — client wrapper (when first integrations start)
+Storage layer  — PostgreSQL/ES (when customer needs it)
+Auth           — real API key store (before public launch)

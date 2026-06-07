@@ -1,61 +1,37 @@
-# api/coc.py
+# api/coc.py  — updated
 
 import hashlib
-import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from typing_extensions import TypedDict
 
 from postprocess.formatter import PostprocessOutput
+from api.session import SessionTrace
 
-
-# ---------------------------------
-# COC version
-# ---------------------------------
 
 COC_VERSION = "1.0"
 
 
-# ---------------------------------
-# COC envelope contract
-# ---------------------------------
-
 class COCEnvelope(TypedDict):
-    version:    str           # schema version — consumers check this
-    event_type: str           # always "document.resolved"
-    source_id:  str           # deterministic hash of input text
-    timestamp:  str           # ISO-8601 UTC
-    payload:    PostprocessOutput
+    version:       str
+    event_type:    str
+    source_id:     str
+    timestamp:     str
+    payload:       PostprocessOutput
+    session_trace: SessionTrace        # ← new
 
-
-# ---------------------------------
-# Source ID — deterministic
-# ---------------------------------
 
 def _source_id(text: str) -> str:
-    """
-    Deterministic source ID from input text.
-    Same input always produces same ID — enables deduplication.
-    """
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
-# ---------------------------------
-# COC builder
-# ---------------------------------
-
 def build_coc(
-    text:    str,
-    output:  PostprocessOutput,
+    text:          str,
+    output:        PostprocessOutput,
+    session_trace: SessionTrace,
 ) -> COCEnvelope:
     """
-    Wrap PostprocessOutput in a versioned COC envelope.
-
-    Rules:
-    - Core Engine output is never modified
-    - source_id is deterministic from input text
-    - timestamp is UTC at envelope creation time
-    - version allows downstream consumers to detect schema changes
+    Wrap PostprocessOutput + SessionTrace in versioned COC envelope.
     """
     return COCEnvelope(
         version=COC_VERSION,
@@ -63,21 +39,17 @@ def build_coc(
         source_id=_source_id(text),
         timestamp=datetime.now(timezone.utc).isoformat(),
         payload=output,
+        session_trace=session_trace,
     )
 
 
-# ---------------------------------
-# COC validation
-# ---------------------------------
-
 def validate_coc(envelope: COCEnvelope) -> bool:
-    """
-    Verify COC envelope has all required fields and known version.
-    Returns False if envelope is malformed or version is unsupported.
-    """
     if not isinstance(envelope, dict):
         return False
-    required = {"version", "event_type", "source_id", "timestamp", "payload"}
+    required = {
+        "version", "event_type", "source_id",
+        "timestamp", "payload", "session_trace"
+    }
     if not required.issubset(envelope.keys()):
         return False
     if envelope["version"] != COC_VERSION:

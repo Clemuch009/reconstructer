@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes.health  import router as health_router
 from api.routes.process import router as process_router
 from api.routes.document import router as document_router
-
+from api.routes.ingest import router as ingest_router
 
 # ---------------------------------
 # App
@@ -44,6 +44,7 @@ app.add_middleware(
 app.include_router(health_router,  tags=["Health"])
 app.include_router(process_router, tags=["Processing"])
 app.include_router(document_router, tags=["Documents"])
+app.include_router(ingest_router, tags=["Pipeline"])
 
 # ---------------------------------
 # Startup

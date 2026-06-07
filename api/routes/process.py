@@ -41,12 +41,22 @@ async def _process(
     text:   str,
     engine: TextReconstructionEngine,
 ) -> COCEnvelope:
+    """
+    Run engine, build session trace, wrap in COC envelope.
+    """
     validated = validate_input_text(text)
 
+    # Run CPU-bound engine in thread pool
     loop   = asyncio.get_event_loop()
     output = await loop.run_in_executor(None, engine.run, validated)
 
-    envelope = build_coc(validated, output)
+    # Build session trace
+    from api.session import build_session_trace
+    raw_line_count = len(validated.split("\n"))
+    session_trace  = build_session_trace(output, raw_line_count)
+
+    # Build COC with session trace
+    envelope = build_coc(validated, output, session_trace)
 
     # Store in document cache
     from api.routes.document import store_coc
