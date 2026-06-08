@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feedback — Qrynt</title>
+<link rel="icon" type="image/png" href="/assets/QryNt.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f8f7f4;
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+  }
+  nav {
+    background: rgba(248,247,244,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid #e8e5df;
+    padding: 0 48px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+  .nav-logo img { height: 26px; }
+  .nav-logo-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    color: #1a1814;
+  }
+  .back-link {
+    font-size: 14px;
+    color: #6b6760;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #1a1814; }
+  .container {
+    max-width: 700px;
+    margin: 60px auto;
+    padding: 0 24px;
+  }
+  h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 24px;
+    color: #1a1814;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .sub {
+    font-size: 15px;
+    color: #6b6760;
+    font-weight: 300;
+    margin-bottom: 40px;
+    line-height: 1.6;
+  }
+  .form-wrap {
+    background: #fff;
+    border: 1px solid #e8e5df;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  iframe {
+    display: block;
+    width: 100%;
+    border: none;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    <span class="nav-logo-text">Qrynt</span>
+  </a>
+  <a href="/" class="back-link">← Back</a>
+</nav>
+
+<div class="container">
+  <h1>Share feedback</h1>
+  <p class="sub">
+    Tell us what you are building, what works, and what does not.
+    Every response is read personally.
+  </p>
+  <div class="form-wrap">
+    <iframe
+      src="https://docs.google.com/forms/d/e/1FAIpQLSfPzcncBlWljZ9FL2wpdiTtDH8dXrHqHE5fP0v8FU5VrB4Byg/viewform?embedded=true"
+      height="900"
+      frameborder="0"
+      marginheight="0"
+      marginwidth="0">
+      Loading…
+    </iframe>
+  </div>
+</div>
+
+</body>
+</html>

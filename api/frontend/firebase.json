@@ -8,10 +8,18 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-      {
+	    {
+  "source": "/",
+  "destination": "/index.html"
+},
+{ 
         "source": "/console",
         "destination": "/console.html"
       },
+      {
+  "source": "/feedback",
+  "destination": "/feedback.html"
+},
       {
         "source": "/observer",
         "destination": "/observer.html"

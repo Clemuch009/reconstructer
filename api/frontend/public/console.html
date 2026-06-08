@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-H745S05DBF"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-H745S05DBF');
+</script>
 <meta charset="UTF-8">
 <link rel="icon" type="image/png" href="/assets/QryNt.png">
 <link rel="apple-touch-icon" href="/assets/QryNt.png">
@@ -148,6 +157,8 @@
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
   }
 
   .panel-header {
@@ -238,6 +249,7 @@
     flex: 1;
     background: transparent;
     border: none;
+    min-height: 0;
     color: var(--text);
     font-family: var(--mono);
     font-size: 12px;
@@ -288,6 +300,7 @@
     align-items: center;
     gap: 12px;
     background: var(--surface);
+    flex-shrink: 0;
   }
 
   /* Right panel */
@@ -580,11 +593,12 @@
 <body>
 
 <header>
-	<div class="logo">
-		<img src="/assets/QryNt.png" style="height:22px; width:auto; margin-right:4px;">
-		<span class="logo-sep">/</span>
-		<span class="logo-sub">ENTERPRISE OBSERVER</span>
-	</div>
+	<!-- Header logo — replace the logo div -->
+<div class="logo">
+  <img src="/assets/QryNt.png" style="height:22px; width:auto; margin-right:4px;">
+  <div class="logo-dot"></div>
+  DEVELOPER CONSOLE
+</div>
   <div class="header-right">
     <input
       type="text"

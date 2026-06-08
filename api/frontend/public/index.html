@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-H745S05DBF"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-H745S05DBF');
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qrynt — Reliable structured data from messy text</title>
+<meta name="description" content="Qrynt analyzes unstructured logs, documents, and text and produces validated human, machine, and AI-ready structured output.">
+<link rel="icon" type="image/png" href="/assets/QryNt.png">
+<link rel="apple-touch-icon" href="/assets/QryNt.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #f8f7f4;
+    --surface:  #ffffff;
+    --border:   #e8e5df;
+    --border2:  #d4d0c8;
+    --ink:      #1a1814;
+    --ink-dim:  #6b6760;
+    --ink-muted:#b0ada6;
+    --accent:   #00c96e;
+    --accent-dk:#009e56;
+    --accent-bg:#f0fdf6;
+    --code-bg:  #1a1814;
+    --code-text:#00c96e;
+    --serif:    'Instrument Serif', Georgia, serif;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+
+    --c-prose:     #9ca3af;
+    --c-table:     #3b82f6;
+    --c-kv:        #22c55e;
+    --c-hierarchy: #a855f7;
+    --c-context:   #f97316;
+    --c-mixed:     #eab308;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.4;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(248,247,244,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-logo img {
+    height: 28px;
+    width: auto;
+  }
+
+  .nav-logo-text {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-link {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--ink-dim);
+    text-decoration: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+
+  .nav-link:hover {
+    color: var(--ink);
+    background: var(--border);
+  }
+
+  .nav-cta {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--ink);
+    text-decoration: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    margin-left: 8px;
+  }
+
+  .nav-cta:hover {
+    background: var(--accent-dk);
+    transform: translateY(-1px);
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    padding: 120px 48px 80px;
+    max-width: 1100px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .hero-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent-dk);
+    background: var(--accent-bg);
+    border: 1px solid rgba(0,201,110,0.3);
+    padding: 5px 12px;
+    border-radius: 100px;
+    margin-bottom: 32px;
+    letter-spacing: 0.04em;
+  }
+
+  .hero-label-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: breathe 2s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%       { transform: scale(0.7); opacity: 0.5; }
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(44px, 6vw, 76px);
+    font-weight: 400;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    max-width: 800px;
+    margin-bottom: 28px;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--ink-dim);
+  }
+
+  .hero-sub {
+    font-size: 18px;
+    color: var(--ink-dim);
+    max-width: 520px;
+    line-height: 1.65;
+    margin-bottom: 44px;
+    font-weight: 300;
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--ink);
+    text-decoration: none;
+    padding: 13px 28px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    letter-spacing: -0.01em;
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-dk);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,158,86,0.25);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink-dim);
+    text-decoration: none;
+    padding: 13px 24px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+    transform: translateY(-1px);
+  }
+
+  /* ─── PROOF SECTION ─── */
+  .proof {
+    background: var(--ink);
+    padding: 80px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .proof::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 40px,
+      rgba(255,255,255,0.015) 40px,
+      rgba(255,255,255,0.015) 41px
+    );
+  }
+
+  .proof-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  .proof-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .proof-title {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3.5vw, 44px);
+    color: #fff;
+    font-weight: 400;
+    margin-bottom: 48px;
+    line-height: 1.15;
+  }
+
+  .proof-grid {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0;
+    align-items: start;
+  }
+
+  .proof-panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .proof-panel-head {
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .proof-panel-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .proof-panel-label.input  { color: rgba(255,255,255,0.35); }
+  .proof-panel-label.output { color: var(--accent); }
+
+  .proof-dots {
+    display: flex;
+    gap: 5px;
+  }
+
+  .proof-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+  }
+
+  .proof-body {
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    min-height: 280px;
+  }
+
+  .proof-body.messy {
+    color: rgba(255,255,255,0.4);
+    white-space: pre-wrap;
+  }
+
+  .proof-body.clean {
+    color: var(--accent);
+    white-space: pre-wrap;
+  }
+
+  .proof-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    flex-shrink: 0;
+    padding-top: 120px;
+  }
+
+  .arrow-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .arrow-line {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, transparent, var(--accent));
+  }
+
+  .arrow-head {
+    font-size: 18px;
+    color: var(--accent);
+  }
+
+  .arrow-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    opacity: 0.6;
+  }
+
+  /* Type tags */
+  .type-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    margin-right: 4px;
+    margin-bottom: 2px;
+  }
+
+  .tag-kv        { background: rgba(34,197,94,0.15);  color: #4ade80; }
+  .tag-table     { background: rgba(59,130,246,0.15);  color: #60a5fa; }
+  .tag-hierarchy { background: rgba(168,85,247,0.15);  color: #c084fc; }
+  .tag-context   { background: rgba(249,115,22,0.15);  color: #fb923c; }
+  .tag-prose     { background: rgba(156,163,175,0.15); color: #9ca3af; }
+
+  .output-key   { color: #60a5fa; }
+  .output-val   { color: #4ade80; }
+  .output-str   { color: #fb923c; }
+  .output-num   { color: #c084fc; }
+  .output-punct { color: rgba(255,255,255,0.3); }
+
+  /* ─── ADAPTERS ─── */
+  .section {
+    padding: 100px 48px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent-dk);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .section-title {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3vw, 40px);
+    font-weight: 400;
+    line-height: 1.15;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+
+  .section-sub {
+    font-size: 16px;
+    color: var(--ink-dim);
+    max-width: 520px;
+    font-weight: 300;
+    margin-bottom: 56px;
+    line-height: 1.7;
+  }
+
+  .adapters-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .adapter-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .adapter-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  .adapter-card.human::before   { background: var(--ink); opacity: 1; }
+  .adapter-card.machine::before { background: var(--c-table); opacity: 1; }
+  .adapter-card.ai::before      { background: var(--c-hierarchy); opacity: 1; }
+
+  .adapter-card:hover {
+    border-color: var(--border2);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+  }
+
+  .adapter-icon {
+    font-family: var(--mono);
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+
+  .adapter-icon.human    { color: var(--ink); }
+  .adapter-icon.machine  { color: var(--c-table); }
+  .adapter-icon.ai       { color: var(--c-hierarchy); }
+
+  .adapter-name {
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .adapter-desc {
+    font-size: 14px;
+    color: var(--ink-dim);
+    line-height: 1.6;
+    margin-bottom: 20px;
+    font-weight: 300;
+  }
+
+  .adapter-example {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--ink-dim);
+    white-space: pre;
+    overflow: hidden;
+  }
+
+  /* ─── VALIDATION ─── */
+  .validation-section {
+    background: var(--accent-bg);
+    border-top: 1px solid rgba(0,201,110,0.15);
+    border-bottom: 1px solid rgba(0,201,110,0.15);
+    padding: 100px 48px;
+  }
+
+  .validation-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+
+  .validation-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 40px;
+  }
+
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid rgba(0,201,110,0.2);
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--ink);
+    transition: all 0.2s;
+  }
+
+  .check-item:hover {
+    border-color: var(--accent);
+    transform: translateX(4px);
+  }
+
+  .check-mark {
+    width: 22px;
+    height: 22px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #fff;
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+
+  .score-card {
+    background: var(--surface);
+    border: 1px solid rgba(0,201,110,0.25);
+    border-radius: 16px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,201,110,0.08);
+  }
+
+  .score-number {
+    font-family: var(--serif);
+    font-size: 96px;
+    line-height: 1;
+    color: var(--accent-dk);
+    margin-bottom: 8px;
+    letter-spacing: -0.04em;
+  }
+
+  .score-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+
+  .score-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+  }
+
+  .score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .score-row-label { color: var(--ink-dim); }
+  .score-row-val   { color: var(--accent-dk); font-weight: 500; }
+
+  /* ─── WHO USES IT ─── */
+  .users-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .user-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    background: var(--surface);
+    transition: all 0.2s;
+  }
+
+  .user-card:hover {
+    border-color: var(--border2);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+    transform: translateY(-2px);
+  }
+
+  .user-type {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .user-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .user-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+
+  .user-desc {
+    font-size: 14px;
+    color: var(--ink-dim);
+    line-height: 1.65;
+    font-weight: 300;
+    margin-bottom: 20px;
+  }
+
+  .user-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .user-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    color: var(--ink-dim);
+  }
+
+  /* ─── ARCHITECTURE ─── */
+  .arch-section {
+    background: var(--ink);
+    padding: 100px 48px;
+  }
+
+  .arch-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+
+  .arch-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+
+  .arch-step {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    position: relative;
+    transition: all 0.2s;
+  }
+
+  .arch-step:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: var(--accent);
+  }
+
+  .arch-step + .arch-step {
+    margin-top: -1px;
+    border-radius: 0;
+  }
+
+  .arch-step:first-child { border-radius: 8px 8px 0 0; }
+  .arch-step:last-child  { border-radius: 0 0 8px 8px; }
+
+  .arch-connector {
+    width: 1px;
+    height: 20px;
+    background: linear-gradient(to bottom, rgba(0,201,110,0.3), rgba(0,201,110,0.6));
+    margin-left: 34px;
+  }
+
+  .arch-step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0,201,110,0.1);
+    border: 1px solid rgba(0,201,110,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .arch-step-info { flex: 1; }
+
+  .arch-step-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+  }
+
+  .arch-step-desc {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
+    margin-top: 2px;
+  }
+
+  .arch-step-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: rgba(255,255,255,0.25);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  .arch-outputs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .arch-output {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.02);
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  /* ─── FINAL CTA ─── */
+  .cta-section {
+    padding: 120px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,201,110,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cta-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .cta-title {
+    font-family: var(--serif);
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+  }
+
+  .cta-sub {
+    font-size: 17px;
+    color: var(--ink-dim);
+    font-weight: 300;
+    margin-bottom: 44px;
+    line-height: 1.6;
+  }
+
+  .cta-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .footer-logo img {
+    height: 18px;
+    opacity: 0.5;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+  }
+
+  .footer-link {
+    font-size: 13px;
+    color: var(--ink-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .footer-link:hover { color: var(--ink); }
+
+  .footer-copy {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-family: var(--mono);
+  }
+
+  /* ─── ANIMATIONS ─── */
+  .fade-up {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .fade-up.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .stagger-1 { transition-delay: 0.1s; }
+  .stagger-2 { transition-delay: 0.2s; }
+  .stagger-3 { transition-delay: 0.3s; }
+  .stagger-4 { transition-delay: 0.4s; }
+  .stagger-5 { transition-delay: 0.5s; }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 900px) {
+    nav { padding: 0 24px; }
+    .hero { padding: 80px 24px 60px; }
+    .proof { padding: 60px 24px; }
+    .proof-grid { grid-template-columns: 1fr; gap: 0; }
+    .proof-arrow { display: none; }
+    .section { padding: 70px 24px; }
+    .adapters-grid { grid-template-columns: 1fr; }
+    .validation-section { padding: 70px 24px; }
+    .validation-inner { grid-template-columns: 1fr; gap: 40px; }
+    .users-grid { grid-template-columns: 1fr; }
+    .arch-section { padding: 70px 24px; }
+    .arch-inner { grid-template-columns: 1fr; gap: 40px; }
+    .cta-section { padding: 80px 24px; }
+    footer { padding: 24px; flex-direction: column; gap: 16px; text-align: center; }
+    .nav-links .nav-link { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    <span class="nav-logo-text">Qrynt</span>
+  </a>
+  <div class="nav-links">
+    <a href="/docs" class="nav-link">Docs</a>
+    <a href="/console" class="nav-link">Try Qrynt</a>
+    <a href="#pricing" class="nav-link">Pricing</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="mailto:qrynttech@gmail.com" class="nav-link">Contact</a>
+    <a href="/console" class="nav-cta">Try Qrynt →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-label">
+    <div class="hero-label-dot"></div>
+    Now available — API v1.0
+  </div>
+  <h1>Reliable structured data<br>from <em>messy</em> text.</h1>
+  <p class="hero-sub">
+    Qrynt analyzes unstructured logs, documents, and text and produces
+    validated human, machine, and AI-ready structured output.
+  </p>
+  <div class="hero-actions">
+    <a href="/console" class="btn-primary">
+      Try Qrynt
+      <span>→</span>
+    </a>
+    <a href="/docs" class="btn-secondary">
+      View Docs
+      <span style="font-size:12px">↗</span>
+    </a>
+  </div>
+</section>
+
+<!-- PROOF -->
+<section class="proof">
+  <div class="proof-inner">
+    <div class="proof-label">// LIVE EXAMPLE</div>
+    <h2 class="proof-title">No explanation.<br>Just proof.</h2>
+
+    <div class="proof-grid">
+      <!-- Input -->
+      <div class="proof-panel">
+        <div class="proof-panel-head">
+          <span class="proof-panel-label input">INPUT — raw chaos</span>
+          <div class="proof-dots">
+            <div class="proof-dot"></div>
+            <div class="proof-dot"></div>
+            <div class="proof-dot"></div>
+          </div>
+        </div>
+        <div class="proof-body messy">+-- BANKING_ROOT [Identity: CoreLedger]
+    +-- CHILD_TXN_ENGINE [Status: CRITICAL]
+        +-- LEAF_AUTH [Active: True] [Risk: 88]
+
+banking.core=enabled;swift=v2024;
+fraud.ml=v3.1;k8s.ingress=nginx;
+security.jwt=900s;
+
+| TXN_ID     | AMOUNT  | STATUS      |
+|------------|---------|-------------|
+| txn_9k2m4p | 1249.50 | AUTHORIZED  |
+| txn_7h4j9p | 450.00  | PENDING     |
+
+2026-06-01T10:38:12Z [INFO] Service
+starting. Version=2.14.3</div>
+      </div>
+
+      <!-- Arrow -->
+      <div class="proof-arrow">
+        <div class="arrow-inner">
+          <div class="arrow-line"></div>
+          <div class="arrow-head">↓</div>
+          <div class="arrow-label">QRYNT</div>
+        </div>
+      </div>
+
+      <!-- Output -->
+      <div class="proof-panel">
+        <div class="proof-panel-head">
+          <span class="proof-panel-label output">OUTPUT — structured</span>
+          <div style="display:flex;gap:4px">
+            <span class="type-tag tag-hierarchy">HIERARCHY</span>
+            <span class="type-tag tag-kv">KV</span>
+            <span class="type-tag tag-table">TABLE</span>
+            <span class="type-tag tag-context">LOG</span>
+          </div>
+        </div>
+        <div class="proof-body clean"><span class="output-punct">{</span>
+  <span class="output-key">"type"</span><span class="output-punct">:</span> <span class="output-str">"hierarchy"</span><span class="output-punct">,</span>
+  <span class="output-key">"nodes"</span><span class="output-punct">: [</span>
+    <span class="output-punct">{</span> <span class="output-key">"depth"</span><span class="output-punct">:</span> <span class="output-num">0</span><span class="output-punct">,</span> <span class="output-key">"text"</span><span class="output-punct">:</span> <span class="output-str">"BANKING_ROOT"</span> <span class="output-punct">}</span>
+  <span class="output-punct">]</span>
+<span class="output-punct">},</span>
+<span class="output-punct">{</span>
+  <span class="output-key">"type"</span><span class="output-punct">:</span> <span class="output-str">"kv_block"</span><span class="output-punct">,</span>
+  <span class="output-key">"pairs"</span><span class="output-punct">: {</span>
+    <span class="output-key">"banking.core"</span><span class="output-punct">:</span> <span class="output-str">"enabled"</span><span class="output-punct">,</span>
+    <span class="output-key">"swift"</span><span class="output-punct">:</span> <span class="output-str">"v2024"</span><span class="output-punct">,</span>
+    <span class="output-key">"fraud.ml"</span><span class="output-punct">:</span> <span class="output-str">"v3.1"</span>
+  <span class="output-punct">}</span>
+<span class="output-punct">},</span>
+<span class="output-punct">{</span>
+  <span class="output-key">"type"</span><span class="output-punct">:</span> <span class="output-str">"table"</span><span class="output-punct">,</span>
+  <span class="output-key">"headers"</span><span class="output-punct">:</span> <span class="output-punct">[</span><span class="output-str">"TXN_ID"</span><span class="output-punct">,</span> <span class="output-str">"AMOUNT"</span><span class="output-punct">,</span> <span class="output-str">"STATUS"</span><span class="output-punct">],</span>
+  <span class="output-key">"rows"</span><span class="output-punct">: [[</span><span class="output-str">"txn_9k2m4p"</span><span class="output-punct">,</span> <span class="output-num">1249.50</span><span class="output-punct">,</span> <span class="output-str">"AUTHORIZED"</span><span class="output-punct">]]</span>
+<span class="output-punct">},</span>
+<span class="output-punct">{</span>
+  <span class="output-key">"validation"</span><span class="output-punct">: {</span>
+    <span class="output-key">"is_valid"</span><span class="output-punct">:</span> <span class="output-num">true</span><span class="output-punct">,</span>
+    <span class="output-key">"quality_score"</span><span class="output-punct">:</span> <span class="output-num">1.0</span>
+  <span class="output-punct">}</span>
+<span class="output-punct">}</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ADAPTERS -->
+<section class="section">
+  <div class="section-label">// OUTPUT FORMATS</div>
+  <h2 class="section-title fade-up">One input.<br>Three outputs.</h2>
+  <p class="section-sub fade-up stagger-1">
+    Every processed document is immediately available in the format
+    your system actually needs.
+  </p>
+
+  <div class="adapters-grid">
+    <div class="adapter-card human fade-up stagger-2">
+      <div class="adapter-icon human">◧</div>
+      <div class="adapter-name">Human</div>
+      <div class="adapter-desc">
+        Formatted, readable output for operators, analysts,
+        and CLI tools. Downloadable as plain text.
+      </div>
+      <div class="adapter-example">TXN_ID      AMOUNT   STATUS
+──────────  ───────  ──────────
+txn_9k2m4p  1249.50  AUTHORIZED
+txn_7h4j9p  450.00   PENDING
+
+banking.core: enabled
+swift: v2024
+fraud.ml: v3.1</div>
+    </div>
+
+    <div class="adapter-card machine fade-up stagger-3">
+      <div class="adapter-icon machine">◨</div>
+      <div class="adapter-name">Machine</div>
+      <div class="adapter-desc">
+        Typed structured records for database ingestion,
+        analytics pipelines, and ETL workflows.
+      </div>
+      <div class="adapter-example">[
+  {
+    "type": "table",
+    "content": {
+      "headers": ["TXN_ID","AMOUNT"],
+      "rows": [["txn_9k2m4p", 1249.50]]
+    },
+    "confidence": 1.0
+  }
+]</div>
+    </div>
+
+    <div class="adapter-card ai fade-up stagger-4">
+      <div class="adapter-icon ai">◩</div>
+      <div class="adapter-name">AI / LDM</div>
+      <div class="adapter-desc">
+        Token-efficient Logical Document Model for LLM
+        context windows, RAG pipelines, and fine-tuning.
+      </div>
+      <div class="adapter-example">{
+  "blocks": [
+    {
+      "type": "kv_block",
+      "tags": ["KV", "STRUCTURED"],
+      "label": "Config",
+      "confidence": 0.98
+    }
+  ],
+  "is_valid": true
+}</div>
+    </div>
+  </div>
+</section>
+
+<!-- VALIDATION -->
+<section class="validation-section">
+  <div class="validation-inner">
+    <div>
+      <div class="section-label">// TRUST LAYER</div>
+      <h2 class="section-title fade-up">
+        Every output<br>is validated.
+      </h2>
+      <p class="section-sub fade-up stagger-1">
+        Qrynt exposes structural trust metrics most tools hide.
+        Know exactly how reliable your output is before using it.
+      </p>
+      <div class="validation-checks fade-up stagger-2">
+        <div class="check-item">
+          <div class="check-mark">✓</div>
+          Schema Compliance — structure matches declared type
+        </div>
+        <div class="check-item">
+          <div class="check-mark">✓</div>
+          Line Conservation — zero data loss guaranteed
+        </div>
+        <div class="check-item">
+          <div class="check-mark">✓</div>
+          Matrix Uniformity — table column integrity verified
+        </div>
+        <div class="check-item">
+          <div class="check-mark">✓</div>
+          Conflict Rate — classifier agreement measured
+        </div>
+      </div>
+    </div>
+
+    <div class="score-card fade-up stagger-3">
+      <div class="score-number">1.00</div>
+      <div class="score-label">Quality Score</div>
+      <div class="score-breakdown">
+        <div class="score-row">
+          <span class="score-row-label">schema_compliance</span>
+          <span class="score-row-val">PASS</span>
+        </div>
+        <div class="score-row">
+          <span class="score-row-label">matrix_uniformity</span>
+          <span class="score-row-val">PASS</span>
+        </div>
+        <div class="score-row">
+          <span class="score-row-label">line_conservation</span>
+          <span class="score-row-val">PASS</span>
+        </div>
+        <div class="score-row">
+          <span class="score-row-label">anomalies_detected</span>
+          <span class="score-row-val">0</span>
+        </div>
+        <div class="score-row">
+          <span class="score-row-label">conflict_rate</span>
+          <span class="score-row-val">0.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHO USES IT -->
+<section class="section">
+  <div class="section-label">// USE CASES</div>
+  <h2 class="section-title fade-up">Built for teams<br>that work with real data.</h2>
+  <p class="section-sub fade-up stagger-1">
+    Same pipeline. Different language for each team.
+  </p>
+
+  <div class="users-grid">
+    <div class="user-card fade-up stagger-2">
+      <div class="user-type">
+        <div class="user-dot" style="background:var(--c-table)"></div>
+        <span style="color:var(--c-table)">Developers</span>
+      </div>
+      <div class="user-title">API-first integration</div>
+      <div class="user-desc">
+        Three-stage pipeline. Idempotent sessions.
+        SSE streaming. Webhook push. Clean JSON output.
+        Integrate in minutes.
+      </div>
+      <div class="user-tags">
+        <span class="user-tag">REST API</span>
+        <span class="user-tag">SSE</span>
+        <span class="user-tag">Webhooks</span>
+        <span class="user-tag">JSON</span>
+      </div>
+    </div>
+
+    <div class="user-card fade-up stagger-3">
+      <div class="user-type">
+        <div class="user-dot" style="background:var(--c-kv)"></div>
+        <span style="color:var(--c-kv)">Data Teams</span>
+      </div>
+      <div class="user-title">Clean data, fast</div>
+      <div class="user-desc">
+        Stop cleaning logs and config files manually.
+        Qrynt extracts KV pairs, tables, and structure
+        from any messy operational data.
+      </div>
+      <div class="user-tags">
+        <span class="user-tag">Log processing</span>
+        <span class="user-tag">ETL</span>
+        <span class="user-tag">Analytics</span>
+        <span class="user-tag">Reports</span>
+      </div>
+    </div>
+
+    <div class="user-card fade-up stagger-4">
+      <div class="user-type">
+        <div class="user-dot" style="background:var(--c-hierarchy)"></div>
+        <span style="color:var(--c-hierarchy)">AI Teams</span>
+      </div>
+      <div class="user-title">Better context windows</div>
+      <div class="user-desc">
+        Pre-process documents before they reach your LLM.
+        Validated, typed, token-efficient LDM output
+        designed for RAG pipelines.
+      </div>
+      <div class="user-tags">
+        <span class="user-tag">RAG</span>
+        <span class="user-tag">Context prep</span>
+        <span class="user-tag">Fine-tuning</span>
+        <span class="user-tag">LLM pipelines</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="arch-section">
+  <div class="arch-inner">
+    <div>
+      <div class="proof-label">// PIPELINE</div>
+      <h2 class="proof-title" style="font-family:var(--serif);font-weight:400;font-size:clamp(28px,3.5vw,42px);">
+        Three stages.<br>One clean output.
+      </h2>
+      <p style="color:rgba(255,255,255,0.4);font-size:15px;font-weight:300;line-height:1.7;margin-top:16px;max-width:400px">
+        Ingest stores your raw input immutably.
+        Resolve runs the full classification pipeline.
+        Export delivers the format you need.
+      </p>
+    </div>
+
+    <div>
+      <div class="arch-diagram">
+        <div class="arch-step">
+          <div class="arch-step-num">1</div>
+          <div class="arch-step-info">
+            <div class="arch-step-name">POST /ingest</div>
+            <div class="arch-step-desc">Accepts raw text → returns session_id</div>
+          </div>
+          <span class="arch-step-tag">idempotent</span>
+        </div>
+        <div class="arch-connector"></div>
+        <div class="arch-step">
+          <div class="arch-step-num">2</div>
+          <div class="arch-step-info">
+            <div class="arch-step-name">POST /resolve</div>
+            <div class="arch-step-desc">Classifies, detects, validates structure</div>
+          </div>
+          <span class="arch-step-tag">sync / async</span>
+        </div>
+        <div class="arch-connector"></div>
+        <div class="arch-step">
+          <div class="arch-step-num">3</div>
+          <div class="arch-step-info">
+            <div class="arch-step-name">POST /export</div>
+            <div class="arch-step-desc">Returns output in your format</div>
+          </div>
+          <span class="arch-step-tag">3 formats</span>
+        </div>
+      </div>
+
+      <div class="arch-outputs" style="margin-top:16px">
+        <div class="arch-output">Human<br><span style="color:rgba(255,255,255,0.2)">text/plain</span></div>
+        <div class="arch-output">Machine<br><span style="color:rgba(255,255,255,0.2)">application/json</span></div>
+        <div class="arch-output">AI / LDM<br><span style="color:rgba(255,255,255,0.2)">application/json</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <h2 class="cta-title fade-up">
+      Start processing<br>data today.
+    </h2>
+    <p class="cta-sub fade-up stagger-1">
+      Paste any messy text. See structured output in seconds.
+      No signup required to try.
+    </p>
+    <div class="cta-actions fade-up stagger-2">
+      <a href="/console" class="btn-primary">
+        Try Qrynt
+        <span>→</span>
+      </a>
+      <a href="/feedback" class="btn-secondary">Share Feedback</a>
+      <a href="mailto:qrynttech@gmail.com" class="btn-secondary">
+        Get API Access
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    Qrynt
+  </div>
+  <div class="footer-links">
+    <a href="/docs" class="footer-link">Docs</a>
+    <a href="/console" class="footer-link">Try Qrynt</a>
+    <a href="/feedback" class="footer-link">Feedback</a>
+    <a href="mailto:qrynttech@gmail.com" class="footer-link">Contact</a>
+  </div>
+  <div class="footer-copy">© 2026 Qrynt</div>
+</footer>
+
+<script>
+// Scroll-triggered fade-up animations
+const observer = new IntersectionObserver(
+  entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  },
+  { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+);
+
+document.querySelectorAll('.fade-up').forEach(el => {
+  observer.observe(el);
+});
+
+// Hero elements visible immediately
+document.querySelectorAll('.hero .fade-up').forEach(el => {
+  el.classList.add('visible');
+});
+</script>
+</body>
+</html>
