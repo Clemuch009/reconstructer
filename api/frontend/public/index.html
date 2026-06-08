@@ -145,10 +145,31 @@
 
   /* ─── HERO ─── */
   .hero {
-    padding: 120px 48px 80px;
-    max-width: 1100px;
+    padding: 0 48px;
+    max-width: 1200px;
     margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+    min-height: calc(100vh - 60px);
+  }
+
+  .hero-left {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .hero-right {
     position: relative;
+  }
+
+  .hero-video {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.1);
+    display: block;
   }
 
   .hero-label {
@@ -932,7 +953,8 @@
   /* ─── RESPONSIVE ─── */
   @media (max-width: 900px) {
     nav { padding: 0 24px; }
-    .hero { padding: 80px 24px 60px; }
+    .hero { padding: 60px 24px; grid-template-columns: 1fr; min-height: auto; gap: 40px; }
+    .hero-right { order: -1; }
     .proof { padding: 60px 24px; }
     .proof-grid { grid-template-columns: 1fr; gap: 0; }
     .proof-arrow { display: none; }
@@ -969,108 +991,30 @@
 
 <!-- HERO -->
 <section class="hero">
-  <div class="hero-label">
-    <div class="hero-label-dot"></div>
-    Now available — API v1.0
-  </div>
-  <h1>Reliable structured data<br>from <em>messy</em> text.</h1>
-  <p class="hero-sub">
-    Qrynt analyzes unstructured logs, documents, and text and produces
-    validated human, machine, and AI-ready structured output.
-  </p>
-  <div class="hero-actions">
-    <a href="/console" class="btn-primary">
-      Try Qrynt
-      <span>→</span>
-    </a>
-    <a href="/docs" class="btn-secondary">
-      View Docs
-      <span style="font-size:12px">↗</span>
-    </a>
-  </div>
-</section>
-
-<!-- PROOF -->
-<section class="proof">
-  <div class="proof-inner">
-    <div class="proof-label">// LIVE EXAMPLE</div>
-    <h2 class="proof-title">No explanation.<br>Just proof.</h2>
-
-    <div class="proof-grid">
-      <!-- Input -->
-      <div class="proof-panel">
-        <div class="proof-panel-head">
-          <span class="proof-panel-label input">INPUT — raw chaos</span>
-          <div class="proof-dots">
-            <div class="proof-dot"></div>
-            <div class="proof-dot"></div>
-            <div class="proof-dot"></div>
-          </div>
-        </div>
-        <div class="proof-body messy">+-- BANKING_ROOT [Identity: CoreLedger]
-    +-- CHILD_TXN_ENGINE [Status: CRITICAL]
-        +-- LEAF_AUTH [Active: True] [Risk: 88]
-
-banking.core=enabled;swift=v2024;
-fraud.ml=v3.1;k8s.ingress=nginx;
-security.jwt=900s;
-
-| TXN_ID     | AMOUNT  | STATUS      |
-|------------|---------|-------------|
-| txn_9k2m4p | 1249.50 | AUTHORIZED  |
-| txn_7h4j9p | 450.00  | PENDING     |
-
-2026-06-01T10:38:12Z [INFO] Service
-starting. Version=2.14.3</div>
-      </div>
-
-      <!-- Arrow -->
-      <div class="proof-arrow">
-        <div class="arrow-inner">
-          <div class="arrow-line"></div>
-          <div class="arrow-head">↓</div>
-          <div class="arrow-label">QRYNT</div>
-        </div>
-      </div>
-
-      <!-- Output -->
-      <div class="proof-panel">
-        <div class="proof-panel-head">
-          <span class="proof-panel-label output">OUTPUT — structured</span>
-          <div style="display:flex;gap:4px">
-            <span class="type-tag tag-hierarchy">HIERARCHY</span>
-            <span class="type-tag tag-kv">KV</span>
-            <span class="type-tag tag-table">TABLE</span>
-            <span class="type-tag tag-context">LOG</span>
-          </div>
-        </div>
-        <div class="proof-body clean"><span class="output-punct">{</span>
-  <span class="output-key">"type"</span><span class="output-punct">:</span> <span class="output-str">"hierarchy"</span><span class="output-punct">,</span>
-  <span class="output-key">"nodes"</span><span class="output-punct">: [</span>
-    <span class="output-punct">{</span> <span class="output-key">"depth"</span><span class="output-punct">:</span> <span class="output-num">0</span><span class="output-punct">,</span> <span class="output-key">"text"</span><span class="output-punct">:</span> <span class="output-str">"BANKING_ROOT"</span> <span class="output-punct">}</span>
-  <span class="output-punct">]</span>
-<span class="output-punct">},</span>
-<span class="output-punct">{</span>
-  <span class="output-key">"type"</span><span class="output-punct">:</span> <span class="output-str">"kv_block"</span><span class="output-punct">,</span>
-  <span class="output-key">"pairs"</span><span class="output-punct">: {</span>
-    <span class="output-key">"banking.core"</span><span class="output-punct">:</span> <span class="output-str">"enabled"</span><span class="output-punct">,</span>
-    <span class="output-key">"swift"</span><span class="output-punct">:</span> <span class="output-str">"v2024"</span><span class="output-punct">,</span>
-    <span class="output-key">"fraud.ml"</span><span class="output-punct">:</span> <span class="output-str">"v3.1"</span>
-  <span class="output-punct">}</span>
-<span class="output-punct">},</span>
-<span class="output-punct">{</span>
-  <span class="output-key">"type"</span><span class="output-punct">:</span> <span class="output-str">"table"</span><span class="output-punct">,</span>
-  <span class="output-key">"headers"</span><span class="output-punct">:</span> <span class="output-punct">[</span><span class="output-str">"TXN_ID"</span><span class="output-punct">,</span> <span class="output-str">"AMOUNT"</span><span class="output-punct">,</span> <span class="output-str">"STATUS"</span><span class="output-punct">],</span>
-  <span class="output-key">"rows"</span><span class="output-punct">: [[</span><span class="output-str">"txn_9k2m4p"</span><span class="output-punct">,</span> <span class="output-num">1249.50</span><span class="output-punct">,</span> <span class="output-str">"AUTHORIZED"</span><span class="output-punct">]]</span>
-<span class="output-punct">},</span>
-<span class="output-punct">{</span>
-  <span class="output-key">"validation"</span><span class="output-punct">: {</span>
-    <span class="output-key">"is_valid"</span><span class="output-punct">:</span> <span class="output-num">true</span><span class="output-punct">,</span>
-    <span class="output-key">"quality_score"</span><span class="output-punct">:</span> <span class="output-num">1.0</span>
-  <span class="output-punct">}</span>
-<span class="output-punct">}</span></div>
-      </div>
+  <div class="hero-left">
+    <div class="hero-label">
+      <div class="hero-label-dot"></div>
+      Early Access — API v1.0
     </div>
+    <h1>Reliable structured data from <em>messy</em> text.</h1>
+    <p class="hero-sub">
+      Paste any log, config, or document.<br>Get validated structured output instantly.
+    </p>
+    <div class="hero-actions">
+      <a href="/console" class="btn-primary">
+        Try Qrynt
+        <span>→</span>
+      </a>
+      <a href="/docs" class="btn-secondary">
+        View Docs
+        <span style="font-size:12px">↗</span>
+      </a>
+    </div>
+  </div>
+  <div class="hero-right">
+    <video autoplay loop muted playsinline class="hero-video">
+      <source src="/assets/Qrynt_steps.webm" type="video/webm">
+    </video>
   </div>
 </section>
 
