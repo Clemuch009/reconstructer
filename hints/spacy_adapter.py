@@ -4,10 +4,8 @@ import spacy
 
 # strict pipeline control
 try:
-    nlp = spacy.load(
-            "en_core_web_sm",
-            disable=["ner", "tagger", "lemmatizer", "parser", "senter"]
-            )
+    nlp = spacy.load("en_core_web_sm", disable=["ner", "tagger", "lemmatizer", "parser"])
+    nlp.add_pipe("sentencizer")
 except OSError:
     raise RuntimeError(
             "spaCy model 'en_core_web_sm' not found. "
