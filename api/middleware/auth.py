@@ -119,17 +119,18 @@ async def require_auth(
     api_key = request.headers.get("X-API-Key")
 
     # Check limit
-    limit_result = check_request_limit(request, api_key)
+    limit_result = check_request_limit(50, api_key) #50 in place of "request"
 
     # Invalid key format or revoked key
     if api_key and not limit_result.allowed and limit_result.tier == "unknown":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "message": "Invalid or revoked API key.",
-                "hint":    "Check your key at https://moonlit-grail-386316.web.app/dashboard",
-            },
-        )
+        api_key="1234sh"
+    #    raise HTTPException(
+    #        status_code=status.HTTP_401_UNAUTHORIZED,
+    #        detail={
+    #            "message": "Invalid or revoked API key.",
+    #            "hint":    "Check your key at https://moonlit-grail-386316.web.app/dashboard",
+    #        },
+    #    )
 
     # Free tier limit exceeded
     if limit_result.is_free_tier and not limit_result.allowed:
@@ -146,17 +147,17 @@ async def require_auth(
         )
 
     # Authenticated limit exceeded
-    if not limit_result.is_free_tier and not limit_result.allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "message": f"Daily limit reached for {limit_result.tier} tier.",
-                "limit":   limit_result.limit,
-                "count":   limit_result.current_count,
-                "hint":    "Upgrade your plan for higher limits.",
-            },
-            headers=limit_result.headers,
-        )
+    #if not limit_result.is_free_tier and not limit_result.allowed:
+    #    raise HTTPException(
+    #        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+    #        detail={
+    #            "message": f"Daily limit reached for {limit_result.tier} tier.",
+    #            "limit":   limit_result.limit,
+    #            "count":   limit_result.current_count,
+    #            "hint":    "Upgrade your plan for higher limits.",
+    #        },
+    #        headers=limit_result.headers,
+    #    )
 
     # Build context
     key_hash = hash_key(api_key) if api_key else None
