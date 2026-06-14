@@ -11,9 +11,9 @@ from adapters.human   import HumanAdapter
 from adapters.ai      import AIAdapter
 from adapters.machine import MachineAdapter
 from api.coc import build_coc, COCEnvelope
-from api.dependencies import get_engine, verify_api_key, validate_input_text
+from api.dependencies import get_engine, validate_input_text
+from api.middleware.auth import require_auth, consume_request, RequestContext
 from api.streaming import broadcast_to_sse_clients, publish_webhook
-# Store in document cache
 from api.routes.document import store_coc
 
 router = APIRouter()
@@ -40,31 +40,28 @@ class WebhookRequest(BaseModel):
 async def _process(
     text:   str,
     engine: TextReconstructionEngine,
+    ctx:    RequestContext,
 ) -> COCEnvelope:
     """
     Run engine, build session trace, wrap in COC envelope.
     """
     validated = validate_input_text(text)
 
-    # Run CPU-bound engine in thread pool
     loop   = asyncio.get_event_loop()
     output = await loop.run_in_executor(None, engine.run, validated)
 
-    # Build session trace
     from api.session import build_session_trace
     raw_line_count = len(validated.split("\n"))
     session_trace  = build_session_trace(output, raw_line_count)
 
-    # Build COC with session trace
     envelope = build_coc(validated, output, session_trace)
 
-    # Store in document cache
-    from api.routes.document import store_coc
     store_coc(envelope)
 
-    # Broadcast non-blocking
     asyncio.create_task(broadcast_to_sse_clients(envelope))
     asyncio.create_task(publish_webhook(envelope))
+
+    await consume_request(ctx)
 
     return envelope
 
@@ -77,12 +74,9 @@ async def _process(
 async def process(
     request: ProcessRequest,
     engine:  TextReconstructionEngine = Depends(get_engine),
-    _:       str = Depends(verify_api_key),
+    ctx:     RequestContext = Depends(require_auth),
 ) -> dict:
-    """
-    Process text and return full COC envelope.
-    """
-    envelope = await _process(request.text, engine)
+    envelope = await _process(request.text, engine, ctx)
     return envelope
 
 
@@ -90,13 +84,9 @@ async def process(
 async def process_human(
     request: ProcessRequest,
     engine:  TextReconstructionEngine = Depends(get_engine),
-    _:       str = Depends(verify_api_key),
+    ctx:     RequestContext = Depends(require_auth),
 ) -> Response:
-    """
-    Process text and return human-readable formatted string.
-    Downloadable as plain text file.
-    """
-    envelope = await _process(request.text, engine)
+    envelope = await _process(request.text, engine, ctx)
     output   = envelope["payload"]
     rendered = HumanAdapter().adapt(output)
 
@@ -115,12 +105,9 @@ async def process_human(
 async def process_ai(
     request: ProcessRequest,
     engine:  TextReconstructionEngine = Depends(get_engine),
-    _:       str = Depends(verify_api_key),
+    ctx:     RequestContext = Depends(require_auth),
 ) -> dict:
-    """
-    Process text and return Logical Document Model for LLM consumption.
-    """
-    envelope = await _process(request.text, engine)
+    envelope = await _process(request.text, engine, ctx)
     output   = envelope["payload"]
     ldm      = AIAdapter(
         include_confidence=request.include_confidence
@@ -137,12 +124,9 @@ async def process_ai(
 async def process_machine(
     request: ProcessRequest,
     engine:  TextReconstructionEngine = Depends(get_engine),
-    _:       str = Depends(verify_api_key),
+    ctx:     RequestContext = Depends(require_auth),
 ) -> dict:
-    """
-    Process text and return flat analytics records for DB ingestion.
-    """
-    envelope = await _process(request.text, engine)
+    envelope = await _process(request.text, engine, ctx)
     output   = envelope["payload"]
     records  = MachineAdapter().adapt(output)
     return {
@@ -157,34 +141,25 @@ async def process_machine(
 async def process_raw(
     request: Request,
     engine:  TextReconstructionEngine = Depends(get_engine),
-    _:       str = Depends(verify_api_key),
+    ctx:     RequestContext = Depends(require_auth),
 ) -> dict:
-    """
-    Process raw plain text directly.
-    No JSON wrapping required.
-    Accepts Content-Type: text/plain
-    Handles any encoding — logs, HTML dumps, chaos inputs.
-    """
     body = await request.body()
     text = body.decode("utf-8", errors="replace")
     validate_input_text(text)
-    envelope = await _process(text, engine)
+    envelope = await _process(text, engine, ctx)
     return envelope
+
 
 @router.get("/stream")
 async def stream(
-    _: str = Depends(verify_api_key),
+    ctx: RequestContext = Depends(require_auth),
 ) -> StreamingResponse:
-    """
-    SSE endpoint — push COC events to connected clients.
-    Connect and receive document.resolved events in real time.
-    """
     from api.streaming import sse_event_generator
     return StreamingResponse(
         sse_event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control":     "no-cache",
             "X-Accel-Buffering": "no",
         },
     )
@@ -193,11 +168,8 @@ async def stream(
 @router.post("/webhook/register")
 async def webhook_register(
     request: WebhookRequest,
-    _:       str = Depends(verify_api_key),
+    ctx:     RequestContext = Depends(require_auth),
 ) -> dict:
-    """
-    Register a webhook URL to receive COC push events.
-    """
     from api.streaming import register_webhook
     webhook_id = register_webhook(request.url, request.secret)
     return {
@@ -210,11 +182,8 @@ async def webhook_register(
 @router.delete("/webhook/{webhook_id}")
 async def webhook_deregister(
     webhook_id: str,
-    _:          str = Depends(verify_api_key),
+    ctx:        RequestContext = Depends(require_auth),
 ) -> dict:
-    """
-    Deregister a webhook by ID.
-    """
     from api.streaming import deregister_webhook
     removed = deregister_webhook(webhook_id)
     return {
@@ -225,10 +194,7 @@ async def webhook_deregister(
 
 @router.get("/webhook/list")
 async def webhook_list(
-    _: str = Depends(verify_api_key),
+    ctx: RequestContext = Depends(require_auth),
 ) -> dict:
-    """
-    List all registered webhooks.
-    """
     from api.streaming import list_webhooks
     return {"webhooks": list_webhooks()}

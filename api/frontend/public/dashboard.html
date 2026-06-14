@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Qrynt</title>
+<link rel="icon" type="image/png" href="/assets/QryNt.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp }     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getAuth, onAuthStateChanged, signOut }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+  // ─── REPLACE WITH YOUR FIREBASE CONFIG ───
+  const firebaseConfig = {
+    apiKey:            "YOUR_FIREBASE_API_KEY",
+    authDomain:        "moonlit-grail-386316.firebaseapp.com",
+    projectId:         "moonlit-grail-386316",
+    storageBucket:     "moonlit-grail-386316.appspot.com",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId:             "YOUR_APP_ID",
+  };
+
+  const app     = initializeApp(firebaseConfig);
+  const auth    = getAuth(app);
+  const API_BASE = '';
+
+  let currentUser  = null;
+  let profileData  = null;
+  let billingData  = null;
+
+  // ─── Auth guard ───
+  onAuthStateChanged(auth, async user => {
+    if (!user) {
+      window.location.href = '/signup';
+      return;
+    }
+    currentUser = user;
+    const idToken = await user.getIdToken();
+    localStorage.setItem('qrynt_id_token', idToken);
+    await loadDashboard(idToken);
+  });
+
+  async function loadDashboard(idToken) {
+    showSkeleton(true);
+    try {
+      const [profile, billing] = await Promise.all([
+        fetch(`${API_BASE}/auth/login`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ id_token: idToken }),
+        }).then(r => r.json()),
+
+        fetch(`${API_BASE}/billing/status?id_token=${encodeURIComponent(idToken)}`)
+          .then(r => r.json()),
+      ]);
+
+      profileData = profile;
+      billingData = billing;
+
+      renderProfile(profile);
+      renderUsage(profile, billing);
+      renderKeys(profile);
+      renderStorage(profile);
+      renderBilling(billing);
+
+      if (profile.tier === 'team' || profile.tier === 'enterprise') {
+        loadWorkspace(idToken);
+      }
+
+      // Check for upgrade success
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('upgraded') === 'true') {
+        showToast('Plan upgraded successfully! 🎉');
+        window.history.replaceState({}, '', '/dashboard');
+      }
+
+    } catch (err) {
+      showToast('Failed to load dashboard. Please refresh.', 'error');
+    } finally {
+      showSkeleton(false);
+    }
+  }
+
+  function renderProfile(profile) {
+    document.getElementById('user-email').textContent  = profile.email || '—';
+    document.getElementById('user-tier').textContent   = profile.tier?.toUpperCase() || '—';
+    document.getElementById('user-tier').className     = `tier-badge tier-${profile.tier}`;
+  }
+
+  function renderUsage(profile, billing) {
+    const usage   = profile.usage  || {};
+    const limits  = profile.limits || {};
+    const today   = usage.requests_today || 0;
+    const limit   = limits.requests_per_day || 50;
+    const total   = usage.requests_total || 0;
+    const pct     = limit === -1 ? 0 : Math.min(100, (today / limit) * 100);
+
+    document.getElementById('usage-today').textContent = today.toLocaleString();
+    document.getElementById('usage-limit').textContent =
+      limit === -1 ? 'unlimited' : limit.toLocaleString();
+    document.getElementById('usage-total').textContent = total.toLocaleString();
+    document.getElementById('usage-bar').style.width   = pct + '%';
+    document.getElementById('usage-bar').className     =
+      'usage-bar-fill ' + (pct > 90 ? 'bar-red' : pct > 70 ? 'bar-yellow' : 'bar-green');
+
+    if (usage.last_request) {
+      const d = new Date(usage.last_request);
+      document.getElementById('last-request').textContent =
+        d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    }
+  }
+
+  function renderKeys(profile) {
+    const keys    = profile.api_keys || [];
+    const list    = document.getElementById('keys-list');
+    const tier    = profile.tier;
+    const canAdd  = (profile.limits?.max_keys || 1) > keys.filter(k => k.active).length;
+
+    if (keys.length === 0) {
+      list.innerHTML = `<div class="empty-state">No API keys yet. Generate one below.</div>`;
+    } else {
+      list.innerHTML = keys.map(k => `
+        <div class="key-row ${k.active ? '' : 'key-inactive'}">
+          <div class="key-info">
+            <span class="key-prefix">${k.prefix}••••••••••••••••</span>
+            <span class="key-meta">${k.key_type} · created ${formatDate(k.created_at)}
+              ${k.last_used ? '· last used ' + formatDate(k.last_used) : '· never used'}
+            </span>
+          </div>
+          <div class="key-actions">
+            ${k.active
+              ? `<button class="btn-sm btn-danger" onclick="revokeKey('${k.prefix}')">Revoke</button>`
+              : `<span class="inactive-badge">Revoked</span>`
+            }
+          </div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('add-key-btn').disabled = !canAdd;
+    document.getElementById('add-key-btn').title    =
+      canAdd ? '' : `Key limit reached for ${tier} tier`;
+  }
+
+  function renderStorage(profile) {
+    const settings = profile.storage_settings || {};
+    const hasStorage = profile.limits?.storage || false;
+
+    document.getElementById('storage-section').style.display =
+      hasStorage ? 'block' : 'none';
+    document.getElementById('storage-unavailable').style.display =
+      hasStorage ? 'none' : 'block';
+
+    if (hasStorage) {
+      document.getElementById('storage-toggle').checked   = settings.enabled || false;
+      document.getElementById('retention-select').value   = settings.retention_days || 7;
+      document.getElementById('auto-delete-toggle').checked = settings.auto_delete !== false;
+    }
+  }
+
+  function renderBilling(billing) {
+    const paddle = billing.paddle || {};
+    const tier    = billing.tier   || 'starter';
+
+    document.getElementById('billing-tier').textContent   = tier.charAt(0).toUpperCase() + tier.slice(1);
+    document.getElementById('billing-status').textContent = paddle.subscription_status || 'free';
+    document.getElementById('billing-status').className   =
+      'status-pill ' + (paddle.subscription_status === 'active' ? 'status-active' : 'status-free');
+
+    if (paddle.current_period_end) {
+      document.getElementById('billing-renews').textContent =
+        'Renews ' + formatDate(paddle.current_period_end);
+      document.getElementById('billing-renews').style.display = 'block';
+    }
+
+    const isPaid = ['pro', 'team', 'enterprise'].includes(tier);
+    document.getElementById('manage-billing-btn').style.display =
+      isPaid ? 'inline-flex' : 'none';
+    document.getElementById('upgrade-btns').style.display =
+      !isPaid ? 'flex' : 'none';
+  }
+
+  // ─── Generate key ───
+  window.generateKey = async function(keyType = 'live') {
+    const idToken = await currentUser.getIdToken();
+    const btn = document.getElementById('add-key-btn');
+    btn.disabled    = true;
+    btn.textContent = 'Generating...';
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/keys/generate`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken, key_type: keyType }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.detail || 'Failed to generate key.', 'error');
+        return;
+      }
+
+      showNewKey(data.api_key.key);
+      await loadDashboard(idToken);
+
+    } catch (err) {
+      showToast('Something went wrong.', 'error');
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = '+ Generate key';
+    }
+  };
+
+  function showNewKey(key) {
+    document.getElementById('new-key-value').textContent = key;
+    document.getElementById('new-key-modal').style.display = 'flex';
+  }
+
+  window.closeNewKey = function() {
+    document.getElementById('new-key-modal').style.display = 'none';
+  };
+
+  window.copyNewKey = function() {
+    const key = document.getElementById('new-key-value').textContent;
+    navigator.clipboard.writeText(key);
+    document.getElementById('copy-new-key').textContent = 'Copied!';
+    setTimeout(() => {
+      document.getElementById('copy-new-key').textContent = 'Copy';
+    }, 2000);
+  };
+
+  // ─── Revoke key ───
+  window.revokeKey = async function(prefix) {
+    if (!confirm(`Revoke key ${prefix}••• ? This cannot be undone.`)) return;
+
+    const idToken = await currentUser.getIdToken();
+    try {
+      const res = await fetch(`${API_BASE}/auth/keys/revoke`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken, prefix }),
+      });
+      if (res.ok) {
+        showToast('Key revoked.');
+        await loadDashboard(idToken);
+      }
+    } catch (err) {
+      showToast('Failed to revoke key.', 'error');
+    }
+  };
+
+  // ─── Storage settings ───
+  window.saveStorage = async function() {
+    const idToken    = await currentUser.getIdToken();
+    const enabled    = document.getElementById('storage-toggle').checked;
+    const retention  = parseInt(document.getElementById('retention-select').value);
+    const autoDelete = document.getElementById('auto-delete-toggle').checked;
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/storage/settings`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          id_token:       idToken,
+          enabled,
+          retention_days: retention,
+          auto_delete:    autoDelete,
+        }),
+      });
+      if (res.ok) showToast('Storage settings saved.');
+      else showToast('Failed to save settings.', 'error');
+    } catch {
+      showToast('Something went wrong.', 'error');
+    }
+  };
+
+  // ─── Billing ───
+  window.openPortal = async function() {
+    const idToken = await currentUser.getIdToken();
+    try {
+      const res = await fetch(`${API_BASE}/billing/portal`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken }),
+      });
+      const data = await res.json();
+      if (res.ok) window.location.href = data.portal_url;
+      else showToast(data.detail || 'Failed to open billing portal.', 'error');
+    } catch {
+      showToast('Something went wrong.', 'error');
+    }
+  };
+
+  window.upgradeTo = function(tier) {
+    window.location.href = `/pricing?upgrade=${tier}`;
+  };
+
+  // ─── Workspace ───
+  async function loadWorkspace(idToken) {
+    try {
+      const res = await fetch(
+        `${API_BASE}/auth/workspace?id_token=${encodeURIComponent(idToken)}`
+      );
+      if (!res.ok) return;
+      const ws = await res.json();
+      renderWorkspace(ws);
+    } catch {}
+  }
+
+  function renderWorkspace(ws) {
+    document.getElementById('workspace-section').style.display = 'block';
+    document.getElementById('ws-name').textContent         = ws.name || '—';
+    document.getElementById('ws-role').textContent         = ws.your_role || '—';
+    document.getElementById('ws-members-count').textContent =
+      `${ws.member_count} / ${ws.max_members === -1 ? '∞' : ws.max_members}`;
+
+    const memberList = document.getElementById('ws-members');
+    memberList.innerHTML = (ws.members || []).map(m => `
+      <div class="member-row">
+        <div class="member-info">
+          <span class="member-email">${m.email}</span>
+          <span class="member-role role-${m.role}">${m.role}</span>
+        </div>
+        <span class="member-joined">joined ${formatDate(m.joined_at)}</span>
+      </div>
+    `).join('');
+  }
+
+  window.inviteMember = async function() {
+    const email = document.getElementById('invite-email').value.trim();
+    const uid   = document.getElementById('invite-uid').value.trim();
+    if (!email || !uid) {
+      showToast('Email and UID are required.', 'error');
+      return;
+    }
+    const idToken = await currentUser.getIdToken();
+    try {
+      const res = await fetch(`${API_BASE}/auth/workspace/invite`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken, member_email: email, member_uid: uid }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Member invited.');
+        document.getElementById('invite-email').value = '';
+        document.getElementById('invite-uid').value   = '';
+        await loadWorkspace(idToken);
+      } else {
+        showToast(data.detail || 'Invite failed.', 'error');
+      }
+    } catch {
+      showToast('Something went wrong.', 'error');
+    }
+  };
+
+  // ─── Sign out ───
+  window.signOut = async function() {
+    await signOut(auth);
+    localStorage.removeItem('qrynt_id_token');
+    localStorage.removeItem('qrynt_uid');
+    window.location.href = '/';
+  };
+
+  // ─── Delete account ───
+  window.deleteAccount = async function() {
+    if (!confirm('Delete your account and all data? This cannot be undone.')) return;
+    const idToken = await currentUser.getIdToken();
+    try {
+      await fetch(`${API_BASE}/auth/account?id_token=${encodeURIComponent(idToken)}`, {
+        method: 'DELETE',
+      });
+      await signOut(auth);
+      window.location.href = '/';
+    } catch {
+      showToast('Failed to delete account.', 'error');
+    }
+  };
+
+  // ─── Helpers ───
+  function formatDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+  }
+
+  function showSkeleton(show) {
+    document.getElementById('skeleton').style.display  = show ? 'block' : 'none';
+    document.getElementById('content').style.display   = show ? 'none'  : 'block';
+  }
+
+  function showToast(msg, type = 'success') {
+    const toast = document.getElementById('toast');
+    toast.textContent  = msg;
+    toast.className    = 'toast toast-' + type;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 3500);
+  }
+</script>
+
+<style>
+  :root {
+    --bg:        #f8f7f4;
+    --surface:   #ffffff;
+    --border:    #e8e5df;
+    --border2:   #d4d0c8;
+    --ink:       #1a1814;
+    --ink-dim:   #6b6760;
+    --ink-muted: #b0ada6;
+    --accent:    #00c96e;
+    --accent-dk: #009e56;
+    --accent-bg: #f0fdf6;
+    --red:       #ef4444;
+    --yellow:    #f59e0b;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .nav-left {
+    display: flex; align-items: center; gap: 24px;
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 8px;
+    text-decoration: none;
+  }
+
+  .nav-logo img { height: 22px; }
+
+  .nav-logo-text {
+    font-family: var(--mono); font-size: 13px;
+    font-weight: 500; color: var(--ink);
+  }
+
+  .nav-page {
+    font-size: 13px; color: var(--ink-muted);
+  }
+
+  .nav-right {
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .user-email {
+    font-size: 13px; color: var(--ink-dim);
+    font-family: var(--mono);
+  }
+
+  /* ─── LAYOUT ─── */
+  .layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: calc(100vh - 56px);
+  }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    background: var(--surface);
+  }
+
+  .sidebar-section {
+    margin-bottom: 8px;
+  }
+
+  .sidebar-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 0 20px;
+    margin-bottom: 4px; display: block;
+  }
+
+  .sidebar-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 20px; font-size: 13px;
+    color: var(--ink-dim); cursor: pointer;
+    transition: all 0.15s; text-decoration: none;
+    border-left: 2px solid transparent;
+  }
+
+  .sidebar-item:hover {
+    color: var(--ink); background: var(--bg);
+  }
+
+  .sidebar-item.active {
+    color: var(--ink); background: var(--bg);
+    border-left-color: var(--accent);
+    font-weight: 500;
+  }
+
+  .sidebar-icon { font-size: 14px; opacity: 0.6; }
+
+  .sidebar-divider {
+    height: 1px; background: var(--border);
+    margin: 12px 20px;
+  }
+
+  /* ─── MAIN ─── */
+  .main {
+    padding: 32px;
+    overflow-y: auto;
+  }
+
+  /* ─── SECTION ─── */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .section-head {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-size: 15px; font-weight: 600;
+    color: var(--ink); letter-spacing: -0.01em;
+  }
+
+  .section-sub {
+    font-size: 12px; color: var(--ink-muted);
+    margin-top: 2px;
+  }
+
+  /* ─── PROFILE ─── */
+  .profile-row {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .profile-row:last-child { border-bottom: none; }
+
+  .profile-label {
+    font-size: 12px; color: var(--ink-muted);
+    font-family: var(--mono); letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .profile-value {
+    font-size: 13px; color: var(--ink);
+    font-family: var(--mono);
+  }
+
+  .tier-badge {
+    font-family: var(--mono); font-size: 11px;
+    padding: 3px 10px; border-radius: 100px;
+    font-weight: 500; letter-spacing: 0.05em;
+  }
+
+  .tier-free, .tier-starter {
+    background: var(--bg); color: var(--ink-dim);
+    border: 1px solid var(--border2);
+  }
+
+  .tier-pro {
+    background: var(--accent-bg); color: var(--accent-dk);
+    border: 1px solid rgba(0,201,110,0.3);
+  }
+
+  .tier-team {
+    background: rgba(59,130,246,0.08); color: #1d4ed8;
+    border: 1px solid rgba(59,130,246,0.2);
+  }
+
+  .tier-enterprise {
+    background: rgba(168,85,247,0.08); color: #7c3aed;
+    border: 1px solid rgba(168,85,247,0.2);
+  }
+
+  /* ─── USAGE ─── */
+  .usage-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 16px; margin-bottom: 20px;
+  }
+
+  .usage-cell {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px;
+  }
+
+  .usage-cell-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.08em;
+    text-transform: uppercase; margin-bottom: 6px;
+    display: block;
+  }
+
+  .usage-cell-value {
+    font-family: var(--mono); font-size: 22px;
+    font-weight: 500; color: var(--ink);
+    line-height: 1;
+  }
+
+  .usage-bar-wrap {
+    height: 6px; background: var(--border);
+    border-radius: 3px; overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .usage-bar-fill {
+    height: 100%; border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+
+  .bar-green  { background: var(--accent); }
+  .bar-yellow { background: var(--yellow); }
+  .bar-red    { background: var(--red); }
+
+  .usage-detail {
+    font-size: 12px; color: var(--ink-muted);
+    font-family: var(--mono);
+  }
+
+  /* ─── KEYS ─── */
+  .key-row {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .key-row:last-child { border-bottom: none; }
+  .key-inactive { opacity: 0.45; }
+
+  .key-info { flex: 1; }
+
+  .key-prefix {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--ink); display: block; margin-bottom: 3px;
+  }
+
+  .key-meta {
+    font-size: 11px; color: var(--ink-muted);
+    font-family: var(--mono);
+  }
+
+  .key-actions { display: flex; gap: 8px; }
+
+  .inactive-badge {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted);
+    border: 1px solid var(--border);
+    padding: 2px 8px; border-radius: 3px;
+  }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 6px;
+    font-family: var(--sans); font-size: 13px;
+    font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border2);
+    background: transparent; color: var(--ink-dim);
+    transition: all 0.15s; text-decoration: none;
+  }
+
+  .btn:hover { border-color: var(--ink); color: var(--ink); }
+
+  .btn-primary {
+    background: var(--ink); color: #fff;
+    border-color: var(--ink);
+  }
+
+  .btn-primary:hover { background: var(--accent-dk); border-color: var(--accent-dk); }
+
+  .btn-accent {
+    background: var(--accent); color: #fff;
+    border-color: var(--accent);
+  }
+
+  .btn-accent:hover { background: var(--accent-dk); }
+
+  .btn-sm {
+    padding: 4px 10px; font-size: 12px;
+    border-radius: 4px;
+  }
+
+  .btn-danger {
+    color: var(--red); border-color: rgba(239,68,68,0.3);
+  }
+
+  .btn-danger:hover {
+    background: rgba(239,68,68,0.06);
+    border-color: var(--red);
+  }
+
+  /* ─── STORAGE ─── */
+  .storage-row {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .storage-row:last-child { border-bottom: none; }
+
+  .storage-label { font-size: 13px; color: var(--ink); }
+  .storage-hint  { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+
+  /* Toggle switch */
+  .switch {
+    position: relative; width: 40px; height: 22px;
+    display: inline-block;
+  }
+
+  .switch input { display: none; }
+
+  .switch-slider {
+    position: absolute; inset: 0;
+    background: var(--border2); border-radius: 11px;
+    cursor: pointer; transition: background 0.2s;
+  }
+
+  .switch-slider::before {
+    content: ''; position: absolute;
+    top: 3px; left: 3px;
+    width: 16px; height: 16px;
+    background: #fff; border-radius: 50%;
+    transition: transform 0.2s;
+  }
+
+  input:checked + .switch-slider { background: var(--accent); }
+  input:checked + .switch-slider::before { transform: translateX(18px); }
+
+  select {
+    padding: 6px 10px; border-radius: 6px;
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink); outline: none;
+  }
+
+  select:focus { border-color: var(--accent); }
+
+  /* ─── BILLING ─── */
+  .billing-row {
+    display: flex; align-items: center;
+    justify-content: space-between; padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .billing-row:last-child { border-bottom: none; }
+
+  .billing-row-label {
+    font-size: 12px; color: var(--ink-muted);
+    font-family: var(--mono); text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .billing-row-value {
+    font-family: var(--mono); font-size: 13px; color: var(--ink);
+  }
+
+  .status-pill {
+    font-family: var(--mono); font-size: 11px;
+    padding: 3px 10px; border-radius: 100px;
+    font-weight: 500; letter-spacing: 0.05em;
+  }
+
+  .status-active {
+    background: var(--accent-bg); color: var(--accent-dk);
+    border: 1px solid rgba(0,201,110,0.3);
+  }
+
+  .status-free {
+    background: var(--bg); color: var(--ink-muted);
+    border: 1px solid var(--border2);
+  }
+
+  .upgrade-btns {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-top: 16px;
+  }
+
+  /* ─── WORKSPACE ─── */
+  .member-row {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .member-row:last-child { border-bottom: none; }
+
+  .member-info { display: flex; align-items: center; gap: 10px; }
+
+  .member-email {
+    font-family: var(--mono); font-size: 12px; color: var(--ink);
+  }
+
+  .member-role {
+    font-family: var(--mono); font-size: 10px;
+    padding: 2px 8px; border-radius: 3px;
+    letter-spacing: 0.05em;
+  }
+
+  .role-owner   { background: var(--accent-bg); color: var(--accent-dk); }
+  .role-admin   { background: rgba(59,130,246,0.08); color: #1d4ed8; }
+  .role-member  { background: var(--bg); color: var(--ink-muted); }
+
+  .member-joined {
+    font-size: 11px; color: var(--ink-muted);
+    font-family: var(--mono);
+  }
+
+  .invite-row {
+    display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;
+  }
+
+  .invite-row input {
+    flex: 1; min-width: 160px; padding: 8px 12px;
+    border: 1px solid var(--border2); border-radius: 6px;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink); outline: none; background: var(--surface);
+  }
+
+  .invite-row input:focus { border-color: var(--accent); }
+
+  /* ─── DANGER ZONE ─── */
+  .danger-zone {
+    border-color: rgba(239,68,68,0.2);
+  }
+
+  .danger-zone .section-title { color: var(--red); }
+
+  /* ─── MODAL ─── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 200;
+  }
+
+  .modal-card {
+    background: var(--surface);
+    border-radius: 14px; padding: 32px;
+    width: 100%; max-width: 440px;
+    margin: 24px;
+  }
+
+  .modal-title {
+    font-size: 18px; font-weight: 600;
+    margin-bottom: 6px; color: var(--ink);
+  }
+
+  .modal-sub {
+    font-size: 13px; color: var(--ink-dim);
+    margin-bottom: 20px; line-height: 1.5;
+  }
+
+  .modal-key {
+    background: var(--bg); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 14px;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--accent-dk); word-break: break-all;
+    margin-bottom: 10px; line-height: 1.5;
+  }
+
+  .modal-warning {
+    font-size: 12px; color: #92400e;
+    background: rgba(234,179,8,0.08);
+    border: 1px solid rgba(234,179,8,0.2);
+    border-radius: 6px; padding: 10px;
+    margin-bottom: 20px; line-height: 1.5;
+  }
+
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-actions button { flex: 1; }
+
+  /* ─── SKELETON ─── */
+  .skeleton-block {
+    background: linear-gradient(90deg, var(--border) 25%, var(--bg) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px; height: 16px; margin-bottom: 10px;
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ─── TOAST ─── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    padding: 12px 20px; border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    display: none; z-index: 300;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+
+  .toast-success { background: var(--ink); color: #fff; }
+  .toast-error   { background: var(--red); color: #fff; }
+
+  /* ─── EMPTY ─── */
+  .empty-state {
+    font-size: 13px; color: var(--ink-muted);
+    padding: 16px 0; font-family: var(--mono);
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .usage-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-left">
+    <a href="/" class="nav-logo">
+      <img src="/assets/QryNt.png" alt="Qrynt">
+      <span class="nav-logo-text">Qrynt</span>
+    </a>
+    <span class="nav-page">/ Dashboard</span>
+  </div>
+  <div class="nav-right">
+    <span class="user-email" id="user-email">—</span>
+    <button class="btn btn-sm" onclick="signOut()">Sign out</button>
+  </div>
+</nav>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <span class="sidebar-label">Overview</span>
+      <a class="sidebar-item active" href="#usage">
+        <span class="sidebar-icon">◉</span> Usage
+      </a>
+      <a class="sidebar-item" href="#keys">
+        <span class="sidebar-icon">◈</span> API Keys
+      </a>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <span class="sidebar-label">Account</span>
+      <a class="sidebar-item" href="#billing">
+        <span class="sidebar-icon">◇</span> Billing
+      </a>
+      <a class="sidebar-item" href="#storage">
+        <span class="sidebar-icon">◫</span> Storage
+      </a>
+      <a class="sidebar-item" href="#workspace">
+        <span class="sidebar-icon">◱</span> Team
+      </a>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <a class="sidebar-item" href="/console">
+        <span class="sidebar-icon">→</span> Try Qrynt
+      </a>
+      <a class="sidebar-item" href="/docs">
+        <span class="sidebar-icon">→</span> API Docs
+      </a>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- Skeleton -->
+    <div id="skeleton">
+      <div class="section">
+        <div class="skeleton-block" style="width:30%;height:20px;margin-bottom:20px"></div>
+        <div class="skeleton-block"></div>
+        <div class="skeleton-block" style="width:80%"></div>
+        <div class="skeleton-block" style="width:60%"></div>
+      </div>
+      <div class="section">
+        <div class="skeleton-block" style="width:40%;height:18px;margin-bottom:16px"></div>
+        <div class="skeleton-block"></div>
+        <div class="skeleton-block" style="width:70%"></div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div id="content" style="display:none">
+
+      <!-- Profile -->
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Account</div>
+          </div>
+          <span id="user-tier" class="tier-badge">—</span>
+        </div>
+        <div class="profile-row">
+          <span class="profile-label">Email</span>
+          <span class="profile-value" id="user-email-val">—</span>
+        </div>
+        <div class="profile-row">
+          <span class="profile-label">Last request</span>
+          <span class="profile-value" id="last-request">—</span>
+        </div>
+      </div>
+
+      <!-- Usage -->
+      <div class="section" id="usage">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Usage</div>
+            <div class="section-sub">Resets daily at midnight UTC</div>
+          </div>
+        </div>
+        <div class="usage-grid">
+          <div class="usage-cell">
+            <span class="usage-cell-label">Today</span>
+            <div class="usage-cell-value" id="usage-today">—</div>
+          </div>
+          <div class="usage-cell">
+            <span class="usage-cell-label">Daily limit</span>
+            <div class="usage-cell-value" id="usage-limit">—</div>
+          </div>
+          <div class="usage-cell">
+            <span class="usage-cell-label">All time</span>
+            <div class="usage-cell-value" id="usage-total">—</div>
+          </div>
+        </div>
+        <div class="usage-bar-wrap">
+          <div class="usage-bar-fill bar-green" id="usage-bar" style="width:0%"></div>
+        </div>
+        <div class="usage-detail">
+          <span id="usage-today-b">0</span> /
+          <span id="usage-limit-b">50</span> requests used today
+        </div>
+      </div>
+
+      <!-- API Keys -->
+      <div class="section" id="keys">
+        <div class="section-head">
+          <div>
+            <div class="section-title">API Keys</div>
+            <div class="section-sub">Keep your keys secret</div>
+          </div>
+          <button class="btn btn-primary" id="add-key-btn"
+            onclick="generateKey('live')">
+            + Generate key
+          </button>
+        </div>
+        <div id="keys-list"></div>
+      </div>
+
+      <!-- Billing -->
+      <div class="section" id="billing">
+        <div class="section-head">
+          <div class="section-title">Billing</div>
+          <button class="btn" id="manage-billing-btn"
+            onclick="openPortal()" style="display:none">
+            Manage subscription
+          </button>
+        </div>
+        <div class="billing-row">
+          <span class="billing-row-label">Plan</span>
+          <span class="billing-row-value" id="billing-tier">—</span>
+        </div>
+        <div class="billing-row">
+          <span class="billing-row-label">Status</span>
+          <span class="status-pill status-free" id="billing-status">—</span>
+        </div>
+        <div class="billing-row" id="billing-renews-row">
+          <span class="billing-row-label">Renewal</span>
+          <span class="billing-row-value" id="billing-renews"
+            style="display:none">—</span>
+        </div>
+        <div class="upgrade-btns" id="upgrade-btns">
+          <button class="btn btn-accent" onclick="upgradeTo('pro')">
+            Upgrade to Pro — $29/mo
+          </button>
+          <button class="btn btn-primary" onclick="upgradeTo('team')">
+            Upgrade to Team — $79/mo
+          </button>
+        </div>
+      </div>
+
+      <!-- Storage -->
+      <div id="storage-unavailable" style="display:none">
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">Storage</div>
+          </div>
+          <p style="font-size:13px;color:var(--ink-dim);line-height:1.6">
+            Document storage is available on Pro and Team plans.
+            <a href="/pricing" style="color:var(--accent-dk)">Upgrade →</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="section" id="storage-section" style="display:none">
+        <div class="section-head">
+          <div class="section-title">Storage</div>
+          <button class="btn btn-primary" onclick="saveStorage()">
+            Save settings
+          </button>
+        </div>
+        <div class="storage-row">
+          <div>
+            <div class="storage-label">Enable document storage</div>
+            <div class="storage-hint">
+              Store processed documents for retrieval and replay
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="storage-toggle">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+        <div class="storage-row">
+          <div>
+            <div class="storage-label">Retention period</div>
+            <div class="storage-hint">Documents older than this are deleted</div>
+          </div>
+          <select id="retention-select">
+            <option value="7">7 days</option>
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+          </select>
+        </div>
+        <div class="storage-row">
+          <div>
+            <div class="storage-label">Auto-delete on expiry</div>
+            <div class="storage-hint">
+              Automatically delete documents when retention period ends
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="auto-delete-toggle" checked>
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Workspace / Team -->
+      <div class="section" id="workspace-section" style="display:none">
+        <div class="section-head">
+          <div>
+            <div class="section-title" id="ws-name">Team workspace</div>
+            <div class="section-sub">
+              <span id="ws-members-count">—</span> members ·
+              your role: <span id="ws-role">—</span>
+            </div>
+          </div>
+        </div>
+        <div id="ws-members"></div>
+        <div class="invite-row">
+          <input type="email" id="invite-email" placeholder="member@company.com">
+          <input type="text" id="invite-uid" placeholder="Firebase UID">
+          <button class="btn btn-primary" onclick="inviteMember()">
+            Invite
+          </button>
+        </div>
+      </div>
+
+      <!-- Danger zone -->
+      <div class="section danger-zone">
+        <div class="section-head">
+          <div class="section-title">Danger zone</div>
+        </div>
+        <div style="display:flex;align-items:center;
+          justify-content:space-between;padding:8px 0">
+          <div>
+            <div style="font-size:13px;font-weight:500">Delete account</div>
+            <div style="font-size:12px;color:var(--ink-muted);margin-top:2px">
+              Permanently delete your account and all data. Cannot be undone.
+            </div>
+          </div>
+          <button class="btn btn-danger btn-sm" onclick="deleteAccount()">
+            Delete account
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- New key modal -->
+<div class="modal-overlay" id="new-key-modal">
+  <div class="modal-card">
+    <div class="modal-title">New API key generated</div>
+    <div class="modal-sub">
+      Copy this key now. It will not be shown again.
+    </div>
+    <div class="modal-key" id="new-key-value">—</div>
+    <div class="modal-warning">
+      ⚠ Store this key securely. Anyone with this key can
+      make requests on your behalf.
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="copy-new-key" onclick="copyNewKey()">Copy</button>
+      <button class="btn btn-primary" onclick="closeNewKey()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+</body>
+</html>

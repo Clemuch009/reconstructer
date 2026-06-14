@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing — Qrynt</title>
+<meta name="description" content="Simple, transparent pricing for data teams and AI builders.">
+<link rel="icon" type="image/png" href="/assets/QryNt.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<style>
+  :root {
+    --bg:        #f8f7f4;
+    --surface:   #ffffff;
+    --border:    #e8e5df;
+    --border2:   #d4d0c8;
+    --ink:       #1a1814;
+    --ink-dim:   #6b6760;
+    --ink-muted: #b0ada6;
+    --accent:    #00c96e;
+    --accent-dk: #009e56;
+    --accent-bg: #f0fdf6;
+    --serif:     'Instrument Serif', Georgia, serif;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(248,247,244,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-logo img { height: 26px; }
+
+  .nav-logo-text {
+    font-family: var(--mono); font-size: 14px;
+    font-weight: 500; color: var(--ink);
+  }
+
+  .nav-links {
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .nav-link {
+    font-size: 14px; color: var(--ink-dim);
+    text-decoration: none; padding: 6px 14px;
+    border-radius: 6px; transition: all 0.15s;
+  }
+
+  .nav-link:hover { color: var(--ink); background: var(--border); }
+
+  .nav-cta {
+    font-size: 14px; font-weight: 600; color: #fff;
+    background: var(--ink); text-decoration: none;
+    padding: 8px 20px; border-radius: 6px;
+    transition: all 0.2s; margin-left: 8px;
+  }
+
+  .nav-cta:hover { background: var(--accent-dk); }
+
+  /* ─── HEADER ─── */
+  .page-header {
+    text-align: center;
+    padding: 80px 24px 60px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .page-label {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent-dk); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 16px;
+    display: block;
+  }
+
+  h1 {
+    font-family: var(--serif); font-size: clamp(36px, 5vw, 52px);
+    font-weight: 400; line-height: 1.1;
+    letter-spacing: -0.02em; margin-bottom: 16px;
+  }
+
+  .page-sub {
+    font-size: 16px; color: var(--ink-dim);
+    font-weight: 300; line-height: 1.7;
+  }
+
+  /* ─── BILLING TOGGLE ─── */
+  .billing-toggle {
+    display: flex; align-items: center;
+    justify-content: center; gap: 12px;
+    margin-bottom: 48px;
+  }
+
+  .toggle-label {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink-dim); letter-spacing: 0.05em;
+  }
+
+  .toggle-switch {
+    position: relative; width: 44px; height: 24px;
+    background: var(--border2); border-radius: 12px;
+    cursor: pointer; transition: background 0.2s;
+  }
+
+  .toggle-switch.active { background: var(--accent); }
+
+  .toggle-switch::after {
+    content: ''; position: absolute;
+    top: 3px; left: 3px;
+    width: 18px; height: 18px;
+    background: #fff; border-radius: 50%;
+    transition: transform 0.2s;
+  }
+
+  .toggle-switch.active::after { transform: translateX(20px); }
+
+  .save-badge {
+    font-family: var(--mono); font-size: 10px;
+    background: var(--accent-bg); color: var(--accent-dk);
+    border: 1px solid rgba(0,201,110,0.3);
+    padding: 2px 8px; border-radius: 100px;
+    letter-spacing: 0.05em;
+  }
+
+  /* ─── TIER GRID ─── */
+  .tier-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    max-width: 1100px;
+    margin: 0 auto 80px;
+    padding: 0 24px;
+  }
+
+  .tier-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transition: all 0.2s;
+  }
+
+  .tier-card:hover {
+    border-color: var(--border2);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.07);
+    transform: translateY(-2px);
+  }
+
+  .tier-card.featured {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  .featured-badge {
+    position: absolute; top: -12px; left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent); color: #fff;
+    font-family: var(--mono); font-size: 10px;
+    font-weight: 500; letter-spacing: 0.08em;
+    padding: 4px 14px; border-radius: 100px;
+    white-space: nowrap;
+  }
+
+  .tier-name {
+    font-family: var(--serif); font-size: 22px;
+    font-weight: 400; margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .tier-desc {
+    font-size: 13px; color: var(--ink-dim);
+    font-weight: 300; margin-bottom: 24px;
+    min-height: 36px; line-height: 1.5;
+  }
+
+  .tier-price {
+    margin-bottom: 28px;
+  }
+
+  .price-amount {
+    font-family: var(--mono); font-size: 42px;
+    font-weight: 500; color: var(--ink);
+    letter-spacing: -0.03em; line-height: 1;
+    display: flex; align-items: baseline; gap: 4px;
+  }
+
+  .price-currency {
+    font-size: 20px; font-weight: 300;
+    color: var(--ink-dim); margin-top: 4px;
+  }
+
+  .price-period {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink-muted); margin-top: 4px;
+  }
+
+  /* Terminal cursor on featured price */
+  .tier-card.featured .price-amount::after {
+    content: '|';
+    font-size: 36px;
+    color: var(--accent);
+    animation: blink 1s step-end infinite;
+    margin-left: 2px;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+  }
+
+  .price-annual {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent-dk); margin-top: 6px;
+    display: none;
+  }
+
+  .price-annual.show { display: block; }
+
+  /* CTA button */
+  .tier-btn {
+    display: block; width: 100%;
+    padding: 11px 20px; border-radius: 8px;
+    font-family: var(--sans); font-size: 14px;
+    font-weight: 600; text-align: center;
+    text-decoration: none; cursor: pointer;
+    border: none; transition: all 0.2s;
+    margin-bottom: 28px;
+  }
+
+  .tier-btn-outline {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--ink-dim);
+  }
+
+  .tier-btn-outline:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+
+  .tier-btn-primary {
+    background: var(--ink); color: #fff;
+  }
+
+  .tier-btn-primary:hover {
+    background: var(--accent-dk);
+    transform: translateY(-1px);
+  }
+
+  .tier-btn-accent {
+    background: var(--accent); color: #fff;
+  }
+
+  .tier-btn-accent:hover {
+    background: var(--accent-dk);
+    transform: translateY(-1px);
+  }
+
+  .tier-btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--ink-dim);
+  }
+
+  .tier-btn-ghost:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+
+  /* Feature list */
+  .feature-divider {
+    height: 1px; background: var(--border);
+    margin-bottom: 20px;
+  }
+
+  .feature-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 12px;
+  }
+
+  .feature-list {
+    list-style: none;
+    display: flex; flex-direction: column; gap: 10px;
+    flex: 1;
+  }
+
+  .feature-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    font-size: 13px; color: var(--ink-dim); line-height: 1.4;
+  }
+
+  .feature-check {
+    width: 16px; height: 16px;
+    border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; margin-top: 1px;
+  }
+
+  .check-green {
+    background: var(--accent-bg); color: var(--accent-dk);
+    border: 1px solid rgba(0,201,110,0.3);
+  }
+
+  .check-grey {
+    background: var(--border); color: var(--ink-muted);
+  }
+
+  .feature-item.strong { color: var(--ink); font-weight: 500; }
+
+  /* ─── COMPARISON TABLE ─── */
+  .comparison {
+    max-width: 900px; margin: 0 auto 100px;
+    padding: 0 24px;
+  }
+
+  .comparison-title {
+    font-family: var(--serif); font-size: 28px;
+    font-weight: 400; margin-bottom: 32px;
+    text-align: center; letter-spacing: -0.01em;
+  }
+
+  .comparison-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .comparison-table th {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink-dim); letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 12px 16px;
+    text-align: left; border-bottom: 2px solid var(--border);
+    font-weight: 500;
+  }
+
+  .comparison-table th:first-child { width: 40%; }
+
+  .comparison-table td {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    color: var(--ink-dim); vertical-align: middle;
+  }
+
+  .comparison-table td:first-child {
+    color: var(--ink); font-weight: 400;
+  }
+
+  .comparison-table tr:last-child td { border-bottom: none; }
+
+  .comparison-table tr:hover td { background: rgba(0,0,0,0.01); }
+
+  .comparison-table .category-row td {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.1em;
+    text-transform: uppercase; padding-top: 24px;
+    background: transparent;
+  }
+
+  .tick { color: var(--accent-dk); font-weight: 700; }
+  .cross { color: var(--ink-muted); }
+  .val { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+
+  /* ─── FAQ ─── */
+  .faq {
+    max-width: 680px; margin: 0 auto 100px;
+    padding: 0 24px;
+  }
+
+  .faq-title {
+    font-family: var(--serif); font-size: 28px;
+    font-weight: 400; margin-bottom: 32px;
+    letter-spacing: -0.01em;
+  }
+
+  .faq-item {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+  }
+
+  .faq-q {
+    font-size: 15px; font-weight: 500;
+    margin-bottom: 8px; color: var(--ink);
+  }
+
+  .faq-a {
+    font-size: 14px; color: var(--ink-dim);
+    font-weight: 300; line-height: 1.7;
+  }
+
+  .faq-a a { color: var(--accent-dk); text-decoration: none; }
+  .faq-a a:hover { text-decoration: underline; }
+
+  /* ─── FINAL CTA ─── */
+  .final-cta {
+    background: var(--ink);
+    padding: 80px 24px;
+    text-align: center;
+  }
+
+  .final-cta h2 {
+    font-family: var(--serif); font-size: clamp(28px, 4vw, 42px);
+    color: #fff; font-weight: 400;
+    margin-bottom: 16px; letter-spacing: -0.02em;
+  }
+
+  .final-cta p {
+    color: rgba(255,255,255,0.5);
+    font-weight: 300; margin-bottom: 36px;
+    font-size: 15px;
+  }
+
+  .cta-actions {
+    display: flex; align-items: center;
+    justify-content: center; gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .btn-white {
+    font-size: 15px; font-weight: 600; color: var(--ink);
+    background: #fff; text-decoration: none;
+    padding: 13px 28px; border-radius: 8px;
+    transition: all 0.2s;
+  }
+
+  .btn-white:hover { background: var(--accent); color: #fff; }
+
+  .btn-ghost-white {
+    font-size: 15px; font-weight: 400;
+    color: rgba(255,255,255,0.6);
+    text-decoration: none; padding: 13px 24px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    transition: all 0.2s;
+  }
+
+  .btn-ghost-white:hover {
+    color: #fff;
+    border-color: rgba(255,255,255,0.4);
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 28px 48px;
+    display: flex; align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-logo {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--ink-muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .footer-logo img { height: 16px; opacity: 0.5; }
+
+  .footer-links {
+    display: flex; gap: 24px;
+  }
+
+  .footer-link {
+    font-size: 13px; color: var(--ink-muted);
+    text-decoration: none; transition: color 0.15s;
+  }
+
+  .footer-link:hover { color: var(--ink); }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 900px) {
+    nav { padding: 0 20px; }
+    .nav-links .nav-link { display: none; }
+    .tier-grid { grid-template-columns: 1fr 1fr; }
+    footer { padding: 20px 24px; flex-direction: column; gap: 16px; }
+  }
+
+  @media (max-width: 600px) {
+    .tier-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    <span class="nav-logo-text">Qrynt</span>
+  </a>
+  <div class="nav-links">
+    <a href="/docs" class="nav-link">Docs</a>
+    <a href="/console" class="nav-link">Try Qrynt</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="/signup" class="nav-cta">Get started</a>
+  </div>
+</nav>
+
+<!-- HEADER -->
+<div class="page-header">
+  <span class="page-label">// Pricing</span>
+  <h1>Simple pricing for<br>serious data work.</h1>
+  <p class="page-sub">
+    Start free. Upgrade when you need more.<br>
+    No hidden fees. Cancel any time.
+  </p>
+</div>
+
+<!-- BILLING TOGGLE -->
+<div class="billing-toggle">
+  <span class="toggle-label">MONTHLY</span>
+  <div class="toggle-switch" id="billing-toggle" onclick="toggleBilling()"></div>
+  <span class="toggle-label">ANNUAL</span>
+  <span class="save-badge">SAVE 20%</span>
+</div>
+
+<!-- TIER GRID -->
+<div class="tier-grid">
+
+  <!-- Starter -->
+  <div class="tier-card">
+    <div class="tier-name">Starter</div>
+    <div class="tier-desc">Try Qrynt with no commitment.</div>
+    <div class="tier-price">
+      <div class="price-amount">
+        <span class="price-currency">$</span>0
+      </div>
+      <div class="price-period">free forever</div>
+    </div>
+    <a href="/signup" class="tier-btn tier-btn-outline">Get started free</a>
+    <div class="feature-divider"></div>
+    <div class="feature-label">Includes</div>
+    <ul class="feature-list">
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        50 requests / day
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        1 API key
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        All file formats
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Human, Machine, AI adapters
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-grey">–</span>
+        No document storage
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-grey">–</span>
+        No team access
+      </li>
+    </ul>
+  </div>
+
+  <!-- Pro -->
+  <div class="tier-card featured">
+    <div class="featured-badge">MOST POPULAR</div>
+    <div class="tier-name">Pro</div>
+    <div class="tier-desc">For data scientists and AI builders.</div>
+    <div class="tier-price">
+      <div class="price-amount" id="pro-price">
+        <span class="price-currency">$</span>
+        <span id="pro-amount">29</span>
+      </div>
+      <div class="price-period">per month</div>
+      <div class="price-annual" id="pro-annual">$278 / year — save $70</div>
+    </div>
+    <button class="tier-btn tier-btn-accent" onclick="checkout('pro')">
+      Upgrade to Pro
+    </button>
+    <div class="feature-divider"></div>
+    <div class="feature-label">Everything in Starter, plus</div>
+    <ul class="feature-list">
+      <li class="feature-item strong">
+        <span class="feature-check check-green">✓</span>
+        1,000 requests / day
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        3 API keys
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Opt-in document storage
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        7–30 day retention
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Session history
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Priority support
+      </li>
+    </ul>
+  </div>
+
+  <!-- Team -->
+  <div class="tier-card">
+    <div class="tier-name">Team</div>
+    <div class="tier-desc">For engineering teams and data orgs.</div>
+    <div class="tier-price">
+      <div class="price-amount" id="team-price">
+        <span class="price-currency">$</span>
+        <span id="team-amount">79</span>
+      </div>
+      <div class="price-period">per month</div>
+      <div class="price-annual" id="team-annual">$758 / year — save $190</div>
+    </div>
+    <button class="tier-btn tier-btn-primary" onclick="checkout('team')">
+      Upgrade to Team
+    </button>
+    <div class="feature-divider"></div>
+    <div class="feature-label">Everything in Pro, plus</div>
+    <ul class="feature-list">
+      <li class="feature-item strong">
+        <span class="feature-check check-green">✓</span>
+        10,000 requests / day
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        10 API keys
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Shared workspace
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Up to 10 members
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        90 day retention
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Admin controls
+      </li>
+    </ul>
+  </div>
+
+  <!-- Enterprise -->
+  <div class="tier-card">
+    <div class="tier-name">Enterprise</div>
+    <div class="tier-desc">Custom deployment for sensitive data.</div>
+    <div class="tier-price">
+      <div class="price-amount" style="font-size:28px; color: var(--ink-dim);">
+        Custom
+      </div>
+      <div class="price-period">contact us</div>
+    </div>
+    <a href="mailto:qrynttech@gmail.com?subject=Enterprise inquiry"
+       class="tier-btn tier-btn-ghost">
+      Contact us
+    </a>
+    <div class="feature-divider"></div>
+    <div class="feature-label">Everything in Team, plus</div>
+    <ul class="feature-list">
+      <li class="feature-item strong">
+        <span class="feature-check check-green">✓</span>
+        Unlimited requests
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Self-hosted deployment
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Custom retention policies
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        GDPR / DPA support
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        SLA + dedicated support
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Unlimited members
+      </li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- COMPARISON TABLE -->
+<div class="comparison">
+  <h2 class="comparison-title">Full feature comparison</h2>
+  <table class="comparison-table">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th>Starter</th>
+        <th>Pro</th>
+        <th>Team</th>
+        <th>Enterprise</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="category-row">
+        <td colspan="5">Usage</td>
+      </tr>
+      <tr>
+        <td>Requests / day</td>
+        <td class="val">50</td>
+        <td class="val">1,000</td>
+        <td class="val">10,000</td>
+        <td class="val">Unlimited</td>
+      </tr>
+      <tr>
+        <td>API keys</td>
+        <td class="val">1</td>
+        <td class="val">3</td>
+        <td class="val">10</td>
+        <td class="val">Unlimited</td>
+      </tr>
+      <tr>
+        <td>Max file size</td>
+        <td class="val">50MB</td>
+        <td class="val">50MB</td>
+        <td class="val">50MB</td>
+        <td class="val">Custom</td>
+      </tr>
+
+      <tr class="category-row">
+        <td colspan="5">File formats</td>
+      </tr>
+      <tr>
+        <td>TXT, CSV, HTML</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+      <tr>
+        <td>PDF, DOCX, XLSX</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+      <tr>
+        <td>Unknown / mixed formats</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+
+      <tr class="category-row">
+        <td colspan="5">Output adapters</td>
+      </tr>
+      <tr>
+        <td>Human readable</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+      <tr>
+        <td>Machine (JSON)</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+      <tr>
+        <td>AI / LDM</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+
+      <tr class="category-row">
+        <td colspan="5">Storage</td>
+      </tr>
+      <tr>
+        <td>Document storage (opt-in)</td>
+        <td class="cross">–</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+      <tr>
+        <td>Retention period</td>
+        <td class="cross">–</td>
+        <td class="val">7–30 days</td>
+        <td class="val">7–90 days</td>
+        <td class="val">Custom</td>
+      </tr>
+      <tr>
+        <td>User-controlled deletion</td>
+        <td class="cross">–</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+
+      <tr class="category-row">
+        <td colspan="5">Team</td>
+      </tr>
+      <tr>
+        <td>Shared workspace</td>
+        <td class="cross">–</td>
+        <td class="cross">–</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+      <tr>
+        <td>Max members</td>
+        <td class="cross">–</td>
+        <td class="cross">–</td>
+        <td class="val">10</td>
+        <td class="val">Unlimited</td>
+      </tr>
+      <tr>
+        <td>Admin controls</td>
+        <td class="cross">–</td>
+        <td class="cross">–</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+
+      <tr class="category-row">
+        <td colspan="5">Deployment</td>
+      </tr>
+      <tr>
+        <td>Cloud hosted</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+        <td class="tick">✓</td>
+      </tr>
+      <tr>
+        <td>Self-hosted (Docker)</td>
+        <td class="cross">–</td>
+        <td class="cross">–</td>
+        <td class="cross">–</td>
+        <td class="tick">✓</td>
+      </tr>
+      <tr>
+        <td>GDPR / DPA</td>
+        <td class="cross">–</td>
+        <td class="cross">–</td>
+        <td class="cross">–</td>
+        <td class="tick">✓</td>
+      </tr>
+      <tr>
+        <td>SLA</td>
+        <td class="cross">–</td>
+        <td class="cross">–</td>
+        <td class="cross">–</td>
+        <td class="tick">✓</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- FAQ -->
+<div class="faq">
+  <h2 class="faq-title">Common questions</h2>
+
+  <div class="faq-item">
+    <div class="faq-q">Is my data stored when I process documents?</div>
+    <div class="faq-a">
+      No. By default Qrynt processes all documents in memory only —
+      nothing is written to disk or retained after your session ends.
+      Storage is an opt-in feature on Pro and Team tiers,
+      with user-controlled retention and deletion.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Can I run Qrynt on my own infrastructure?</div>
+    <div class="faq-a">
+      Yes. Enterprise plans include a Docker image for self-hosted deployment.
+      Your data never leaves your environment.
+      <a href="mailto:qrynttech@gmail.com">Contact us</a> to get started.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">What counts as a request?</div>
+    <div class="faq-a">
+      One call to <code>/ingest</code> followed by <code>/resolve</code>
+      counts as one request. Calling <code>/export</code> multiple times
+      on the same resolved session does not count as additional requests.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Can I cancel my subscription?</div>
+    <div class="faq-a">
+      Yes, any time from your dashboard. Your plan stays active until
+      the end of the current billing period — no partial refunds.
+      Cancelling moves you to the Starter tier automatically.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Do you offer discounts for startups or students?</div>
+    <div class="faq-a">
+      Yes. <a href="mailto:qrynttech@gmail.com">Email us</a> with
+      proof of startup or student status and we will apply a discount manually.
+    </div>
+  </div>
+
+</div>
+
+<!-- FINAL CTA -->
+<div class="final-cta">
+  <h2>Start processing data today.</h2>
+  <p>No credit card required to try. Upgrade when you need more.</p>
+  <div class="cta-actions">
+    <a href="/signup" class="btn-white">Get started free →</a>
+    <a href="/console" class="btn-ghost-white">Try the playground</a>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    Qrynt
+  </div>
+  <div class="footer-links">
+    <a href="/docs"    class="footer-link">Docs</a>
+    <a href="/terms"   class="footer-link">Terms</a>
+    <a href="/privacy" class="footer-link">Privacy</a>
+    <a href="mailto:qrynttech@gmail.com" class="footer-link">Contact</a>
+  </div>
+  <div style="font-family:var(--mono);font-size:12px;color:var(--ink-muted)">
+    © 2026 Qrynt
+  </div>
+</footer>
+
+<script>
+const API_BASE   = '';
+let isAnnual     = false;
+let idToken      = null;
+let paddleReady  = false;
+
+// Check if user is logged in
+async function checkAuth() {
+  const token = localStorage.getItem('qrynt_id_token');
+  if (token) idToken = token;
+}
+
+// Initialize Paddle.js — environment + token set per checkout config,
+// but Paddle requires Environment + Initialize before Checkout.open.
+// We use the sandbox environment and the client token returned by the
+// backend (kept in sync with PADDLE_CLIENT_TOKEN env var).
+function initPaddle(clientToken) {
+  if (paddleReady) return;
+  Paddle.Environment.set('sandbox'); // switch to 'production' when going live
+  Paddle.Initialize({
+    token: clientToken,
+    eventCallback: function (event) {
+      if (event.name === 'checkout.completed') {
+        // Give the webhook a moment to process, then refresh dashboard
+        showToast?.('Payment received — activating your plan...');
+        setTimeout(() => {
+          window.location.href = '/dashboard?upgraded=true';
+        }, 1500);
+      }
+    },
+  });
+  paddleReady = true;
+}
+
+function showToast(msg) {
+  // Lightweight inline toast for pricing page (no dashboard toast element here)
+  let el = document.getElementById('pricing-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'pricing-toast';
+    el.style.cssText = `
+      position:fixed;bottom:24px;right:24px;
+      background:var(--ink);color:#fff;
+      padding:12px 20px;border-radius:8px;
+      font-size:13px;font-weight:500;z-index:300;
+      box-shadow:0 4px 20px rgba(0,0,0,0.15);
+    `;
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// Billing toggle
+function toggleBilling() {
+  isAnnual = !isAnnual;
+  const toggle = document.getElementById('billing-toggle');
+  toggle.classList.toggle('active', isAnnual);
+
+  const prices = {
+    pro:  { monthly: 29,  annual: 23 },
+    team: { monthly: 79,  annual: 63 },
+  };
+
+  document.getElementById('pro-amount').textContent =
+    isAnnual ? prices.pro.annual : prices.pro.monthly;
+  document.getElementById('team-amount').textContent =
+    isAnnual ? prices.team.annual : prices.team.monthly;
+
+  document.getElementById('pro-annual').classList.toggle('show', isAnnual);
+  document.getElementById('team-annual').classList.toggle('show', isAnnual);
+}
+
+// Checkout — opens Paddle overlay directly, no redirect
+async function checkout(tier) {
+  if (!idToken) {
+    // Not logged in — redirect to signup with intent
+    window.location.href = `/signup?upgrade=${tier}`;
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/billing/checkout-config?id_token=${encodeURIComponent(idToken)}&tier=${tier}`
+    );
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.detail?.message || err.detail || 'Could not start checkout.');
+      return;
+    }
+
+    const config = await res.json();
+
+    initPaddle(config.client_token);
+
+    Paddle.Checkout.open({
+      items: [{ priceId: config.price_id, quantity: 1 }],
+      customer: { email: config.email },
+      customData: { uid: config.uid, tier: config.tier },
+    });
+
+  } catch (err) {
+    alert('Something went wrong. Please try again.');
+  }
+}
+
+checkAuth();
+</script>
+</body>
+</html>

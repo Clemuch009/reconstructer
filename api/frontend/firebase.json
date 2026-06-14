@@ -20,6 +20,18 @@
   "source": "/feedback",
   "destination": "/feedback.html"
 },
+{
+  "source": "/pricing",
+  "destination": "/pricing.html"
+},
+{
+  "source": "/terms",
+  "destination": "/terms.html"
+},
+{
+  "source": "/privacy",
+  "destination": "/privacy.html"
+},
       {
         "source": "/observer",
         "destination": "/observer.html"

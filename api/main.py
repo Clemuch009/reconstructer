@@ -1,14 +1,22 @@
 # api/main.py
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from api.routes.health  import router as health_router
-from api.routes.process import router as process_router
-from api.routes.document import router as document_router
-from api.routes.ingest import router as ingest_router
 from fastapi.responses import FileResponse
-import os
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from api.middleware.auth import rate_limit_headers_middleware
+from api.routes.health    import router as health_router
+from api.routes.process   import router as process_router
+from api.routes.document  import router as document_router
+from api.routes.ingest    import router as ingest_router
+from api.routes.ingest_file import router as ingest_file_router
+from api.auth.router      import router as auth_router
+
 
 # ---------------------------------
 # App
@@ -28,7 +36,7 @@ app = FastAPI(
 
 
 # ---------------------------------
-# CORS — restrict in production
+# Middleware — must be registered before routers
 # ---------------------------------
 
 app.add_middleware(
@@ -38,31 +46,54 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(
+    BaseHTTPMiddleware,
+    dispatch=rate_limit_headers_middleware,
+)
+
 
 # ---------------------------------
 # Routers
 # ---------------------------------
 
-app.include_router(health_router,  tags=["Health"])
-app.include_router(process_router, tags=["Processing"])
-app.include_router(document_router, tags=["Documents"])
-app.include_router(ingest_router, tags=["Pipeline"])
+app.include_router(health_router,      tags=["Health"])
+app.include_router(auth_router,        tags=["Auth"])
+app.include_router(process_router,     tags=["Processing"])
+app.include_router(document_router,    tags=["Documents"])
+app.include_router(ingest_router,      tags=["Pipeline"])
+app.include_router(ingest_file_router, tags=["File Ingestion"])
+
 
 # ---------------------------------
-# Startup
+# Frontend routes
 # ---------------------------------
-
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
+
 
 @app.get("/console", include_in_schema=False)
 async def developer_console():
     return FileResponse(os.path.join(FRONTEND_DIR, "console.html"))
 
+
 @app.get("/observer", include_in_schema=False)
 async def enterprise_observer():
     return FileResponse(os.path.join(FRONTEND_DIR, "observer.html"))
 
+
+@app.get("/signup", include_in_schema=False)
+async def signup_page():
+    return FileResponse(os.path.join(FRONTEND_DIR, "signup.html"))
+
+
+@app.get("/dashboard", include_in_schema=False)
+async def dashboard_page():
+    return FileResponse(os.path.join(FRONTEND_DIR, "dashboard.html"))
+
+
+# ---------------------------------
+# Startup
+# ---------------------------------
 
 @app.on_event("startup")
 async def startup() -> None:

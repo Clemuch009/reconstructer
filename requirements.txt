@@ -7,3 +7,16 @@ ftfy
 nh3
 spacy
 en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+
+# Ingestion layer — file extractors
+pdfplumber
+python-docx
+openpyxl
+beautifulsoup4
+lxml
+
+# Auth + billing
+google-cloud-firestore
+firebase-admin
+stripe
+python-dotenv

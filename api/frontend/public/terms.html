@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service — Qrynt</title>
+<link rel="icon" type="image/png" href="/assets/QryNt.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #f8f7f4;
+    --surface:   #ffffff;
+    --border:    #e8e5df;
+    --ink:       #1a1814;
+    --ink-dim:   #6b6760;
+    --ink-muted: #b0ada6;
+    --accent:    #00c96e;
+    --accent-dk: #009e56;
+    --serif:     'Instrument Serif', Georgia, serif;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  nav {
+    background: rgba(248,247,244,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-logo img { height: 26px; }
+
+  .nav-logo-text {
+    font-family: var(--mono); font-size: 14px;
+    font-weight: 500; color: var(--ink);
+  }
+
+  .back-link {
+    font-size: 13px; color: var(--ink-muted);
+    text-decoration: none; transition: color 0.15s;
+  }
+
+  .back-link:hover { color: var(--ink); }
+
+  .doc-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 60px 24px 100px;
+    gap: 60px;
+  }
+
+  .toc {
+    position: sticky;
+    top: 80px;
+    align-self: start;
+  }
+
+  .toc-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 12px;
+    display: block;
+  }
+
+  .toc-list { list-style: none; }
+
+  .toc-item { margin-bottom: 6px; }
+
+  .toc-link {
+    font-size: 12px; color: var(--ink-muted);
+    text-decoration: none; transition: color 0.15s;
+    line-height: 1.4; display: block;
+  }
+
+  .toc-link:hover { color: var(--ink); }
+
+  .doc-header { margin-bottom: 48px; }
+
+  .doc-label {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent-dk); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 12px;
+    display: block;
+  }
+
+  h1 {
+    font-family: var(--serif); font-size: clamp(32px, 4vw, 44px);
+    font-weight: 400; line-height: 1.1;
+    letter-spacing: -0.02em; margin-bottom: 12px;
+  }
+
+  .doc-meta {
+    font-size: 13px; color: var(--ink-muted);
+    font-family: var(--mono);
+  }
+
+  .doc-intro {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    font-size: 14px; color: var(--ink-dim);
+    line-height: 1.7; margin-bottom: 48px;
+  }
+
+  h2 {
+    font-family: var(--sans); font-size: 18px;
+    font-weight: 600; color: var(--ink);
+    margin-bottom: 14px; margin-top: 48px;
+    scroll-margin-top: 80px;
+  }
+
+  h2:first-of-type { margin-top: 0; }
+
+  p { margin-bottom: 14px; color: var(--ink-dim); }
+
+  ul, ol {
+    margin-bottom: 14px; padding-left: 20px;
+    color: var(--ink-dim);
+  }
+
+  li { margin-bottom: 6px; }
+
+  strong { color: var(--ink); font-weight: 600; }
+
+  a { color: var(--accent-dk); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .highlight-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 14px;
+    font-size: 14px;
+  }
+
+  .highlight-box strong {
+    display: block; margin-bottom: 6px;
+    font-family: var(--mono); font-size: 12px;
+    letter-spacing: 0.05em; color: var(--ink-muted);
+    text-transform: uppercase;
+  }
+
+  .contact-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 24px;
+    margin-top: 48px;
+  }
+
+  .contact-box h3 {
+    font-size: 15px; font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .contact-box p { margin-bottom: 4px; font-size: 13px; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 28px 48px;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    font-size: 13px; color: var(--ink-muted);
+  }
+
+  .footer-links { display: flex; gap: 24px; }
+
+  .footer-link {
+    color: var(--ink-muted); text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .footer-link:hover { color: var(--ink); }
+
+  @media (max-width: 768px) {
+    nav { padding: 0 20px; }
+    .doc-layout { grid-template-columns: 1fr; gap: 32px; padding: 40px 20px 80px; }
+    .toc { position: static; }
+    footer { padding: 20px 24px; flex-direction: column; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    <span class="nav-logo-text">Qrynt</span>
+  </a>
+  <a href="/" class="back-link">← Back to home</a>
+</nav>
+
+<div class="doc-layout">
+
+  <aside class="toc">
+    <span class="toc-label">Contents</span>
+    <ul class="toc-list">
+      <li class="toc-item"><a class="toc-link" href="#acceptance">Acceptance</a></li>
+      <li class="toc-item"><a class="toc-link" href="#service">The service</a></li>
+      <li class="toc-item"><a class="toc-link" href="#accounts">Accounts</a></li>
+      <li class="toc-item"><a class="toc-link" href="#acceptable-use">Acceptable use</a></li>
+      <li class="toc-item"><a class="toc-link" href="#api-keys">API keys</a></li>
+      <li class="toc-item"><a class="toc-link" href="#billing">Billing</a></li>
+      <li class="toc-item"><a class="toc-link" href="#your-content">Your content</a></li>
+      <li class="toc-item"><a class="toc-link" href="#ip">Intellectual property</a></li>
+      <li class="toc-item"><a class="toc-link" href="#disclaimer">Disclaimer</a></li>
+      <li class="toc-item"><a class="toc-link" href="#liability">Liability</a></li>
+      <li class="toc-item"><a class="toc-link" href="#termination">Termination</a></li>
+      <li class="toc-item"><a class="toc-link" href="#governing-law">Governing law</a></li>
+      <li class="toc-item"><a class="toc-link" href="#changes">Changes</a></li>
+      <li class="toc-item"><a class="toc-link" href="#contact">Contact</a></li>
+    </ul>
+  </aside>
+
+  <div class="doc-content">
+
+    <div class="doc-header">
+      <span class="doc-label">// Legal</span>
+      <h1>Terms of Service</h1>
+      <div class="doc-meta">Effective date: June 13, 2026 · Last updated: June 13, 2026</div>
+    </div>
+
+    <div class="doc-intro">
+      Please read these terms carefully before using Qrynt.
+      By accessing or using the service you agree to be bound by these terms.
+      If you do not agree, do not use the service.
+    </div>
+
+    <h2 id="acceptance">1. Acceptance of terms</h2>
+    <p>
+      These Terms of Service ("Terms") govern your access to and use of
+      Qrynt ("Service"), operated by Qrynt ("we", "us", "our").
+      By creating an account or using the Service you agree to these Terms
+      and our <a href="/privacy">Privacy Policy</a>.
+    </p>
+    <p>
+      If you are using the Service on behalf of an organisation,
+      you represent that you have authority to bind that organisation
+      to these Terms.
+    </p>
+
+    <h2 id="service">2. The service</h2>
+    <p>
+      Qrynt provides a text reconstruction and document structuring API
+      that segments, classifies, and converts unstructured text into
+      typed structured output. The Service is provided "as is" and
+      we reserve the right to modify, suspend, or discontinue it at any time.
+    </p>
+    <p>
+      We will provide reasonable notice of material changes to the Service
+      where practicable.
+    </p>
+
+    <h2 id="accounts">3. Accounts</h2>
+    <p>
+      To access certain features you must create an account.
+      You are responsible for:
+    </p>
+    <ul>
+      <li>Providing accurate and complete registration information</li>
+      <li>Maintaining the security of your account credentials</li>
+      <li>All activity that occurs under your account</li>
+      <li>Notifying us immediately of any unauthorised access</li>
+    </ul>
+    <p>
+      You may not share your account with others or create accounts
+      on behalf of third parties without authorisation.
+      Each account is for a single user unless you are on a Team or Enterprise plan.
+    </p>
+
+    <h2 id="acceptable-use">4. Acceptable use</h2>
+    <p>You agree not to use the Service to:</p>
+    <ul>
+      <li>Violate any applicable law or regulation</li>
+      <li>Process content that infringes third-party intellectual property rights</li>
+      <li>Transmit malicious code, malware, or harmful content</li>
+      <li>Attempt to reverse-engineer, decompile, or extract our source code</li>
+      <li>Circumvent rate limits, access controls, or security measures</li>
+      <li>Resell or sublicense API access without written permission</li>
+      <li>Use the Service for purposes competitive with Qrynt without disclosure</li>
+      <li>Process content that is illegal, defamatory, or violates third-party rights</li>
+    </ul>
+    <p>
+      We reserve the right to suspend or terminate accounts that violate these restrictions
+      without notice.
+    </p>
+
+    <h2 id="api-keys">5. API keys</h2>
+    <p>
+      API keys are issued per account and must be kept confidential.
+      You are responsible for all requests made using your API keys.
+    </p>
+    <ul>
+      <li>Do not share API keys publicly (e.g. in code repositories)</li>
+      <li>Revoke and replace compromised keys immediately</li>
+      <li>API keys are non-transferable</li>
+      <li>We may revoke keys that are misused without prior notice</li>
+    </ul>
+
+    <h2 id="billing">6. Billing and payments</h2>
+
+    <div class="highlight-box">
+      <strong>Free tier</strong>
+      The Starter plan is free and subject to the request limits described
+      on our <a href="/pricing">pricing page</a>.
+      We reserve the right to modify free tier limits with 14 days notice.
+    </div>
+
+    <div class="highlight-box">
+      <strong>Paid plans</strong>
+      Paid subscriptions are billed monthly or annually in advance via Stripe.
+      Prices are listed in USD and subject to applicable taxes.
+      You authorise us to charge your payment method on a recurring basis.
+    </div>
+
+    <div class="highlight-box">
+      <strong>Cancellation</strong>
+      You may cancel your subscription at any time from your dashboard.
+      Cancellation takes effect at the end of the current billing period.
+      We do not provide partial refunds for unused portions of a billing period.
+    </div>
+
+    <div class="highlight-box">
+      <strong>Failed payments</strong>
+      If payment fails, we will attempt to retry the charge.
+      Accounts with persistent payment failures may be downgraded to
+      the free tier after reasonable notice.
+    </div>
+
+    <h2 id="your-content">7. Your content</h2>
+    <p>
+      You retain all rights to the documents and text you submit to Qrynt.
+      By submitting content you grant us a limited, non-exclusive licence
+      to process that content solely for the purpose of providing the Service.
+    </p>
+    <p>
+      <strong>We do not use your content to train models, build datasets,
+      or improve our systems.</strong> Processing is deterministic and
+      your content is not retained beyond your session unless you have
+      explicitly enabled document storage.
+    </p>
+    <p>
+      You represent that you have the rights to submit the content you process
+      and that doing so does not violate any third-party rights or applicable law.
+    </p>
+
+    <h2 id="ip">8. Intellectual property</h2>
+    <p>
+      The Qrynt Service, including its software, algorithms, documentation,
+      and visual design, is owned by Qrynt and protected by intellectual
+      property laws. These Terms do not grant you any rights to our
+      intellectual property except as expressly stated.
+    </p>
+    <p>
+      You may not copy, modify, distribute, or create derivative works
+      based on the Service without our written permission.
+    </p>
+
+    <h2 id="disclaimer">9. Disclaimer of warranties</h2>
+    <p>
+      THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES
+      OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES
+      OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+    </p>
+    <p>
+      We do not warrant that the Service will be uninterrupted, error-free,
+      or that results will be accurate or complete. You use the Service
+      at your own risk.
+    </p>
+
+    <h2 id="liability">10. Limitation of liability</h2>
+    <p>
+      TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, QRYNT SHALL NOT BE
+      LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE
+      DAMAGES, INCLUDING LOSS OF PROFITS, DATA, GOODWILL, OR BUSINESS INTERRUPTION,
+      ARISING FROM YOUR USE OF OR INABILITY TO USE THE SERVICE.
+    </p>
+    <p>
+      OUR TOTAL LIABILITY TO YOU FOR ANY CLAIM ARISING FROM THESE TERMS OR
+      THE SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID TO US IN THE
+      TWELVE MONTHS PRECEDING THE CLAIM.
+    </p>
+
+    <h2 id="termination">11. Termination</h2>
+    <p>
+      You may terminate your account at any time from your dashboard.
+      We may suspend or terminate your access if you violate these Terms,
+      fail to pay fees, or for any other reason with reasonable notice
+      where practicable.
+    </p>
+    <p>
+      Upon termination, your right to use the Service ceases immediately.
+      We will delete your account data in accordance with our
+      <a href="/privacy">Privacy Policy</a>.
+      Provisions that by their nature should survive termination will do so,
+      including Sections 7, 8, 9, 10, and 12.
+    </p>
+
+    <h2 id="governing-law">12. Governing law</h2>
+    <p>
+      These Terms are governed by and construed in accordance with applicable law.
+      Any disputes arising from these Terms or the Service shall be resolved
+      through good-faith negotiation. If negotiation fails, disputes shall be
+      submitted to binding arbitration or the courts of competent jurisdiction.
+    </p>
+
+    <h2 id="changes">13. Changes to these terms</h2>
+    <p>
+      We may update these Terms from time to time. Material changes will be
+      notified by email to registered users at least 14 days before taking effect.
+      The effective date at the top of this page reflects the most recent version.
+    </p>
+    <p>
+      Continued use of the Service after changes take effect constitutes
+      acceptance of the updated Terms.
+    </p>
+
+    <h2 id="contact">14. Contact</h2>
+    <div class="contact-box">
+      <h3>Questions about these terms?</h3>
+      <p>Email: <a href="mailto:qrynttech@gmail.com">qrynttech@gmail.com</a></p>
+      <p>We respond to legal inquiries within 5 business days.</p>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div style="font-family:var(--mono);font-size:12px">© 2026 Qrynt</div>
+  <div class="footer-links">
+    <a href="/terms"   class="footer-link">Terms</a>
+    <a href="/privacy" class="footer-link">Privacy</a>
+    <a href="mailto:qrynttech@gmail.com" class="footer-link">Contact</a>
+  </div>
+</footer>
+
+</body>
+</html>

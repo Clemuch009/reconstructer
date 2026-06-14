@@ -790,9 +790,9 @@
 
       <div class="upload-area" onclick="document.getElementById('obs-file-input').click()">
         <span class="upload-text">↑ UPLOAD FILE</span>
-        <span class="upload-text" id="obs-file-name">txt / log / csv</span>
+        <span class="upload-text" id="obs-file-name">txt, csv, pdf, docx, xlsx</span>
       </div>
-      <input type="file" id="obs-file-input" accept=".txt,.log,.csv,.json,.yaml,.yml">
+      <input type="file" id="obs-file-input" accept=".txt,.log,.csv,.json,.yaml,.yml,.md,.pdf,.docx,.xlsx,.html,.htm">
 
       <div class="input-meta">
         <div class="meta-field">
@@ -1009,29 +1009,51 @@ function updateInputMeta() {
   document.getElementById('obs-chars').textContent = t.length;
 }
 
+// Binary formats — sent to /ingest/file
+const OBS_BINARY_EXT = new Set(['.pdf', '.docx', '.xlsx']);
+
+function obsGetExt(filename) {
+  const m = filename.toLowerCase().match(/\.[^.]+$/);
+  return m ? m[0] : '';
+}
+
+let obsPendingFile = null;
+
 // File upload
 document.getElementById('obs-file-input').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
-  document.getElementById('obs-file-name').textContent = file.name;
-  new FileReader().onload = ev => {
-    obsInput.value = ev.target.result;
-    updateInputMeta();
-  };
-  document.getElementById('obs-file-input').onload = null;
-  const r = new FileReader();
-  r.onload = ev => {
-    obsInput.value = ev.target.result;
-    updateInputMeta();
-  };
-  r.readAsText(file);
+  obsHandleFile(file);
 });
+
+function obsHandleFile(file) {
+  document.getElementById('obs-file-name').textContent = file.name;
+  const ext = obsGetExt(file.name);
+  if (OBS_BINARY_EXT.has(ext)) {
+    obsPendingFile = file;
+    obsInput.value = '';
+    document.getElementById('obs-lines').textContent = '—';
+    document.getElementById('obs-chars').textContent = file.size;
+    document.getElementById('obs-pipeline-status').textContent =
+      ext.toUpperCase().replace('.', '');
+  } else {
+    obsPendingFile = null;
+    const r = new FileReader();
+    r.onload = ev => {
+      obsInput.value = ev.target.result;
+      updateInputMeta();
+    };
+    r.readAsText(file);
+  }
+}
 
 // Run pipeline
 async function runPipeline() {
-  const text   = obsInput.value.trim();
-  const apiKey = document.getElementById('obs-api-key').value.trim();
-  if (!text) return;
+  const text     = obsInput.value.trim();
+  const apiKey   = document.getElementById('obs-api-key').value.trim();
+  const hasBinary = !!obsPendingFile;
+
+  if (!hasBinary && !text) return;
 
   setStatus('processing', 'PROCESSING');
   document.getElementById('obs-run-btn').disabled = true;
@@ -1039,38 +1061,70 @@ async function runPipeline() {
   startTime = Date.now();
 
   try {
-    // Ingest
-    const ingestRes = await fetch(`${API_BASE}/ingest`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key':    apiKey,
-      },
-      body: JSON.stringify({ payload: text }),
-    });
+    if (hasBinary) {
+      // ── Binary file path: /ingest/file ──
+      const formData = new FormData();
+      formData.append('file', obsPendingFile);
 
-    if (!ingestRes.ok) throw new Error('Ingest failed');
-    const ingest  = await ingestRes.json();
-    lastSessionId = ingest.session_id;
+      const fileRes = await fetch(`${API_BASE}/ingest/file`, {
+        method:  'POST',
+        headers: { 'X-API-Key': apiKey },
+        body:    formData,
+      });
+
+      if (!fileRes.ok) {
+        const err = await fileRes.json();
+        throw new Error(err.detail?.message || err.detail || 'File ingestion failed');
+      }
+
+      lastEnvelope  = await fileRes.json();
+      lastSessionId = lastEnvelope.source_id;
+
+      // Show source format in meta panel
+      const fmt = lastEnvelope.ingestion_metadata?.source_format;
+      if (fmt) {
+        document.getElementById('obs-pipeline-status').textContent =
+          fmt.toUpperCase();
+      }
+
+      // Show ingestion warnings if any
+      const warnings = lastEnvelope.ingestion_warnings || [];
+      if (warnings.length) {
+        console.warn('[ingest/file] warnings:', warnings);
+      }
+
+    } else {
+      // ── Text path: /ingest → /resolve ──
+      const ingestRes = await fetch(`${API_BASE}/ingest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key':    apiKey,
+        },
+        body: JSON.stringify({ payload: text }),
+      });
+
+      if (!ingestRes.ok) throw new Error('Ingest failed');
+      const ingest  = await ingestRes.json();
+      lastSessionId = ingest.session_id;
+
+      const resolveRes = await fetch(`${API_BASE}/resolve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key':    apiKey,
+        },
+        body: JSON.stringify({ session_id: lastSessionId }),
+      });
+
+      if (!resolveRes.ok) throw new Error('Resolve failed');
+      const resolved = await resolveRes.json();
+      lastEnvelope   = resolved.envelope;
+    }
 
     updateSessionDisplay(lastSessionId);
 
-    // Resolve
-    const resolveRes = await fetch(`${API_BASE}/resolve`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key':    apiKey,
-      },
-      body: JSON.stringify({ session_id: lastSessionId }),
-    });
-
-    if (!resolveRes.ok) throw new Error('Resolve failed');
-    const resolved = await resolveRes.json();
-    lastEnvelope   = resolved.envelope;
-
     const elapsed = Date.now() - startTime;
-
     renderSegmentMap(lastEnvelope);
     renderStats(lastEnvelope, elapsed);
     setStatus('live', 'LIVE');

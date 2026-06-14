@@ -643,9 +643,9 @@ region: eu-west-1
 
     <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
       <span class="drop-zone-text">↑ DROP FILE OR CLICK TO UPLOAD</span>
-      <span class="drop-zone-text" id="file-name">txt, log, csv, json, yaml</span>
+      <span class="drop-zone-text" id="file-name">txt, csv, pdf, docx, xlsx, html</span>
     </div>
-    <input type="file" id="file-input" accept=".txt,.log,.csv,.json,.yaml,.yml,.md">
+    <input type="file" id="file-input" accept=".txt,.log,.csv,.json,.yaml,.yml,.md,.pdf,.docx,.xlsx,.html,.htm">
 
     <div class="process-bar">
       <button class="btn btn-primary" id="process-btn" onclick="processText()">
@@ -796,14 +796,25 @@ function setInputMode(mode) {
   document.getElementById('toggle-preview').classList.toggle('active', mode === 'preview');
 }
 
+// Binary formats — sent to /ingest/file, not read as text
+const BINARY_EXTENSIONS = new Set(['.pdf', '.docx', '.xlsx']);
+
+function getExtension(filename) {
+  const m = filename.toLowerCase().match(/\.[^.]+$/);
+  return m ? m[0] : '';
+}
+
 // File upload
 const fileInput = document.getElementById('file-input');
 const dropZone  = document.getElementById('drop-zone');
 
+// Holds binary file for upload path
+let pendingBinaryFile = null;
+
 fileInput.addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
-  readFile(file);
+  handleFileSelection(file);
 });
 
 dropZone.addEventListener('dragover', e => {
@@ -819,17 +830,29 @@ dropZone.addEventListener('drop', e => {
   e.preventDefault();
   dropZone.classList.remove('drag-over');
   const file = e.dataTransfer.files[0];
-  if (file) readFile(file);
+  if (file) handleFileSelection(file);
 });
 
-function readFile(file) {
+function handleFileSelection(file) {
   document.getElementById('file-name').textContent = file.name;
-  const reader = new FileReader();
-  reader.onload = e => {
-    inputText.value = e.target.result;
-    updateInputStats();
-  };
-  reader.readAsText(file);
+  const ext = getExtension(file.name);
+  if (BINARY_EXTENSIONS.has(ext)) {
+    // Binary — hold for upload, clear textarea
+    pendingBinaryFile = file;
+    inputText.value   = '';
+    document.getElementById('line-count').textContent = '—';
+    document.getElementById('char-count').textContent = file.size;
+    setStatus('idle', `FILE: ${file.name}`);
+  } else {
+    // Text — read into textarea as before
+    pendingBinaryFile = null;
+    const reader = new FileReader();
+    reader.onload = e => {
+      inputText.value = e.target.result;
+      updateInputStats();
+    };
+    reader.readAsText(file);
+  }
 }
 
 // Tabs
@@ -845,69 +868,113 @@ function switchTab(tab) {
 
 // Process
 async function processText() {
-  const text   = inputText.value.trim();
   const apiKey = document.getElementById('api-key').value.trim();
+  const hasBinary = !!pendingBinaryFile;
+  const text = inputText.value.trim();
 
-  if (!text) return;
+  if (!hasBinary && !text) return;
 
   setStatus('processing', 'PROCESSING');
   document.getElementById('process-btn').disabled = true;
-
   showLoading();
 
   const startTime = Date.now();
 
   try {
-    // Stage 1 — ingest
-    const ingestRes = await fetch(`${API_BASE}/ingest`, {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key':    apiKey,
-      },
-      body: JSON.stringify({ payload: text }),
-    });
+    let envelope;
 
-    if (!ingestRes.ok) {
-      const err = await ingestRes.json();
-      throw new Error(err.detail || 'Ingest failed');
+    if (hasBinary) {
+      // ── Binary file path: /ingest/file → /export ──
+      const formData = new FormData();
+      formData.append('file', pendingBinaryFile);
+
+      const fileRes = await fetch(`${API_BASE}/ingest/file`, {
+        method:  'POST',
+        headers: { 'X-API-Key': apiKey },
+        body:    formData,
+      });
+
+      if (!fileRes.ok) {
+        const err = await fileRes.json();
+        throw new Error(
+          (err.detail?.message || err.detail || 'File ingestion failed')
+        );
+      }
+
+      envelope         = await fileRes.json();
+      currentSessionId = envelope.source_id;
+      currentResult    = envelope;
+
+      // Show ingestion warnings if any
+      const warnings = envelope.ingestion_warnings || [];
+      if (warnings.length) {
+        console.warn('[ingest/file] warnings:', warnings);
+      }
+
+      // Show source format in status bar
+      const fmt = envelope.ingestion_metadata?.source_format;
+      if (fmt) {
+        document.getElementById('status-text').textContent =
+          `PROCESSING [${fmt.toUpperCase()}]`;
+      }
+
+      // Export all three formats from resolved session
+      await Promise.all([
+        exportFormat('human'),
+        exportFormat('machine'),
+        exportFormat('ai'),
+      ]);
+
+    } else {
+      // ── Text path: /ingest → /resolve → /export ──
+      const ingestRes = await fetch(`${API_BASE}/ingest`, {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key':    apiKey,
+        },
+        body: JSON.stringify({ payload: text }),
+      });
+
+      if (!ingestRes.ok) {
+        const err = await ingestRes.json();
+        throw new Error(err.detail || 'Ingest failed');
+      }
+
+      const ingest = await ingestRes.json();
+      currentSessionId = ingest.session_id;
+
+      const resolveRes = await fetch(`${API_BASE}/resolve`, {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key':    apiKey,
+        },
+        body: JSON.stringify({ session_id: currentSessionId }),
+      });
+
+      if (!resolveRes.ok) {
+        const err = await resolveRes.json();
+        throw new Error(err.detail || 'Resolve failed');
+      }
+
+      const resolved = await resolveRes.json();
+      currentResult  = resolved.envelope;
+      envelope       = currentResult;
+
+      await Promise.all([
+        exportFormat('human'),
+        exportFormat('machine'),
+        exportFormat('ai'),
+      ]);
     }
 
-    const ingest = await ingestRes.json();
-    currentSessionId = ingest.session_id;
-
+    const elapsed = Date.now() - startTime;
     document.getElementById('session-id-display').textContent =
       currentSessionId.substring(0, 8) + '...';
     document.getElementById('session-display').style.display = 'flex';
-
-    // Stage 2 — resolve
-    const resolveRes = await fetch(`${API_BASE}/resolve`, {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key':    apiKey,
-      },
-      body: JSON.stringify({ session_id: currentSessionId }),
-    });
-
-    if (!resolveRes.ok) {
-      const err = await resolveRes.json();
-      throw new Error(err.detail || 'Resolve failed');
-    }
-
-    const resolved = await resolveRes.json();
-    currentResult  = resolved.envelope;
-
-    const elapsed = Date.now() - startTime;
     document.getElementById('proc-time').textContent = elapsed;
     document.getElementById('time-display').style.display = 'flex';
-
-    // Stage 3 — export all three formats
-    await Promise.all([
-      exportFormat('human'),
-      exportFormat('machine'),
-      exportFormat('ai'),
-    ]);
 
     updateStats(currentResult);
     updateCurlSnippet(currentSessionId, apiKey);

@@ -146,11 +146,11 @@
   /* ─── HERO ─── */
   .hero {
     padding: 0 48px;
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 60px;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 48px;
     align-items: center;
     min-height: calc(100vh - 60px);
   }
@@ -162,14 +162,20 @@
 
   .hero-right {
     position: relative;
+    margin-right: -48px;
   }
 
   .hero-video {
     width: 100%;
-    border-radius: 10px;
+    height: calc(100vh - 60px);
+    object-fit: contain;
+    object-position: left;
+    border-radius: 10px 0 0 10px;
     border: 1px solid var(--border);
-    box-shadow: 0 24px 80px rgba(0,0,0,0.1);
+    border-right: none;
+    box-shadow: -24px 0 80px rgba(0,0,0,0.08);
     display: block;
+    background: #1a1814;
   }
 
   .hero-label {
@@ -954,7 +960,8 @@
   @media (max-width: 900px) {
     nav { padding: 0 24px; }
     .hero { padding: 60px 24px; grid-template-columns: 1fr; min-height: auto; gap: 40px; }
-    .hero-right { order: -1; }
+    .hero-right { order: -1; margin-right: 0; }
+    .hero-video { height: 280px; border-radius: 10px; border: 1px solid var(--border); }
     .proof { padding: 60px 24px; }
     .proof-grid { grid-template-columns: 1fr; gap: 0; }
     .proof-arrow { display: none; }
@@ -981,11 +988,11 @@
   </a>
   <div class="nav-links">
     <a href="/docs" class="nav-link">Docs</a>
+    <a href="/pricing" class="nav-link">Pricing</a>
     <a href="/console" class="nav-link">Try Qrynt</a>
-    <a href="#pricing" class="nav-link">Pricing</a>
     <a href="/feedback" class="nav-link">Feedback</a>
     <a href="mailto:qrynttech@gmail.com" class="nav-link">Contact</a>
-    <a href="/console" class="nav-cta">Try Qrynt →</a>
+    <a href="/signup" class="nav-cta">Get started →</a>
   </div>
 </nav>
 
@@ -1284,10 +1291,8 @@ fraud.ml: v3.1</div>
         Try Qrynt
         <span>→</span>
       </a>
-      <a href="/feedback" class="btn-secondary">Share Feedback</a>
-      <a href="mailto:qrynttech@gmail.com" class="btn-secondary">
-        Get API Access
-      </a>
+      <a href="/signup" class="btn-secondary">Get started free</a>
+      <a href="/pricing" class="btn-secondary">See pricing</a>
     </div>
   </div>
 </section>
@@ -1300,8 +1305,10 @@ fraud.ml: v3.1</div>
   </div>
   <div class="footer-links">
     <a href="/docs" class="footer-link">Docs</a>
+    <a href="/pricing" class="footer-link">Pricing</a>
     <a href="/console" class="footer-link">Try Qrynt</a>
-    <a href="/feedback" class="footer-link">Feedback</a>
+    <a href="/terms" class="footer-link">Terms</a>
+    <a href="/privacy" class="footer-link">Privacy</a>
     <a href="mailto:qrynttech@gmail.com" class="footer-link">Contact</a>
   </div>
   <div class="footer-copy">© 2026 Qrynt</div>

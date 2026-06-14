@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign up — Qrynt</title>
+<link rel="icon" type="image/png" href="/assets/QryNt.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp }           from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getAuth, createUserWithEmailAndPassword,
+           signInWithEmailAndPassword, GoogleAuthProvider,
+           signInWithPopup, onAuthStateChanged }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+  // ─── REPLACE WITH YOUR FIREBASE CONFIG ───
+  const firebaseConfig = {
+    apiKey:            "YOUR_FIREBASE_API_KEY",
+    authDomain:        "moonlit-grail-386316.firebaseapp.com",
+    projectId:         "moonlit-grail-386316",
+    storageBucket:     "moonlit-grail-386316.appspot.com",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId:             "YOUR_APP_ID",
+  };
+
+  const app      = initializeApp(firebaseConfig);
+  const auth     = getAuth(app);
+  const provider = new GoogleAuthProvider();
+  const API_BASE = '';
+
+  // ─── Check if already logged in ───
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      window.location.href = '/dashboard';
+    }
+  });
+
+  // ─── Register with Qrynt backend ───
+  async function registerWithBackend(user) {
+    const idToken = await user.getIdToken();
+    const res = await fetch(`${API_BASE}/auth/signup`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ id_token: idToken }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      // Already registered — just login
+      if (res.status === 409) {
+        localStorage.setItem('qrynt_id_token', idToken);
+        localStorage.setItem('qrynt_uid', user.uid);
+        redirectAfterAuth();
+        return;
+      }
+      throw new Error(err.detail || 'Registration failed.');
+    }
+
+    const data = await res.json();
+
+    // Store token and API key
+    localStorage.setItem('qrynt_id_token', idToken);
+    localStorage.setItem('qrynt_uid', user.uid);
+
+    if (data.api_key) {
+      showApiKey(data.api_key.key, data.tier);
+    } else {
+      redirectAfterAuth();
+    }
+  }
+
+  function redirectAfterAuth() {
+    const params  = new URLSearchParams(window.location.search);
+    const upgrade = params.get('upgrade');
+    if (upgrade) {
+      window.location.href = `/pricing?upgrade=${upgrade}`;
+    } else {
+      window.location.href = '/dashboard';
+    }
+  }
+
+  function showApiKey(key, tier) {
+    document.getElementById('auth-form').style.display    = 'none';
+    document.getElementById('key-reveal').style.display   = 'block';
+    document.getElementById('revealed-key').textContent   = key;
+    document.getElementById('revealed-tier').textContent  = tier;
+  }
+
+  function setError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function setLoading(loading, btnId) {
+    const btn = document.getElementById(btnId);
+    btn.disabled    = loading;
+    btn.dataset.orig = btn.dataset.orig || btn.textContent;
+    btn.textContent  = loading ? 'Working...' : btn.dataset.orig;
+  }
+
+  // ─── Email signup ───
+  window.emailSignup = async function() {
+    setError('');
+    const email = document.getElementById('email').value.trim();
+    const pass  = document.getElementById('password').value;
+    const mode  = document.getElementById('form-mode').dataset.mode;
+
+    if (!email || !pass) {
+      setError('Email and password are required.');
+      return;
+    }
+    if (pass.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+
+    setLoading(true, 'email-btn');
+    try {
+      let cred;
+      if (mode === 'signup') {
+        cred = await createUserWithEmailAndPassword(auth, email, pass);
+        await registerWithBackend(cred.user);
+      } else {
+        cred = await signInWithEmailAndPassword(auth, email, pass);
+        const idToken = await cred.user.getIdToken();
+        localStorage.setItem('qrynt_id_token', idToken);
+        localStorage.setItem('qrynt_uid', cred.user.uid);
+        redirectAfterAuth();
+      }
+    } catch (err) {
+      const messages = {
+        'auth/email-already-in-use':  'An account with this email already exists. Sign in instead.',
+        'auth/invalid-email':         'Invalid email address.',
+        'auth/weak-password':         'Password must be at least 8 characters.',
+        'auth/user-not-found':        'No account found with this email.',
+        'auth/wrong-password':        'Incorrect password.',
+        'auth/too-many-requests':     'Too many attempts. Try again in a few minutes.',
+      };
+      setError(messages[err.code] || err.message || 'Something went wrong.');
+    } finally {
+      setLoading(false, 'email-btn');
+    }
+  };
+
+  // ─── Google signup ───
+  window.googleSignup = async function() {
+    setError('');
+    setLoading(true, 'google-btn');
+    try {
+      const cred = await signInWithPopup(auth, provider);
+      await registerWithBackend(cred.user);
+    } catch (err) {
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setError(err.message || 'Google sign in failed.');
+      }
+    } finally {
+      setLoading(false, 'google-btn');
+    }
+  };
+
+  // ─── Toggle signup / login ───
+  window.toggleMode = function() {
+    const el   = document.getElementById('form-mode');
+    const mode = el.dataset.mode === 'signup' ? 'login' : 'signup';
+    el.dataset.mode = mode;
+
+    document.getElementById('form-title').textContent =
+      mode === 'signup' ? 'Create your account' : 'Sign in to Qrynt';
+    document.getElementById('email-btn').textContent =
+      mode === 'signup' ? 'Create account' : 'Sign in';
+    document.getElementById('email-btn').dataset.orig =
+      mode === 'signup' ? 'Create account' : 'Sign in';
+    document.getElementById('google-btn').textContent =
+      mode === 'signup' ? 'Continue with Google' : 'Sign in with Google';
+    document.getElementById('toggle-text').innerHTML =
+      mode === 'signup'
+        ? 'Already have an account? <a href="#" onclick="toggleMode()">Sign in</a>'
+        : 'Don\'t have an account? <a href="#" onclick="toggleMode()">Sign up</a>';
+    document.getElementById('pass-hint').style.display =
+      mode === 'signup' ? 'block' : 'none';
+    document.getElementById('terms-note').style.display =
+      mode === 'signup' ? 'block' : 'none';
+
+    setError('');
+  };
+
+  // ─── Copy API key ───
+  window.copyKey = function() {
+    const key = document.getElementById('revealed-key').textContent;
+    navigator.clipboard.writeText(key);
+    document.getElementById('copy-btn').textContent = 'Copied!';
+    setTimeout(() => {
+      document.getElementById('copy-btn').textContent = 'Copy key';
+    }, 2000);
+  };
+
+  window.goToDashboard = function() {
+    window.location.href = '/dashboard';
+  };
+</script>
+
+<style>
+  :root {
+    --bg:        #f8f7f4;
+    --surface:   #ffffff;
+    --border:    #e8e5df;
+    --border2:   #d4d0c8;
+    --ink:       #1a1814;
+    --ink-dim:   #6b6760;
+    --ink-muted: #b0ada6;
+    --accent:    #00c96e;
+    --accent-dk: #009e56;
+    --accent-bg: #f0fdf6;
+    --red:       #ef4444;
+    --serif:     'Instrument Serif', Georgia, serif;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* NAV */
+  nav {
+    padding: 0 48px; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-logo img { height: 26px; }
+
+  .nav-logo-text {
+    font-family: var(--mono); font-size: 14px;
+    font-weight: 500; color: var(--ink);
+  }
+
+  .nav-right {
+    font-size: 13px; color: var(--ink-muted);
+  }
+
+  .nav-right a {
+    color: var(--accent-dk); text-decoration: none; font-weight: 500;
+  }
+
+  /* MAIN */
+  main {
+    flex: 1; display: flex;
+    align-items: center; justify-content: center;
+    padding: 48px 24px;
+  }
+
+  .auth-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px;
+    width: 100%; max-width: 420px;
+  }
+
+  .auth-logo {
+    text-align: center; margin-bottom: 28px;
+  }
+
+  .auth-logo img { height: 32px; }
+
+  h1 {
+    font-family: var(--serif); font-size: 26px;
+    font-weight: 400; text-align: center;
+    margin-bottom: 6px; letter-spacing: -0.01em;
+  }
+
+  .auth-sub {
+    text-align: center; font-size: 13px;
+    color: var(--ink-dim); font-weight: 300;
+    margin-bottom: 28px;
+  }
+
+  /* Google button */
+  .google-btn {
+    width: 100%; padding: 11px 20px;
+    border: 1px solid var(--border2);
+    border-radius: 8px; background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; font-family: var(--sans);
+    font-size: 14px; font-weight: 500;
+    color: var(--ink); cursor: pointer;
+    transition: all 0.15s; margin-bottom: 20px;
+  }
+
+  .google-btn:hover {
+    border-color: var(--ink);
+    background: var(--bg);
+  }
+
+  .google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .google-icon {
+    width: 18px; height: 18px; flex-shrink: 0;
+  }
+
+  /* Divider */
+  .divider {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .divider-line {
+    flex: 1; height: 1px; background: var(--border);
+  }
+
+  .divider-text {
+    font-size: 12px; color: var(--ink-muted);
+    font-family: var(--mono); letter-spacing: 0.05em;
+  }
+
+  /* Form */
+  .field { margin-bottom: 14px; }
+
+  label {
+    display: block; font-size: 12px;
+    font-weight: 500; color: var(--ink-dim);
+    margin-bottom: 6px; letter-spacing: 0.02em;
+  }
+
+  input[type="email"],
+  input[type="password"] {
+    width: 100%; padding: 10px 14px;
+    border: 1px solid var(--border2);
+    border-radius: 8px; background: var(--surface);
+    font-family: var(--sans); font-size: 14px;
+    color: var(--ink); outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input:focus { border-color: var(--accent); }
+
+  .pass-hint {
+    font-size: 11px; color: var(--ink-muted);
+    margin-top: 4px;
+  }
+
+  /* Error */
+  .error-msg {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 6px; padding: 10px 14px;
+    font-size: 13px; color: var(--red);
+    margin-bottom: 14px; display: none;
+  }
+
+  /* Submit */
+  .submit-btn {
+    width: 100%; padding: 12px 20px;
+    background: var(--ink); color: #fff;
+    border: none; border-radius: 8px;
+    font-family: var(--sans); font-size: 14px;
+    font-weight: 600; cursor: pointer;
+    transition: all 0.2s; margin-bottom: 16px;
+  }
+
+  .submit-btn:hover { background: var(--accent-dk); }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Terms note */
+  .terms-note {
+    font-size: 11px; color: var(--ink-muted);
+    text-align: center; line-height: 1.6;
+    margin-bottom: 16px;
+  }
+
+  .terms-note a { color: var(--ink-dim); }
+
+  /* Toggle */
+  .toggle-text {
+    text-align: center; font-size: 13px;
+    color: var(--ink-dim);
+  }
+
+  .toggle-text a {
+    color: var(--accent-dk); text-decoration: none; font-weight: 500;
+  }
+
+  /* ─── API KEY REVEAL ─── */
+  #key-reveal { display: none; }
+
+  .key-reveal-header {
+    text-align: center; margin-bottom: 24px;
+  }
+
+  .key-reveal-icon {
+    font-size: 36px; margin-bottom: 12px;
+  }
+
+  .key-reveal-header h2 {
+    font-family: var(--serif); font-size: 24px;
+    font-weight: 400; margin-bottom: 6px;
+  }
+
+  .key-reveal-header p {
+    font-size: 13px; color: var(--ink-dim);
+    font-weight: 300; line-height: 1.6;
+  }
+
+  .key-box {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 8px; padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .key-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 8px;
+    display: block;
+  }
+
+  .key-value {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--accent-dk); word-break: break-all;
+    line-height: 1.5;
+  }
+
+  .key-warning {
+    background: rgba(234,179,8,0.08);
+    border: 1px solid rgba(234,179,8,0.25);
+    border-radius: 6px; padding: 10px 14px;
+    font-size: 12px; color: #92400e;
+    margin-bottom: 20px; line-height: 1.5;
+  }
+
+  .key-actions {
+    display: flex; gap: 10px;
+  }
+
+  .key-actions button {
+    flex: 1; padding: 10px;
+    border-radius: 8px; font-family: var(--sans);
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+
+  #copy-btn {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    color: var(--ink-dim);
+  }
+
+  #copy-btn:hover { border-color: var(--ink); color: var(--ink); }
+
+  #dash-btn {
+    background: var(--ink); color: #fff; border: none;
+  }
+
+  #dash-btn:hover { background: var(--accent-dk); }
+
+  @media (max-width: 480px) {
+    nav { padding: 0 20px; }
+    .auth-card { padding: 28px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    <span class="nav-logo-text">Qrynt</span>
+  </a>
+  <div class="nav-right">
+    Already have an account? <a href="#" onclick="toggleMode()">Sign in</a>
+  </div>
+</nav>
+
+<main>
+  <div class="auth-card">
+
+    <div class="auth-logo">
+      <img src="/assets/QryNt.png" alt="Qrynt">
+    </div>
+
+    <!-- Auth form -->
+    <div id="auth-form">
+      <div id="form-mode" data-mode="signup">
+        <h1 id="form-title">Create your account</h1>
+        <p class="auth-sub">Free forever. No credit card required.</p>
+
+        <!-- Google -->
+        <button class="google-btn" id="google-btn" onclick="googleSignup()">
+          <svg class="google-icon" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continue with Google
+        </button>
+
+        <div class="divider">
+          <div class="divider-line"></div>
+          <span class="divider-text">OR</span>
+          <div class="divider-line"></div>
+        </div>
+
+        <div id="error-msg" class="error-msg"></div>
+
+        <div class="field">
+          <label for="email">Email address</label>
+          <input type="email" id="email" placeholder="you@company.com"
+            onkeydown="if(event.key==='Enter') emailSignup()">
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Min. 8 characters"
+            onkeydown="if(event.key==='Enter') emailSignup()">
+          <div class="pass-hint" id="pass-hint">At least 8 characters.</div>
+        </div>
+
+        <button class="submit-btn" id="email-btn" onclick="emailSignup()">
+          Create account
+        </button>
+
+        <div class="terms-note" id="terms-note">
+          By signing up you agree to our
+          <a href="/terms" target="_blank">Terms of Service</a> and
+          <a href="/privacy" target="_blank">Privacy Policy</a>.
+        </div>
+
+        <div class="toggle-text" id="toggle-text">
+          Already have an account?
+          <a href="#" onclick="toggleMode()">Sign in</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- API key reveal — shown once after signup -->
+    <div id="key-reveal">
+      <div class="key-reveal-header">
+        <div class="key-reveal-icon">🔑</div>
+        <h2>Your API key</h2>
+        <p>
+          Copy and save this key now.<br>
+          It will not be shown again.
+        </p>
+      </div>
+
+      <div class="key-box">
+        <span class="key-label">API KEY — <span id="revealed-tier">starter</span> tier</span>
+        <div class="key-value" id="revealed-key">—</div>
+      </div>
+
+      <div class="key-warning">
+        ⚠ Save this key somewhere safe.
+        If you lose it, you will need to generate a new one from your dashboard.
+      </div>
+
+      <div class="key-actions">
+        <button id="copy-btn" onclick="copyKey()">Copy key</button>
+        <button id="dash-btn" onclick="goToDashboard()">Go to dashboard →</button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+</body>
+</html>

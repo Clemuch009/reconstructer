@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Qrynt</title>
+<link rel="icon" type="image/png" href="/assets/QryNt.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #f8f7f4;
+    --surface:   #ffffff;
+    --border:    #e8e5df;
+    --ink:       #1a1814;
+    --ink-dim:   #6b6760;
+    --ink-muted: #b0ada6;
+    --accent:    #00c96e;
+    --accent-dk: #009e56;
+    --serif:     'Instrument Serif', Georgia, serif;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  nav {
+    background: rgba(248,247,244,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-logo img { height: 26px; }
+
+  .nav-logo-text {
+    font-family: var(--mono); font-size: 14px;
+    font-weight: 500; color: var(--ink);
+  }
+
+  .back-link {
+    font-size: 13px; color: var(--ink-muted);
+    text-decoration: none; transition: color 0.15s;
+  }
+
+  .back-link:hover { color: var(--ink); }
+
+  .doc-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 60px 24px 100px;
+    gap: 60px;
+  }
+
+  /* TOC */
+  .toc {
+    position: sticky;
+    top: 80px;
+    align-self: start;
+  }
+
+  .toc-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 12px;
+    display: block;
+  }
+
+  .toc-list { list-style: none; }
+
+  .toc-item {
+    margin-bottom: 6px;
+  }
+
+  .toc-link {
+    font-size: 12px; color: var(--ink-muted);
+    text-decoration: none; transition: color 0.15s;
+    line-height: 1.4; display: block;
+  }
+
+  .toc-link:hover { color: var(--ink); }
+
+  /* Doc content */
+  .doc-header {
+    margin-bottom: 48px;
+  }
+
+  .doc-label {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent-dk); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 12px;
+    display: block;
+  }
+
+  h1 {
+    font-family: var(--serif); font-size: clamp(32px, 4vw, 44px);
+    font-weight: 400; line-height: 1.1;
+    letter-spacing: -0.02em; margin-bottom: 12px;
+  }
+
+  .doc-meta {
+    font-size: 13px; color: var(--ink-muted);
+    font-family: var(--mono);
+  }
+
+  .doc-intro {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    font-size: 14px; color: var(--ink-dim);
+    line-height: 1.7; margin-bottom: 48px;
+  }
+
+  h2 {
+    font-family: var(--sans); font-size: 18px;
+    font-weight: 600; color: var(--ink);
+    margin-bottom: 14px; margin-top: 48px;
+    scroll-margin-top: 80px;
+  }
+
+  h2:first-of-type { margin-top: 0; }
+
+  p { margin-bottom: 14px; color: var(--ink-dim); }
+
+  ul, ol {
+    margin-bottom: 14px; padding-left: 20px;
+    color: var(--ink-dim);
+  }
+
+  li { margin-bottom: 6px; }
+
+  strong { color: var(--ink); font-weight: 600; }
+
+  a { color: var(--accent-dk); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .highlight-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 14px;
+    font-size: 14px;
+  }
+
+  .highlight-box strong {
+    display: block; margin-bottom: 6px;
+    font-family: var(--mono); font-size: 12px;
+    letter-spacing: 0.05em; color: var(--ink-muted);
+    text-transform: uppercase;
+  }
+
+  .contact-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 24px;
+    margin-top: 48px;
+  }
+
+  .contact-box h3 {
+    font-size: 15px; font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .contact-box p { margin-bottom: 4px; font-size: 13px; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 28px 48px;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    font-size: 13px; color: var(--ink-muted);
+  }
+
+  .footer-links { display: flex; gap: 24px; }
+  .footer-link {
+    color: var(--ink-muted); text-decoration: none;
+    transition: color 0.15s;
+  }
+  .footer-link:hover { color: var(--ink); }
+
+  @media (max-width: 768px) {
+    nav { padding: 0 20px; }
+    .doc-layout { grid-template-columns: 1fr; gap: 32px; padding: 40px 20px 80px; }
+    .toc { position: static; }
+    footer { padding: 20px 24px; flex-direction: column; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    <span class="nav-logo-text">Qrynt</span>
+  </a>
+  <a href="/" class="back-link">← Back to home</a>
+</nav>
+
+<div class="doc-layout">
+
+  <!-- TOC -->
+  <aside class="toc">
+    <span class="toc-label">Contents</span>
+    <ul class="toc-list">
+      <li class="toc-item"><a class="toc-link" href="#overview">Overview</a></li>
+      <li class="toc-item"><a class="toc-link" href="#data-collected">Data we collect</a></li>
+      <li class="toc-item"><a class="toc-link" href="#document-processing">Document processing</a></li>
+      <li class="toc-item"><a class="toc-link" href="#how-we-use">How we use data</a></li>
+      <li class="toc-item"><a class="toc-link" href="#sharing">Data sharing</a></li>
+      <li class="toc-item"><a class="toc-link" href="#storage">Storage and retention</a></li>
+      <li class="toc-item"><a class="toc-link" href="#security">Security</a></li>
+      <li class="toc-item"><a class="toc-link" href="#your-rights">Your rights</a></li>
+      <li class="toc-item"><a class="toc-link" href="#cookies">Cookies</a></li>
+      <li class="toc-item"><a class="toc-link" href="#children">Children</a></li>
+      <li class="toc-item"><a class="toc-link" href="#changes">Changes</a></li>
+      <li class="toc-item"><a class="toc-link" href="#contact">Contact</a></li>
+    </ul>
+  </aside>
+
+  <!-- Content -->
+  <div class="doc-content">
+
+    <div class="doc-header">
+      <span class="doc-label">// Legal</span>
+      <h1>Privacy Policy</h1>
+      <div class="doc-meta">Effective date: June 13, 2026 · Last updated: June 13, 2026</div>
+    </div>
+
+    <div class="doc-intro">
+      <strong>The short version:</strong> Qrynt processes your documents in memory only by default.
+      We do not store, log, or sell your document content.
+      Storage is strictly opt-in. You control your data and can delete it at any time.
+    </div>
+
+    <h2 id="overview">1. Overview</h2>
+    <p>
+      Qrynt ("we", "us", "our") is a text reconstruction and document structuring service
+      operated by Qrynt. This Privacy Policy explains how we collect, use, and protect
+      information when you use our service at
+      <a href="https://moonlit-grail-386316.web.app">moonlit-grail-386316.web.app</a>
+      and through our API.
+    </p>
+    <p>
+      By using Qrynt, you agree to the practices described in this policy.
+    </p>
+
+    <h2 id="data-collected">2. Data we collect</h2>
+    <p>We collect the following categories of information:</p>
+
+    <div class="highlight-box">
+      <strong>Account data</strong>
+      Email address, authentication credentials (managed by Firebase Auth),
+      account tier, and billing information (managed by Stripe).
+      We never store payment card details directly.
+    </div>
+
+    <div class="highlight-box">
+      <strong>Usage data</strong>
+      Request counts, timestamps, API key prefixes (not full keys),
+      file formats processed, and session telemetry
+      (segment counts, quality scores, processing times).
+      We do not log document content in usage data.
+    </div>
+
+    <div class="highlight-box">
+      <strong>Technical data</strong>
+      Hashed IP addresses (for free tier rate limiting),
+      browser type, and error logs.
+      Raw IP addresses are never stored — only SHA-256 hashes.
+    </div>
+
+    <h2 id="document-processing">3. Document processing</h2>
+    <p>
+      <strong>Default behaviour — ephemeral processing:</strong>
+      Documents submitted to Qrynt are processed in memory only.
+      After processing is complete, the document content is not written to disk,
+      not retained in any database, and not accessible after your session ends.
+    </p>
+    <p>
+      <strong>Opt-in storage (Pro and Team tiers only):</strong>
+      If you explicitly enable document storage in your dashboard,
+      processed documents are stored in Google Cloud Firestore under your account.
+      You control the retention period (7, 30, or 90 days) and can delete
+      any stored document at any time.
+    </p>
+    <p>
+      <strong>We do not use your document content to train models,
+      improve our classifiers, or share with third parties.</strong>
+      Document content is processed deterministically — no machine learning
+      is applied to your data.
+    </p>
+
+    <h2 id="how-we-use">4. How we use data</h2>
+    <p>We use the data we collect to:</p>
+    <ul>
+      <li>Provide, operate, and improve the Qrynt service</li>
+      <li>Enforce rate limits and fair use policies</li>
+      <li>Process payments and manage subscriptions</li>
+      <li>Send transactional emails (account creation, billing receipts)</li>
+      <li>Detect and prevent abuse</li>
+      <li>Comply with legal obligations</li>
+    </ul>
+    <p>We do not use your data for advertising, profiling, or sale to third parties.</p>
+
+    <h2 id="sharing">5. Data sharing</h2>
+    <p>We share data with the following third parties only as necessary to operate the service:</p>
+    <ul>
+      <li>
+        <strong>Google Firebase / Firestore</strong> — authentication and
+        optional document storage. Google Cloud infrastructure in europe-west1 (Belgium).
+      </li>
+      <li>
+        <strong>Stripe</strong> — payment processing.
+        Stripe handles all card data. We receive only subscription status and customer IDs.
+      </li>
+      <li>
+        <strong>Google Analytics</strong> — aggregate usage analytics on public pages.
+        No document content is shared.
+      </li>
+    </ul>
+    <p>
+      We do not sell, rent, or trade your personal data.
+      We do not share data with advertisers.
+    </p>
+
+    <h2 id="storage">6. Storage and retention</h2>
+    <p>
+      <strong>Account data</strong> is retained while your account is active
+      and for 30 days after deletion for legal compliance purposes.
+    </p>
+    <p>
+      <strong>Usage data</strong> (request counts, telemetry) is retained
+      for up to 12 months for billing and abuse prevention.
+    </p>
+    <p>
+      <strong>Document content</strong> is retained only if you have opted in
+      to storage. Retention period is set by you (7, 30, or 90 days).
+      Documents are automatically deleted when the retention period ends
+      if auto-delete is enabled.
+    </p>
+    <p>
+      <strong>Hashed IP counters</strong> are reset daily and not retained
+      beyond 48 hours.
+    </p>
+
+    <h2 id="security">7. Security</h2>
+    <p>
+      We implement the following security measures:
+    </p>
+    <ul>
+      <li>All data transmitted over TLS 1.2 or higher</li>
+      <li>API keys stored as SHA-256 hashes — never in plaintext</li>
+      <li>IP addresses stored as SHA-256 hashes — never in plaintext</li>
+      <li>Firebase Auth handles password storage and authentication</li>
+      <li>Cloud Run services run in isolated containers</li>
+      <li>Access to production systems limited to authorised personnel</li>
+    </ul>
+    <p>
+      No security system is perfect. If you discover a vulnerability,
+      please contact us at
+      <a href="mailto:qrynttech@gmail.com">qrynttech@gmail.com</a>
+      before public disclosure.
+    </p>
+
+    <h2 id="your-rights">8. Your rights</h2>
+    <p>
+      Depending on your location, you may have the following rights
+      under GDPR and other applicable laws:
+    </p>
+    <ul>
+      <li><strong>Access</strong> — request a copy of your personal data</li>
+      <li><strong>Correction</strong> — correct inaccurate data</li>
+      <li><strong>Erasure</strong> — delete your account and all associated data</li>
+      <li><strong>Portability</strong> — receive your data in a portable format</li>
+      <li><strong>Objection</strong> — object to certain processing activities</li>
+      <li><strong>Restriction</strong> — request restriction of processing</li>
+    </ul>
+    <p>
+      You can exercise most of these rights directly from your
+      <a href="/dashboard">dashboard</a>.
+      For requests not covered by the dashboard,
+      contact us at <a href="mailto:qrynttech@gmail.com">qrynttech@gmail.com</a>.
+      We will respond within 30 days.
+    </p>
+
+    <h2 id="cookies">9. Cookies</h2>
+    <p>
+      Qrynt uses minimal cookies:
+    </p>
+    <ul>
+      <li>
+        <strong>Authentication cookies</strong> — set by Firebase Auth
+        to maintain your session. Required for the service to function.
+      </li>
+      <li>
+        <strong>Analytics cookies</strong> — set by Google Analytics
+        on public pages only. You can opt out via browser settings
+        or the Google Analytics opt-out extension.
+      </li>
+    </ul>
+    <p>
+      We do not use advertising cookies or cross-site tracking cookies.
+    </p>
+
+    <h2 id="children">10. Children</h2>
+    <p>
+      Qrynt is not directed at children under 16 years of age.
+      We do not knowingly collect personal data from children.
+      If you believe a child has provided us with personal data,
+      please contact us and we will delete it promptly.
+    </p>
+
+    <h2 id="changes">11. Changes to this policy</h2>
+    <p>
+      We may update this Privacy Policy from time to time.
+      Material changes will be notified by email to registered users
+      at least 14 days before taking effect.
+      The effective date at the top of this page reflects the
+      most recent version.
+    </p>
+    <p>
+      Continued use of Qrynt after changes take effect constitutes
+      acceptance of the updated policy.
+    </p>
+
+    <h2 id="contact">12. Contact</h2>
+    <div class="contact-box">
+      <h3>Questions about this policy?</h3>
+      <p>Email: <a href="mailto:qrynttech@gmail.com">qrynttech@gmail.com</a></p>
+      <p>We respond to privacy inquiries within 5 business days.</p>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div style="font-family:var(--mono);font-size:12px">© 2026 Qrynt</div>
+  <div class="footer-links">
+    <a href="/terms"   class="footer-link">Terms</a>
+    <a href="/privacy" class="footer-link">Privacy</a>
+    <a href="mailto:qrynttech@gmail.com" class="footer-link">Contact</a>
+  </div>
+</footer>
+
+</body>
+</html>
