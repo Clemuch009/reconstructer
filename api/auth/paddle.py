@@ -29,6 +29,11 @@ PADDLE_TEAM_PRICE_ID = os.getenv("PADDLE_TEAM_PRICE_ID", "pri_YOUR_TEAM_PRICE_ID
 # API base — sandbox by default. Switch to "https://api.paddle.com" for production.
 PADDLE_API_BASE = os.getenv("PADDLE_API_BASE", "https://sandbox-api.paddle.com")
 
+# Derived environment for Paddle.js — "sandbox" or "production".
+# Single source of truth: determined by PADDLE_API_BASE so frontend
+# and backend can never disagree about which environment is active.
+PADDLE_ENVIRONMENT = "production" if "sandbox" not in PADDLE_API_BASE else "sandbox"
+
 
 # Price ID → tier name mapping
 PRICE_TIER_MAP: dict[str, str] = {
@@ -51,6 +56,7 @@ class CheckoutConfig(TypedDict):
     client_token: str
     price_id:     str
     tier:         str
+    environment:  str   # "sandbox" | "production"
 
 
 class PortalSessionResult(TypedDict):
@@ -101,6 +107,7 @@ def get_checkout_config(tier: str) -> CheckoutConfig:
         client_token=PADDLE_CLIENT_TOKEN,
         price_id=price_id,
         tier=tier,
+        environment=PADDLE_ENVIRONMENT,
     )
 
 

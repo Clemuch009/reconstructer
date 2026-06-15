@@ -142,6 +142,7 @@ async def checkout_config(
         "client_token": config["client_token"],
         "price_id":     config["price_id"],
         "tier":         config["tier"],
+        "environment":  config["environment"],
         "uid":          uid,
         "email":        user["email"],
     }

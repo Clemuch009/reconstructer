@@ -167,6 +167,10 @@
           {
             "key": "X-Content-Type-Options",
             "value": "nosniff"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "payment=(self \"https://buy.paddle.com\" \"https://sandbox-buy.paddle.com\")"
           }
         ]
       }
