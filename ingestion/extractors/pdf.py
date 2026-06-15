@@ -68,8 +68,14 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
         with pdfplumber.open(io.BytesIO(raw_bytes)) as pdf:
             page_count = len(pdf.pages)
 
-            # Encrypted PDF check
-            if pdf.doc.is_encrypted:
+            # Encrypted PDF check.
+            # pdfminer's PDFDocument exposes encryption via the `encryption`
+            # attribute (set when an /Encrypt entry is present), NOT via an
+            # `is_encrypted` boolean — which does not exist and previously
+            # raised AttributeError on every PDF. getattr() keeps this check
+            # safe across pdfminer versions: a missing attribute reads as None.
+            is_encrypted = getattr(pdf.doc, "encryption", None) is not None
+            if is_encrypted:
                 return ExtractionResult(
                     text="",
                     metadata=ExtractionMetadata(
