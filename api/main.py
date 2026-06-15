@@ -16,6 +16,7 @@ from api.routes.document  import router as document_router
 from api.routes.ingest    import router as ingest_router
 from api.routes.ingest_file import router as ingest_file_router
 from api.auth.router      import router as auth_router
+from api.routes.billing   import router as billing_router
 
 
 # ---------------------------------
@@ -58,6 +59,7 @@ app.add_middleware(
 
 app.include_router(health_router,      tags=["Health"])
 app.include_router(auth_router,        tags=["Auth"])
+app.include_router(billing_router,     tags=["Billing"])
 app.include_router(process_router,     tags=["Processing"])
 app.include_router(document_router,    tags=["Documents"])
 app.include_router(ingest_router,      tags=["Pipeline"])

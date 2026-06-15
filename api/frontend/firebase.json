@@ -8,7 +8,7 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-	    {
+            {
   "source": "/",
   "destination": "/index.html"
 },
@@ -94,6 +94,34 @@
       },
       {
         "source": "/documents",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/ingest/file",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/ingest/file/**",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/auth/**",
+        "run": {
+          "serviceId": "qrynt",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/billing/**",
         "run": {
           "serviceId": "qrynt",
           "region": "europe-west1"
