@@ -126,7 +126,7 @@ def normalize_input(result: ExtractionResult) -> tuple[str, list[str]]:
     source_format = result["metadata"]["source_format"]
 
     # Step 1 — strip extraction artifacts
-    text, artifact_warnings = _strip_extraction_artifacts(text, source_format)
+    text, artifact_warnings = _strip_format_noise(text, source_format)
     warnings.extend(artifact_warnings)
 
     # Step 2 — normalize line endings
