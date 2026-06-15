@@ -14,6 +14,7 @@ from api.dependencies import get_engine
 from api.middleware.auth import require_auth, consume_request, RequestContext
 from api.streaming import broadcast_to_sse_clients, publish_webhook
 from api.routes.document import store_coc
+from api.routes.ingest import _session_store, _evict_if_needed
 from ingestion.router import ingest, IngestionResult
 
 
@@ -116,6 +117,21 @@ async def _process_file(
     }
 
     store_coc(envelope)
+
+    # Register in shared session store so /export and /session/{id}
+    # work on file-uploaded documents the same as text-ingested ones.
+    # Pipeline already ran above — mark as resolved immediately,
+    # no re-processing needed when /export is called.
+    source_id = envelope["source_id"]
+    _evict_if_needed()
+    _session_store[source_id] = {
+        "raw":      normalized_text,
+        "metadata": {"filename": filename, "source_format": ingestion_result["source_format"]},
+        "resolved": True,
+        "status":   "resolved",
+        "envelope": envelope,
+    }
+
     asyncio.create_task(broadcast_to_sse_clients(envelope))
     asyncio.create_task(publish_webhook(envelope))
     await consume_request(ctx)
