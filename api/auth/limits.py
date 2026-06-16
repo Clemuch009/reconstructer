@@ -16,28 +16,14 @@ FREE_IP_LIMIT = 10   # requests before signup required
 # ---------------------------------
 
 def _extract_ip(request: Request) -> str:
-    """
-    Extract real client IP from request.
-
-    Priority order:
-    1. X-Forwarded-For  — set by Firebase/Cloud Run load balancer
-    2. X-Real-IP        — set by some proxies
-    3. request.client.host — direct connection fallback
-
-    Takes first IP in X-Forwarded-For chain — the original client.
-    """
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        # Chain format: "client, proxy1, proxy2"
         return forwarded.split(",")[0].strip()
-
     real_ip = request.headers.get("X-Real-IP")
     if real_ip:
         return real_ip.strip()
-
     if request.client:
         return request.client.host
-
     return "unknown"
 
 
@@ -46,43 +32,28 @@ def _extract_ip(request: Request) -> str:
 # ---------------------------------
 
 def check_free_tier(request: Request) -> Tuple[bool, int, int]:
-    """
-    Check if anonymous IP request is within free tier limit.
-
-    Returns (allowed, current_count, limit).
-
-    Rules:
-    - Hashed IP stored in Firestore — never raw IP
-    - Daily reset — counter resets at midnight UTC
-    - Returns allowed=True if within limit
-    - Returns allowed=False if limit reached — caller prompts signup
-    """
     from api.auth.firestore import is_ip_within_limit
-
     ip = _extract_ip(request)
-
     if ip == "unknown":
-        # Cannot track — allow with warning
         return True, 0, FREE_IP_LIMIT
-
     within_limit, count = is_ip_within_limit(ip, FREE_IP_LIMIT)
     return within_limit, count, FREE_IP_LIMIT
 
 
-def consume_free_tier(request: Request) -> int:
+def consume_free_tier(request: Request, count: int = 1) -> int:
     """
-    Increment free tier counter for IP.
-    Returns new count.
+    Increment free tier counter for IP by count units.
+    Returns new count after all increments.
     Call only after request is processed successfully.
     """
     from api.auth.firestore import increment_ip_count
-
     ip = _extract_ip(request)
-
     if ip == "unknown":
         return 0
-
-    return increment_ip_count(ip)
+    result = 0
+    for _ in range(count):
+        result = increment_ip_count(ip)
+    return result
 
 
 # ---------------------------------
@@ -93,30 +64,21 @@ def check_authenticated_limit(
     uid:  str,
     tier: str,
 ) -> Tuple[bool, dict]:
-    """
-    Check if authenticated user is within daily limit.
-
-    Returns (allowed, usage_dict).
-
-    Rules:
-    - Enterprise tier — always allowed (-1 = unlimited)
-    - Daily counter resets at midnight UTC
-    - Usage dict returned for response headers
-    """
     from api.auth.firestore import check_usage_limit
-
     return check_usage_limit(uid, tier)
 
 
-def consume_authenticated_limit(uid: str) -> dict:
+def consume_authenticated_limit(uid: str, count: int = 1) -> dict:
     """
-    Increment usage counter for authenticated user.
-    Returns updated usage dict.
+    Increment usage counter for authenticated user by count units.
+    Returns updated usage dict after all increments.
     Call only after request is processed successfully.
     """
     from api.auth.firestore import increment_usage
-
-    return increment_usage(uid)
+    result = {}
+    for _ in range(count):
+        result = increment_usage(uid)
+    return result
 
 
 # ---------------------------------
@@ -128,24 +90,11 @@ def build_limit_headers(
     requests_today: int,
     requests_limit: int,
 ) -> dict[str, str]:
-    """
-    Build rate limit response headers.
-    Follows standard X-RateLimit convention.
+    from datetime import datetime, timezone, timedelta
 
-    Headers:
-    X-RateLimit-Tier        — user tier
-    X-RateLimit-Limit       — daily limit
-    X-RateLimit-Remaining   — requests remaining today
-    X-RateLimit-Reset       — seconds until midnight UTC reset
-    """
-    from datetime import datetime, timezone
-
-    now         = datetime.now(timezone.utc)
-    midnight    = now.replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    from datetime import timedelta
-    next_reset  = midnight + timedelta(days=1)
+    now        = datetime.now(timezone.utc)
+    midnight   = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    next_reset = midnight + timedelta(days=1)
     seconds_until_reset = int((next_reset - now).total_seconds())
 
     remaining = (
@@ -153,7 +102,6 @@ def build_limit_headers(
         if requests_limit != -1
         else 999999
     )
-
     limit_str = str(requests_limit) if requests_limit != -1 else "unlimited"
 
     return {
@@ -165,13 +113,10 @@ def build_limit_headers(
 
 
 # ---------------------------------
-# Unified limit check
+# Unified limit check result
 # ---------------------------------
 
 class LimitCheckResult:
-    """
-    Result of a limit check — used by middleware.
-    """
     __slots__ = (
         "allowed",
         "tier",
@@ -180,6 +125,7 @@ class LimitCheckResult:
         "limit",
         "is_free_tier",
         "headers",
+        "request",       # stored for consume_free_tier call
     )
 
     def __init__(
@@ -191,6 +137,7 @@ class LimitCheckResult:
         limit:         int,
         is_free_tier:  bool,
         headers:       dict,
+        request:       Optional[Request] = None,
     ):
         self.allowed       = allowed
         self.tier          = tier
@@ -199,22 +146,17 @@ class LimitCheckResult:
         self.limit         = limit
         self.is_free_tier  = is_free_tier
         self.headers       = headers
+        self.request       = request
 
+
+# ---------------------------------
+# Unified limit check
+# ---------------------------------
 
 def check_request_limit(
     request:  Request,
     api_key:  Optional[str] = None,
 ) -> LimitCheckResult:
-    """
-    Unified limit check for all request types.
-
-    Flow:
-    1. No API key → free tier IP check
-    2. API key present → verify key → authenticated limit check
-
-    Returns LimitCheckResult — middleware uses this to
-    allow/reject request and attach response headers.
-    """
     from api.auth.firestore import (
         TIER_LIMITS,
         get_user_by_key_hash,
@@ -222,9 +164,7 @@ def check_request_limit(
     )
     from api.auth.keys import hash_key, verify_key_format
 
-    # ---------------------------------
     # Free tier — no API key
-    # ---------------------------------
     if not api_key:
         allowed, count, limit = check_free_tier(request)
         headers = build_limit_headers("free", count, limit)
@@ -236,13 +176,10 @@ def check_request_limit(
             limit=limit,
             is_free_tier=True,
             headers=headers,
+            request=request,
         )
 
-    # ---------------------------------
     # Authenticated — API key present
-    # ---------------------------------
-
-    # Validate key format first — fast, no DB call
     is_valid, key_type = verify_key_format(api_key)
     if not is_valid:
         return LimitCheckResult(
@@ -253,9 +190,9 @@ def check_request_limit(
             limit=0,
             is_free_tier=False,
             headers={},
+            request=request,
         )
 
-    # Look up user by key hash
     key_hash = hash_key(api_key)
     user     = get_user_by_key_hash(key_hash)
 
@@ -268,9 +205,9 @@ def check_request_limit(
             limit=0,
             is_free_tier=False,
             headers={},
+            request=request,
         )
 
-    # Check if key is active
     active_key = next(
         (k for k in user.get("api_keys", [])
          if k.get("key_hash") == key_hash and k.get("active", False)),
@@ -286,11 +223,11 @@ def check_request_limit(
             limit=0,
             is_free_tier=False,
             headers={},
+            request=request,
         )
 
     uid   = user.get("uid", "")
     tier  = user.get("tier", "starter")
-    usage = user.get("usage", {})
 
     allowed, usage_dict = check_authenticated_limit(uid, tier)
     limit       = TIER_LIMITS.get(tier, {}).get("requests_per_day", 0)
@@ -305,4 +242,5 @@ def check_request_limit(
         limit=limit,
         is_free_tier=False,
         headers=headers,
+        request=request,
     )

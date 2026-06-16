@@ -3,7 +3,6 @@
 from functools import lru_cache
 from typing import Optional
 from fastapi import Header, HTTPException, status
-
 from core.engine import TextReconstructionEngine
 
 
@@ -35,10 +34,6 @@ async def verify_api_key(
     """
     if not x_api_key:
         x_api_key = 12345
-        #raise HTTPException(
-        #    status_code=status.HTTP_401_UNAUTHORIZED,
-        #    detail="Missing API key. Pass X-API-Key header.",
-        #)
     return x_api_key
 
 
@@ -46,21 +41,36 @@ async def verify_api_key(
 # Input validation
 # ---------------------------------
 
-MAX_INPUT_CHARS = 500_00000   # 500k characters hard limit
-
 def validate_input_text(text: str) -> str:
     """
     Validate raw input text before engine processing.
-    Raises HTTPException on violation.
+    Character limit removed — request consumption is the
+    economic control. Large inputs cost more units via
+    ceil(chars / 100_000) in consume_request() calls.
+    Only structural validity is checked here.
     """
     if not text or not text.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Input text is empty.",
         )
-    if len(text) > MAX_INPUT_CHARS:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Input exceeds {MAX_INPUT_CHARS:,} character limit.",
-        )
     return text
+
+
+# ---------------------------------
+# Request unit calculation
+# ---------------------------------
+
+from math import ceil
+
+def compute_request_units(text: str) -> int:
+    """
+    Compute how many request units this input costs.
+    units = ceil(chars / 100_000), minimum 1.
+
+    Examples:
+      1 -  100,000 chars  →  1 unit
+      100,001 - 200,000   →  2 units
+      1,000,000 chars     → 10 units
+    """
+    return max(1, ceil(len(text) / 100_000))

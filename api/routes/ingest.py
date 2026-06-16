@@ -12,7 +12,7 @@ from core.engine import TextReconstructionEngine
 from api.coc import build_coc, COCEnvelope
 from api.session import build_session_trace
 from api.middleware.auth import require_auth, consume_request, RequestContext
-from api.dependencies import get_engine, validate_input_text
+from api.dependencies import get_engine, validate_input_text, compute_request_units
 from api.streaming import broadcast_to_sse_clients, publish_webhook
 from api.routes.document import store_coc
 
@@ -135,7 +135,7 @@ async def resolve(
                 await _run_pipeline(
                     request.session_id,
                     engine,
-                    ctx,                      # ← ctx passed correctly
+                    ctx,
                     request.callback_url,
                 )
             except Exception as e:
@@ -239,7 +239,7 @@ async def export(
 @router.get("/session/{session_id}")
 async def get_session(
     session_id: str,
-    ctx:        RequestContext = Depends(require_auth),   # ← fixed
+    ctx:        RequestContext = Depends(require_auth),
 ) -> dict:
     session = _session_store.get(session_id)
     if not session:
@@ -308,5 +308,6 @@ async def _run_pipeline(
         except Exception:
             pass
 
-    await consume_request(ctx)
+    # Consume units proportional to input size
+    await consume_request(ctx, count=compute_request_units(raw))
     return envelope

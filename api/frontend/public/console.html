@@ -665,9 +665,9 @@ region: eu-west-1
   <!-- RIGHT PANEL -->
   <div class="panel-right">
     <div class="tabs">
-      <button class="tab active" onclick="switchTab('human')">HUMAN</button>
-      <button class="tab" onclick="switchTab('machine')">MACHINE</button>
-      <button class="tab" onclick="switchTab('ai')">AI / LDM</button>
+      <button class="tab active" onclick="switchTab('human')">HUMAN <span class="help-icon" data-term="human" title="What is HumanAdapter?">?</span></button>
+      <button class="tab" onclick="switchTab('machine')">MACHINE <span class="help-icon" data-term="machine" title="What is MachineAdapter?">?</span></button>
+      <button class="tab" onclick="switchTab('ai')">AI / LDM <span class="help-icon" data-term="ai" title="What is AIAdapter / LDM?">?</span></button>
     </div>
 
     <!-- Human tab -->
@@ -705,11 +705,11 @@ region: eu-west-1
     <div class="output-footer" id="output-footer" style="display:none">
       <div class="stats-row">
         <div class="stat">
-          <span>SEGMENTS</span>
+          <span>SEGMENTS <span class="help-icon" data-term="segment" title="What is a segment?">?</span></span>
           <span class="stat-value" id="seg-count">—</span>
         </div>
         <div class="stat">
-          <span>QUALITY</span>
+          <span>QUALITY <span class="help-icon" data-term="confidence" title="What is confidence?">?</span></span>
           <span class="stat-value" id="quality-score">—</span>
         </div>
         <span class="validation-badge" id="validation-badge">—</span>
@@ -1190,6 +1190,320 @@ function setStatus(state, text) {
 
 // Init
 updateInputStats();
+</script>
+
+<!-- ─── HELP DRAWER ─── -->
+<div class="help-overlay" id="help-overlay" onclick="closeHelp()"></div>
+<div class="help-drawer" id="help-drawer">
+  <div class="help-drawer-head">
+    <span class="help-drawer-term" id="help-drawer-term"></span>
+    <button class="help-drawer-close" onclick="closeHelp()">×</button>
+  </div>
+  <div class="help-drawer-body" id="help-drawer-body"></div>
+  <div class="help-drawer-foot">
+    <a class="help-drawer-link" id="help-drawer-link" href="/help" target="_blank">
+      Open full documentation ↗
+    </a>
+  </div>
+</div>
+
+<style>
+/* ─── HELP ICON ─── */
+.help-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  font-size: 9px; font-family: var(--mono);
+  color: rgba(255,255,255,0.4);
+  cursor: pointer; margin-left: 4px;
+  vertical-align: middle;
+  transition: all 0.15s;
+  position: relative; top: -1px;
+  user-select: none;
+}
+
+.help-icon:hover {
+  background: rgba(0,201,110,0.15);
+  border-color: rgba(0,201,110,0.4);
+  color: #00c96e;
+}
+
+/* ─── DRAWER ─── */
+.help-overlay {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.3);
+}
+
+.help-overlay.open { display: block; }
+
+.help-drawer {
+  position: fixed; top: 0; right: -400px; bottom: 0;
+  width: 380px; z-index: 201;
+  background: #1e1c18;
+  border-left: 1px solid rgba(255,255,255,0.08);
+  display: flex; flex-direction: column;
+  transition: right 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+
+.help-drawer.open { right: 0; }
+
+.help-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.help-drawer-term {
+  font-family: var(--mono); font-size: 13px; font-weight: 500;
+  color: #00c96e;
+}
+
+.help-drawer-close {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.4); font-size: 16px;
+  cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.help-drawer-close:hover {
+  background: rgba(255,255,255,0.1); color: #fff;
+}
+
+.help-drawer-body {
+  flex: 1; overflow-y: auto; padding: 24px 20px;
+  font-size: 13px; line-height: 1.7;
+  color: rgba(255,255,255,0.6);
+}
+
+.help-drawer-body h4 {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: rgba(255,255,255,0.3); letter-spacing: 0.1em;
+  text-transform: uppercase; margin: 20px 0 8px;
+}
+
+.help-drawer-body h4:first-child { margin-top: 0; }
+
+.help-drawer-body p { margin-bottom: 12px; }
+
+.help-drawer-body code {
+  font-family: var(--mono); font-size: 11px;
+  background: rgba(255,255,255,0.07);
+  padding: 1px 6px; border-radius: 3px;
+  color: #7dd3fc;
+}
+
+.help-drawer-body .drawer-example {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px; padding: 12px 14px;
+  font-family: var(--mono); font-size: 11px;
+  color: rgba(255,255,255,0.45); line-height: 1.8;
+  margin: 12px 0;
+}
+
+.help-drawer-body .drawer-key  { color: #7dd3fc; }
+.help-drawer-body .drawer-str  { color: #86efac; }
+.help-drawer-body .drawer-num  { color: #fbbf24; }
+
+.help-drawer-body .type-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.help-drawer-body .type-row:last-child { border-bottom: none; }
+
+.help-drawer-body .type-badge {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  padding: 2px 8px; border-radius: 10px; flex-shrink: 0; margin-top: 2px;
+}
+
+.badge-prose   { background: #1e3a5f; color: #7dd3fc; }
+.badge-kv      { background: #3b2a0a; color: #fbbf24; }
+.badge-table   { background: #0a2e1a; color: #86efac; }
+.badge-tree    { background: #2d1b4e; color: #c084fc; }
+.badge-mixed   { background: #3b1a0a; color: #fb923c; }
+
+.help-drawer-foot {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.help-drawer-link {
+  font-family: var(--mono); font-size: 12px;
+  color: #00c96e; text-decoration: none;
+  border-bottom: 1px solid rgba(0,201,110,0.3);
+  padding-bottom: 1px; transition: border-color 0.15s;
+}
+
+.help-drawer-link:hover { border-color: #00c96e; }
+</style>
+
+<script>
+// ─── HELP DRAWER DATA ───
+const HELP_TERMS = {
+  segment: {
+    term: 'segment',
+    anchor: 'segment',
+    content: `
+      <p>A <strong style="color:#fff">segment</strong> is a coherent, self-contained chunk
+      of your input text — a paragraph, a block of key-value pairs, a table, or a heading.</p>
+      <p>Qrynt splits your input into segments before classifying each one independently.
+      One document becomes an ordered list of segments.</p>
+      <h4>Example</h4>
+      <div class="drawer-example">
+<span class="drawer-key">"segment_id"</span>: <span class="drawer-str">"fc6cfd283de599e3"</span>,
+<span class="drawer-key">"type"</span>: <span class="drawer-str">"prose"</span>,
+<span class="drawer-key">"confidence"</span>: <span class="drawer-num">1</span>
+      </div>
+      <p>The <code>segment_id</code> is a stable hex ID — the same text always
+      produces the same ID, making it safe to use as a database primary key.</p>
+    `
+  },
+  confidence: {
+    term: 'confidence',
+    anchor: 'confidence',
+    content: `
+      <p><strong style="color:#fff">Confidence</strong> is a score from
+      <code>0.0</code> to <code>1.0</code> indicating how certain the engine
+      is about the structural classification of this segment.</p>
+      <h4>How to use it</h4>
+      <div class="drawer-example">
+<span class="drawer-num">1.0</span>   → certain, process automatically
+<span class="drawer-num">0.8</span>+  → high confidence, safe to trust
+<span class="drawer-num">0.6</span>–<span class="drawer-num">0.8</span> → moderate, consider reviewing
+below <span class="drawer-num">0.6</span> → ambiguous, route to human review
+      </div>
+      <p>Low confidence often appears on <code>mixed</code> segments where
+      more than one structural pattern was detected.</p>
+    `
+  },
+  human: {
+    term: 'HumanAdapter',
+    anchor: 'human-adapter',
+    content: `
+      <p><strong style="color:#fff">HumanAdapter</strong> returns a clean,
+      formatted plain-text version of your document — readable by a person,
+      not structured for a machine.</p>
+      <p>Use this when you want to display the processed document, export it
+      as a <code>.txt</code> file, or show it in a review interface.</p>
+      <h4>When to use</h4>
+      <div class="drawer-example">
+✓ Displaying cleaned content to a user
+✓ Downloading a readable version of a document
+✓ Building a preview or diff view
+✗ Storing in a database → use Machine
+✗ Feeding to an LLM → use AI / LDM
+      </div>
+    `
+  },
+  machine: {
+    term: 'MachineAdapter',
+    anchor: 'machine-adapter',
+    content: `
+      <p><strong style="color:#fff">MachineAdapter</strong> returns a flat
+      JSON array — one record per segment — ready to insert into a database,
+      pass through a pipeline, or process programmatically.</p>
+      <h4>Example record</h4>
+      <div class="drawer-example">
+{
+  <span class="drawer-key">"segment_id"</span>: <span class="drawer-str">"fc6cfd28..."</span>,
+  <span class="drawer-key">"type"</span>: <span class="drawer-str">"prose"</span>,
+  <span class="drawer-key">"content"</span>: { <span class="drawer-key">"text"</span>: <span class="drawer-str">"..."</span> },
+  <span class="drawer-key">"confidence"</span>: <span class="drawer-num">1</span>,
+  <span class="drawer-key">"flags"</span>: []
+}
+      </div>
+      <p>Use <code>segment_id</code> as your primary key.
+      Use <code>type</code> as a column for filtering by structure.</p>
+    `
+  },
+  ai: {
+    term: 'AIAdapter / LDM',
+    anchor: 'ai-adapter',
+    content: `
+      <p><strong style="color:#fff">AIAdapter</strong> returns a
+      <strong style="color:#fff">Logical Document Model (LDM)</strong> —
+      a structured representation designed for LLM consumption and RAG pipelines.</p>
+      <p>Instead of segments, the LDM uses <strong style="color:#fff">blocks</strong>
+      with <strong style="color:#fff">tags</strong> — semantic labels that describe
+      both structure and content type.</p>
+      <h4>Example block</h4>
+      <div class="drawer-example">
+{
+  <span class="drawer-key">"type"</span>: <span class="drawer-str">"prose"</span>,
+  <span class="drawer-key">"tags"</span>: [<span class="drawer-str">"PROSE"</span>, <span class="drawer-str">"UNSTRUCTURED"</span>],
+  <span class="drawer-key">"confidence"</span>: <span class="drawer-num">1</span>,
+  <span class="drawer-key">"content"</span>: { <span class="drawer-key">"text"</span>: <span class="drawer-str">"..."</span> }
+}
+      </div>
+      <p>Filter by <code>confidence >= 0.8</code> before injecting into a prompt.
+      Use <code>tags</code> to route blocks to different prompt templates.</p>
+    `
+  },
+  types: {
+    term: 'Structure types',
+    anchor: 'types',
+    content: `
+      <p>Every segment is classified into one of five structural types based on
+      the patterns detected in its content.</p>
+      <div class="type-row">
+        <span class="type-badge badge-prose">prose</span>
+        <span>Natural language — sentences, paragraphs, chat messages. Pass directly to an LLM.</span>
+      </div>
+      <div class="type-row">
+        <span class="type-badge badge-kv">kv_block</span>
+        <span>Key-value pairs — config files, forms, metadata. Map to database columns.</span>
+      </div>
+      <div class="type-row">
+        <span class="type-badge badge-table">table</span>
+        <span>Columnar data — rows and columns. Map to a DB table or DataFrame.</span>
+      </div>
+      <div class="type-row">
+        <span class="type-badge badge-tree">tree</span>
+        <span>Hierarchical structure — file trees, nested lists. Map to recursive JSON.</span>
+      </div>
+      <div class="type-row">
+        <span class="type-badge badge-mixed">mixed</span>
+        <span>Multiple structure types in one segment. Check confidence and block_count.</span>
+      </div>
+    `
+  }
+};
+
+function openHelp(term) {
+  const data = HELP_TERMS[term];
+  if (!data) return;
+  document.getElementById('help-drawer-term').textContent = data.term;
+  document.getElementById('help-drawer-body').innerHTML = data.content;
+  document.getElementById('help-drawer-link').href = `/help#${data.anchor}`;
+  document.getElementById('help-drawer').classList.add('open');
+  document.getElementById('help-overlay').classList.add('open');
+}
+
+function closeHelp() {
+  document.getElementById('help-drawer').classList.remove('open');
+  document.getElementById('help-overlay').classList.remove('open');
+}
+
+// Wire up all [?] icons
+document.querySelectorAll('.help-icon').forEach(icon => {
+  // Hover tooltip — native title attribute handles this
+  // Click → open drawer
+  icon.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openHelp(icon.dataset.term);
+  });
+});
+
+// Keyboard close
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeHelp();
+});
 </script>
 </body>
 </html>

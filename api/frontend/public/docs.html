@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documentation — Qrynt</title>
+<meta name="description" content="Qrynt API documentation — concepts, adapters, field reference, and code examples.">
+<link rel="icon" type="image/png" href="/assets/QryNt.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #f8f7f4;
+    --surface:   #ffffff;
+    --border:    #e8e6e1;
+    --border2:   #d4d1cb;
+    --ink:       #1a1814;
+    --ink-dim:   #6b6760;
+    --ink-muted: #b0ada6;
+    --accent:    #00c96e;
+    --accent-dk: #009e56;
+    --accent-bg: #f0fdf6;
+    --code-bg:   #1a1814;
+    --code-fg:   #e8e6e1;
+    --serif:     'Instrument Serif', Georgia, serif;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'DM Sans', system-ui, sans-serif;
+    --sidebar-w: 240px;
+    --content-max: 720px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: 56px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 24px;
+    gap: 24px;
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 8px;
+    text-decoration: none; color: var(--ink);
+  }
+
+  .nav-logo img { width: 22px; height: 22px; }
+
+  .nav-logo-text {
+    font-family: var(--mono); font-size: 14px; font-weight: 500;
+  }
+
+  .nav-links {
+    display: flex; align-items: center; gap: 4px; margin-left: auto;
+  }
+
+  .nav-link {
+    font-size: 13px; color: var(--ink-dim); text-decoration: none;
+    padding: 6px 12px; border-radius: 6px;
+    transition: all 0.15s;
+  }
+
+  .nav-link:hover { color: var(--ink); background: var(--border); }
+
+  .nav-cta {
+    background: var(--ink); color: #fff;
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    padding: 7px 14px; border-radius: 8px; text-decoration: none;
+    transition: background 0.15s;
+  }
+
+  .nav-cta:hover { background: var(--accent-dk); }
+
+  /* ─── LAYOUT ─── */
+  .docs-layout {
+    display: flex;
+    padding-top: 56px;
+    min-height: 100vh;
+  }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar {
+    position: fixed;
+    top: 56px; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    background: var(--bg);
+    padding: 32px 0 48px;
+  }
+
+  .sidebar-section {
+    margin-bottom: 28px;
+    padding: 0 20px;
+  }
+
+  .sidebar-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 8px;
+    display: block;
+  }
+
+  .sidebar-link {
+    display: block; font-size: 13px; color: var(--ink-dim);
+    text-decoration: none; padding: 4px 8px; border-radius: 5px;
+    margin-bottom: 1px; transition: all 0.12s;
+  }
+
+  .sidebar-link:hover { color: var(--ink); background: var(--border); }
+  .sidebar-link.active { color: var(--accent-dk); background: var(--accent-bg); }
+
+  .sidebar-sub {
+    padding-left: 12px;
+    border-left: 2px solid var(--border);
+    margin: 4px 0 4px 8px;
+  }
+
+  .sidebar-sub .sidebar-link {
+    font-size: 12px;
+  }
+
+  /* ─── CONTENT ─── */
+  .docs-content {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 56px 48px 96px;
+    max-width: calc(var(--sidebar-w) + var(--content-max) + 96px);
+  }
+
+  /* ─── SECTIONS ─── */
+  .docs-section {
+    margin-bottom: 72px;
+    scroll-margin-top: 80px;
+  }
+
+  .section-eyebrow {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent-dk); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 12px;
+    display: block;
+  }
+
+  .section-title {
+    font-family: var(--serif); font-size: 32px;
+    font-weight: 400; letter-spacing: -0.01em;
+    margin-bottom: 16px; color: var(--ink);
+  }
+
+  .section-intro {
+    font-size: 16px; color: var(--ink-dim);
+    font-weight: 300; max-width: 640px;
+    margin-bottom: 32px; line-height: 1.75;
+  }
+
+  /* ─── TERM CARDS ─── */
+  .term-grid {
+    display: flex; flex-direction: column; gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .term-card {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    scroll-margin-top: 80px;
+  }
+
+  .term-card:last-child { border-bottom: none; }
+
+  .term-card:target {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--accent);
+  }
+
+  .term-name {
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+    color: var(--ink); margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .term-type {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); font-weight: 400;
+    background: var(--border); padding: 2px 7px; border-radius: 4px;
+  }
+
+  .term-desc {
+    font-size: 14px; color: var(--ink-dim); line-height: 1.65;
+  }
+
+  .term-example {
+    margin-top: 10px;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink-dim); background: var(--bg);
+    padding: 8px 12px; border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  /* ─── TYPE LABEL PILLS ─── */
+  .type-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px; margin-bottom: 32px;
+  }
+
+  .type-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px;
+    scroll-margin-top: 80px;
+  }
+
+  .type-card:target { border-color: var(--accent); background: var(--accent-bg); }
+
+  .type-pill {
+    display: inline-block;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    padding: 3px 10px; border-radius: 20px; margin-bottom: 10px;
+  }
+
+  .pill-prose    { background: #e8f4fd; color: #2563ab; }
+  .pill-kv       { background: #fef3c7; color: #92400e; }
+  .pill-table    { background: #f0fdf4; color: #166534; }
+  .pill-tree     { background: #faf5ff; color: #7c3aed; }
+  .pill-mixed    { background: #fff7ed; color: #c2410c; }
+
+  .type-name {
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+    color: var(--ink); margin-bottom: 6px;
+  }
+
+  .type-desc { font-size: 13px; color: var(--ink-dim); line-height: 1.6; }
+
+  .type-example {
+    margin-top: 10px; font-size: 12px;
+    font-family: var(--mono); color: var(--ink-muted);
+    font-style: italic;
+  }
+
+  /* ─── CODE BLOCKS ─── */
+  .code-block {
+    background: var(--code-bg);
+    border-radius: 10px; overflow: hidden;
+    margin: 20px 0;
+  }
+
+  .code-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .code-lang {
+    font-family: var(--mono); font-size: 11px;
+    color: rgba(255,255,255,0.4); letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .code-copy {
+    font-family: var(--mono); font-size: 11px;
+    color: rgba(255,255,255,0.4); background: none; border: none;
+    cursor: pointer; transition: color 0.15s; padding: 0;
+  }
+
+  .code-copy:hover { color: rgba(255,255,255,0.8); }
+
+  pre {
+    padding: 20px; overflow-x: auto;
+    font-family: var(--mono); font-size: 12.5px;
+    line-height: 1.7; color: var(--code-fg);
+    white-space: pre;
+  }
+
+  .hl-key    { color: #7dd3fc; }
+  .hl-str    { color: #86efac; }
+  .hl-num    { color: #fbbf24; }
+  .hl-null   { color: #f87171; }
+  .hl-bool   { color: #c084fc; }
+  .hl-tag    { color: #fb923c; }
+  .hl-cmt    { color: #6b7280; font-style: italic; }
+
+  /* ─── ADAPTER TABS ─── */
+  .adapter-section {
+    margin-bottom: 56px;
+    scroll-margin-top: 80px;
+  }
+
+  .adapter-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .adapter-badge {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    padding: 4px 10px; border-radius: 6px; border: 1px solid;
+  }
+
+  .badge-human   { color: #166534; border-color: #bbf7d0; background: #f0fdf4; }
+  .badge-machine { color: #1e40af; border-color: #bfdbfe; background: #eff6ff; }
+  .badge-ai      { color: #7c3aed; border-color: #ddd6fe; background: #faf5ff; }
+
+  .adapter-title {
+    font-family: var(--serif); font-size: 24px;
+    font-weight: 400; color: var(--ink);
+  }
+
+  .adapter-when {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 18px;
+    margin-bottom: 16px; font-size: 14px; color: var(--ink-dim);
+  }
+
+  .adapter-when strong { color: var(--ink); font-weight: 500; }
+
+  /* ─── FIELD TABLE ─── */
+  .field-table {
+    width: 100%; border-collapse: collapse;
+    margin: 20px 0; font-size: 13px;
+  }
+
+  .field-table th {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.1em;
+    text-transform: uppercase; text-align: left;
+    padding: 8px 12px; border-bottom: 2px solid var(--border);
+  }
+
+  .field-table td {
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .field-table tr:last-child td { border-bottom: none; }
+
+  .field-table tr:hover td { background: var(--border); }
+
+  .field-name {
+    font-family: var(--mono); font-size: 12px; color: var(--ink);
+  }
+
+  .field-type-tag {
+    font-family: var(--mono); font-size: 10px;
+    background: var(--border); color: var(--ink-dim);
+    padding: 1px 6px; border-radius: 3px;
+  }
+
+  /* ─── CALLOUT ─── */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-bg); padding: 14px 18px;
+    border-radius: 0 8px 8px 0; margin: 20px 0;
+    font-size: 14px; color: var(--ink-dim);
+  }
+
+  .callout strong { color: var(--ink-dk); }
+
+  /* ─── PIPELINE DIAGRAM ─── */
+  .pipeline {
+    display: flex; align-items: center; gap: 0;
+    margin: 24px 0; overflow-x: auto;
+  }
+
+  .pipe-step {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; text-align: center;
+    min-width: 100px; flex-shrink: 0;
+  }
+
+  .pipe-step-label {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    color: var(--ink); display: block; margin-bottom: 3px;
+  }
+
+  .pipe-step-sub {
+    font-size: 11px; color: var(--ink-muted);
+  }
+
+  .pipe-arrow {
+    font-family: var(--mono); font-size: 16px;
+    color: var(--ink-muted); padding: 0 8px; flex-shrink: 0;
+  }
+
+  .pipe-step.accent {
+    border-color: var(--accent); background: var(--accent-bg);
+  }
+
+  .pipe-step.accent .pipe-step-label { color: var(--accent-dk); }
+
+  /* ─── DIVIDER ─── */
+  .docs-divider {
+    border: none; border-top: 1px solid var(--border);
+    margin: 56px 0;
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .docs-content { margin-left: 0; padding: 32px 20px 64px; }
+  }
+
+  @media (max-width: 600px) {
+    .type-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    <span class="nav-logo-text">Qrynt</span>
+  </a>
+  <div class="nav-links">
+    <a href="/help" class="nav-link" style="color:var(--ink)">Docs</a>
+    <a href="/pricing" class="nav-link">Pricing</a>
+    <a href="/console" class="nav-link">Try Qrynt</a>
+    <a href="mailto:qrynttech@gmail.com" class="nav-link">Contact</a>
+    <a href="/signup" class="nav-cta">Get started →</a>
+  </div>
+</nav>
+
+<div class="docs-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <span class="sidebar-label">Getting started</span>
+      <a href="#overview" class="sidebar-link">Overview</a>
+      <a href="#pipeline" class="sidebar-link">How it works</a>
+    </div>
+
+    <div class="sidebar-section">
+      <span class="sidebar-label">Concepts</span>
+      <a href="#segment" class="sidebar-link">segment</a>
+      <a href="#segment_id" class="sidebar-link">segment_id</a>
+      <a href="#confidence" class="sidebar-link">confidence</a>
+      <a href="#flags" class="sidebar-link">flags</a>
+      <a href="#section_label" class="sidebar-link">section_label</a>
+      <a href="#source_span" class="sidebar-link">source_span</a>
+      <div class="sidebar-sub">
+        <span class="sidebar-label" style="margin-top:6px">classification_stats</span>
+        <a href="#dominant_coverage_lines" class="sidebar-link">dominant_coverage_lines</a>
+        <a href="#block_count" class="sidebar-link">block_count</a>
+        <a href="#dominant_source" class="sidebar-link">dominant_source</a>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <span class="sidebar-label">Structure types</span>
+      <a href="#prose" class="sidebar-link">prose</a>
+      <a href="#kv_block" class="sidebar-link">kv_block</a>
+      <a href="#table" class="sidebar-link">table</a>
+      <a href="#tree" class="sidebar-link">tree</a>
+      <a href="#mixed" class="sidebar-link">mixed</a>
+    </div>
+
+    <div class="sidebar-section">
+      <span class="sidebar-label">Adapters</span>
+      <a href="#human-adapter" class="sidebar-link">HumanAdapter</a>
+      <a href="#machine-adapter" class="sidebar-link">MachineAdapter</a>
+      <a href="#ai-adapter" class="sidebar-link">AIAdapter / LDM</a>
+    </div>
+
+    <div class="sidebar-section">
+      <span class="sidebar-label">API reference</span>
+      <a href="#api-ingest" class="sidebar-link">POST /ingest</a>
+      <a href="#api-resolve" class="sidebar-link">POST /resolve</a>
+      <a href="#api-export" class="sidebar-link">POST /export</a>
+      <a href="#api-ingest-file" class="sidebar-link">POST /ingest/file</a>
+    </div>
+  </aside>
+
+  <!-- CONTENT -->
+  <main class="docs-content">
+
+    <!-- OVERVIEW -->
+    <section class="docs-section" id="overview">
+      <span class="section-eyebrow">// Documentation</span>
+      <h1 class="section-title">Qrynt Documentation</h1>
+      <p class="section-intro">
+        Qrynt takes unstructured or messy text — documents, exports, logs, pastes —
+        and returns typed, structured output you can connect directly to a database,
+        an AI pipeline, or a human review interface. This reference covers every
+        concept, field, and output format.
+      </p>
+
+      <div class="callout">
+        <strong>New here?</strong> Start with the <a href="/console" style="color:var(--accent-dk)">console</a>
+        — paste any text, process it, and see the output before writing a single line of code.
+      </div>
+    </section>
+
+    <!-- PIPELINE -->
+    <section class="docs-section" id="pipeline">
+      <span class="section-eyebrow">// How it works</span>
+      <h2 class="section-title">The three-stage pipeline</h2>
+      <p class="section-intro">
+        Every request flows through three stages. Understanding this helps you
+        know which endpoint to call and what to expect at each step.
+      </p>
+
+      <div class="pipeline">
+        <div class="pipe-step accent">
+          <span class="pipe-step-label">POST /ingest</span>
+          <span class="pipe-step-sub">Register text</span>
+        </div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step accent">
+          <span class="pipe-step-label">POST /resolve</span>
+          <span class="pipe-step-sub">Run engine</span>
+        </div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step accent">
+          <span class="pipe-step-label">POST /export</span>
+          <span class="pipe-step-sub">Get output</span>
+        </div>
+      </div>
+
+      <p style="font-size:14px;color:var(--ink-dim);margin-bottom:16px">
+        For file uploads, use <code style="font-family:var(--mono);font-size:12px;background:var(--border);padding:1px 6px;border-radius:4px">POST /ingest/file</code> —
+        it runs all three stages in a single call and returns the full output immediately.
+      </p>
+
+      <p style="font-size:14px;color:var(--ink-dim)">
+        The engine detects structure in your text and classifies each piece into
+        typed segments. You then export those segments in whichever format
+        fits your use case: plain text, flat JSON records, or a Logical Document Model.
+      </p>
+    </section>
+
+    <hr class="docs-divider">
+
+    <!-- CONCEPTS -->
+    <section class="docs-section" id="concepts">
+      <span class="section-eyebrow">// Concepts</span>
+      <h2 class="section-title">Output fields</h2>
+      <p class="section-intro">
+        Every segment in Qrynt's output carries the same set of fields regardless
+        of its type. Here is what each one means and how to use it.
+      </p>
+
+      <div class="term-grid">
+
+        <div class="term-card" id="segment">
+          <div class="term-name">
+            segment
+            <span class="term-type">object</span>
+          </div>
+          <p class="term-desc">
+            A segment is a coherent, self-contained chunk of your input text —
+            a paragraph, a block of key-value pairs, a table, or a section header.
+            Qrynt splits your input into segments before classifying each one
+            independently. One document becomes an ordered list of segments.
+          </p>
+          <div class="term-example">// A document with 200 lines might produce 12 segments</div>
+        </div>
+
+        <div class="term-card" id="segment_id">
+          <div class="term-name">
+            segment_id
+            <span class="term-type">string</span>
+          </div>
+          <p class="term-desc">
+            A deterministic 16-character hex identifier for this segment, derived
+            from its content. The same text always produces the same
+            <code style="font-family:var(--mono);font-size:12px">segment_id</code> — useful
+            for deduplication, caching, and stable foreign keys in a database.
+          </p>
+          <div class="term-example">"segment_id": "fc6cfd283de599e3"</div>
+        </div>
+
+        <div class="term-card" id="confidence">
+          <div class="term-name">
+            confidence
+            <span class="term-type">number 0.0 – 1.0</span>
+          </div>
+          <p class="term-desc">
+            How certain the engine is about the structural classification of this segment.
+            <strong>1.0</strong> means the engine is certain — the structure was unambiguous.
+            Lower values (below 0.6) indicate ambiguity, often in mixed-content segments.
+            Use this to decide whether to trust the classification automatically or route
+            the segment to a human reviewer.
+          </p>
+          <div class="term-example">"confidence": 1  // certain → safe to process automatically</div>
+        </div>
+
+        <div class="term-card" id="flags">
+          <div class="term-name">
+            flags
+            <span class="term-type">array</span>
+          </div>
+          <p class="term-desc">
+            Anomalies or quality warnings detected on this segment during processing.
+            An empty array <code style="font-family:var(--mono);font-size:12px">[]</code> means
+            no issues were found. Populated flags might indicate encoding problems,
+            truncated content, or unusual character distributions. Always check flags
+            before storing segment content in a production database.
+          </p>
+          <div class="term-example">"flags": []  // no issues detected</div>
+        </div>
+
+        <div class="term-card" id="section_label">
+          <div class="term-name">
+            section_label
+            <span class="term-type">string | null</span>
+          </div>
+          <p class="term-desc">
+            The inferred heading or section this segment belongs to, if one was
+            detected in the document structure. <code style="font-family:var(--mono);font-size:12px">null</code>
+            means no parent section was found — common in flat documents, logs,
+            and chat exports. When present, use this to group related segments
+            or build a document outline.
+          </p>
+          <div class="term-example">"section_label": null  // flat document, no section detected</div>
+        </div>
+
+        <div class="term-card" id="source_span">
+          <div class="term-name">
+            source_span
+            <span class="term-type">object | null</span>
+          </div>
+          <p class="term-desc">
+            Character offsets pointing back to where this segment appeared in
+            the original input — <code style="font-family:var(--mono);font-size:12px">{"start": N, "end": M}</code>.
+            Use this to highlight the original text, build diff views, or
+            trace output back to source. <code style="font-family:var(--mono);font-size:12px">null</code>
+            when the segment was synthesized or the source position is unavailable.
+          </p>
+          <div class="term-example">"source_span": null</div>
+        </div>
+
+      </div>
+
+      <!-- CLASSIFICATION STATS -->
+      <h3 style="font-family:var(--mono);font-size:14px;font-weight:500;margin:32px 0 16px;color:var(--ink)">
+        classification_stats
+      </h3>
+      <p style="font-size:14px;color:var(--ink-dim);margin-bottom:16px">
+        Internal metrics from the classification engine. Useful for debugging
+        unexpected classifications and understanding how confident the engine
+        was in its structural decisions.
+      </p>
+
+      <div class="term-grid">
+
+        <div class="term-card" id="dominant_coverage_lines">
+          <div class="term-name">
+            dominant_coverage_lines
+            <span class="term-type">integer</span>
+          </div>
+          <p class="term-desc">
+            The number of lines in this segment that matched the dominant
+            structural pattern. For a 5-line KV block, this would be 5.
+            A low number relative to the total segment length suggests
+            mixed content or a weak structural signal.
+          </p>
+          <div class="term-example">"dominant_coverage_lines": 1</div>
+        </div>
+
+        <div class="term-card" id="block_count">
+          <div class="term-name">
+            block_count
+            <span class="term-type">integer</span>
+          </div>
+          <p class="term-desc">
+            The number of structural blocks detected within this segment.
+            A simple paragraph has 1 block. A segment with 3 separate
+            key-value groups has 3 blocks. Higher counts indicate
+            denser structural content.
+          </p>
+          <div class="term-example">"block_count": 1</div>
+        </div>
+
+        <div class="term-card" id="dominant_source">
+          <div class="term-name">
+            dominant_source
+            <span class="term-type">string</span>
+          </div>
+          <p class="term-desc">
+            Which part of the engine made the final classification decision.
+            Understanding this tells you how deeply the engine analysed
+            this segment.
+          </p>
+          <p class="term-desc" style="margin-top:10px">
+            <code style="font-family:var(--mono);font-size:12px">pre_classifier_bypass</code> —
+            the structure was clear enough that the engine bypassed deep analysis entirely.
+            Fast, high-confidence classifications always carry this source.<br><br>
+            <code style="font-family:var(--mono);font-size:12px">structure_engine</code> —
+            the full table detector ran on this segment.<br><br>
+            <code style="font-family:var(--mono);font-size:12px">block_engine</code> —
+            KV, hierarchy, and context detectors ran.<br><br>
+            <code style="font-family:var(--mono);font-size:12px">fallback_engine</code> —
+            no strong structure was found; context-only detection was used.<br><br>
+            <code style="font-family:var(--mono);font-size:12px">none</code> —
+            classification failed; segment treated as prose.
+          </p>
+          <div class="term-example">"dominant_source": "pre_classifier_bypass"</div>
+        </div>
+
+      </div>
+    </section>
+
+    <hr class="docs-divider">
+
+    <!-- STRUCTURE TYPES -->
+    <section class="docs-section" id="types">
+      <span class="section-eyebrow">// Structure types</span>
+      <h2 class="section-title">What type means</h2>
+      <p class="section-intro">
+        Every segment is classified into one of five structural types.
+        The type tells you what shape the content is in — which determines
+        how you should process, store, or display it.
+      </p>
+
+      <div class="type-grid">
+
+        <div class="type-card" id="prose">
+          <span class="type-pill pill-prose">prose</span>
+          <div class="type-name">Natural language</div>
+          <p class="type-desc">
+            Continuous written text — sentences, paragraphs, explanations,
+            chat messages, narrative content. No detectable structural pattern.
+            Store as text; pass directly to an LLM without pre-processing.
+          </p>
+          <div class="type-example">→ "Each row corresponds to one object."</div>
+        </div>
+
+        <div class="type-card" id="kv_block">
+          <span class="type-pill pill-kv">kv_block</span>
+          <div class="type-name">Key-value pairs</div>
+          <p class="type-desc">
+            Structured data in <code style="font-family:var(--mono);font-size:11px">key: value</code>
+            or <code style="font-family:var(--mono);font-size:11px">key = value</code> format.
+            Config files, form submissions, metadata blocks, frontmatter.
+            Map directly to database columns or a dictionary/object.
+          </p>
+          <div class="type-example">→ name: Alice / age: 30 / role: admin</div>
+        </div>
+
+        <div class="type-card" id="table">
+          <span class="type-pill pill-table">table</span>
+          <div class="type-name">Tabular / columnar data</div>
+          <p class="type-desc">
+            Rows and columns — pipe-delimited, space-aligned, or CSV-formatted.
+            Each row is a record; each column is a field.
+            Map to a database table, DataFrame, or spreadsheet directly.
+          </p>
+          <div class="type-example">→ | Name | Score | Grade |</div>
+        </div>
+
+        <div class="type-card" id="tree">
+          <span class="type-pill pill-tree">tree</span>
+          <div class="type-name">Hierarchical / nested</div>
+          <p class="type-desc">
+            Indented or branching structure — file trees, org charts,
+            nested lists, outline formats. Parent-child relationships
+            are explicit through indentation or tree-drawing characters.
+            Map to a nested JSON object or a recursive DB schema.
+          </p>
+          <div class="type-example">→ root / ├── src / │   └── main.py</div>
+        </div>
+
+        <div class="type-card" id="mixed">
+          <span class="type-pill pill-mixed">mixed</span>
+          <div class="type-name">Multiple structure types</div>
+          <p class="type-desc">
+            A segment where more than one structural pattern was detected —
+            e.g. a paragraph followed immediately by a KV block.
+            Check <code style="font-family:var(--mono);font-size:11px">confidence</code>
+            and <code style="font-family:var(--mono);font-size:11px">block_count</code>
+            to understand what's inside; consider splitting or routing
+            to a human reviewer.
+          </p>
+          <div class="type-example">→ confidence often &lt; 0.8 for mixed segments</div>
+        </div>
+
+      </div>
+    </section>
+
+    <hr class="docs-divider">
+
+    <!-- ADAPTERS -->
+    <section class="docs-section" id="adapters">
+      <span class="section-eyebrow">// Adapters</span>
+      <h2 class="section-title">Three output formats</h2>
+      <p class="section-intro">
+        Qrynt's engine produces one internal representation. Adapters transform
+        that into the format that fits your use case. Choose one — or request
+        all three for the same document.
+      </p>
+    </section>
+
+    <!-- HUMAN ADAPTER -->
+    <section class="adapter-section" id="human-adapter">
+      <div class="adapter-header">
+        <span class="adapter-badge badge-human">HumanAdapter</span>
+        <h3 class="adapter-title">Plain text output</h3>
+      </div>
+
+      <div class="adapter-when">
+        <strong>Use when:</strong> you want a clean, readable version of the
+        document — for display, review, or downloading. No JSON, no schema.
+        Just structured plain text.
+      </div>
+
+      <p style="font-size:14px;color:var(--ink-dim);margin-bottom:12px">
+        Returns a formatted string. Segments are separated by blank lines.
+        Structural markers (headings, section breaks) are preserved as readable text.
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">endpoint</span>
+        </div>
+        <pre>POST /export  { "session_id": "...", "format": "human" }
+POST /ingest/file/human</pre>
+      </div>
+    </section>
+
+    <!-- MACHINE ADAPTER -->
+    <section class="adapter-section" id="machine-adapter">
+      <div class="adapter-header">
+        <span class="adapter-badge badge-machine">MachineAdapter</span>
+        <h3 class="adapter-title">Flat JSON records</h3>
+      </div>
+
+      <div class="adapter-when">
+        <strong>Use when:</strong> you're storing output in a database, passing
+        it through a pipeline, or processing it programmatically.
+        Each segment becomes a flat, self-contained JSON record.
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">endpoint</span>
+        </div>
+        <pre>POST /export  { "session_id": "...", "format": "machine" }
+POST /ingest/file/machine</pre>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">example output — MachineAdapter</span>
+          <button class="code-copy" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre>[
+  {
+    <span class="hl-key">"segment_id"</span>: <span class="hl-str">"fc6cfd283de599e3"</span>,
+    <span class="hl-key">"type"</span>: <span class="hl-str">"prose"</span>,
+    <span class="hl-key">"content"</span>: {
+      <span class="hl-key">"text"</span>: <span class="hl-str">"In this matrix or 2 dimensional array the first row
+      is data of one object where each value is its relation
+      to other objects or features."</span>
+    },
+    <span class="hl-key">"confidence"</span>: <span class="hl-num">1</span>,
+    <span class="hl-key">"flags"</span>: [],
+    <span class="hl-key">"section_label"</span>: <span class="hl-null">null</span>,
+    <span class="hl-key">"source_span"</span>: <span class="hl-null">null</span>,
+    <span class="hl-key">"classification_stats"</span>: {
+      <span class="hl-key">"dominant_coverage_lines"</span>: <span class="hl-num">1</span>,
+      <span class="hl-key">"block_count"</span>: <span class="hl-num">1</span>,
+      <span class="hl-key">"dominant_source"</span>: <span class="hl-str">"pre_classifier_bypass"</span>
+    }
+  },
+  <span class="hl-cmt">// ... more segments</span>
+]</pre>
+      </div>
+
+      <h4 style="font-family:var(--mono);font-size:13px;font-weight:500;margin:24px 0 12px;color:var(--ink)">
+        Field reference
+      </h4>
+
+      <table class="field-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="field-name">segment_id</span></td>
+            <td><span class="field-type-tag">string</span></td>
+            <td style="color:var(--ink-dim)">Deterministic hex ID. Stable across identical inputs. Use as a primary key.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">type</span></td>
+            <td><span class="field-type-tag">string</span></td>
+            <td style="color:var(--ink-dim)">Structural classification: prose · kv_block · table · tree · mixed</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">content.text</span></td>
+            <td><span class="field-type-tag">string</span></td>
+            <td style="color:var(--ink-dim)">The cleaned, normalized text content of this segment.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">confidence</span></td>
+            <td><span class="field-type-tag">number</span></td>
+            <td style="color:var(--ink-dim)">Classification certainty 0.0–1.0. Below 0.6 → consider human review.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">flags</span></td>
+            <td><span class="field-type-tag">array</span></td>
+            <td style="color:var(--ink-dim)">Quality warnings. Empty array means no issues.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">section_label</span></td>
+            <td><span class="field-type-tag">string|null</span></td>
+            <td style="color:var(--ink-dim)">Inferred parent section heading, or null if none detected.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">source_span</span></td>
+            <td><span class="field-type-tag">object|null</span></td>
+            <td style="color:var(--ink-dim)">Character offsets {start, end} in the original input.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">classification_stats</span></td>
+            <td><span class="field-type-tag">object</span></td>
+            <td style="color:var(--ink-dim)">Engine internals: coverage lines, block count, classification source.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>Database tip:</strong> Use <code style="font-family:var(--mono);font-size:12px">segment_id</code>
+        as your primary key and <code style="font-family:var(--mono);font-size:12px">type</code>
+        as a column for filtering. Store <code style="font-family:var(--mono);font-size:12px">content.text</code>
+        in a text/varchar field. Index on <code style="font-family:var(--mono);font-size:12px">section_label</code>
+        if you need section-based queries.
+      </div>
+    </section>
+
+    <!-- AI ADAPTER -->
+    <section class="adapter-section" id="ai-adapter">
+      <div class="adapter-header">
+        <span class="adapter-badge badge-ai">AIAdapter / LDM</span>
+        <h3 class="adapter-title">Logical Document Model</h3>
+      </div>
+
+      <div class="adapter-when">
+        <strong>Use when:</strong> you're passing document content to an LLM,
+        building a RAG pipeline, or need a structured representation that preserves
+        semantic relationships between blocks. The LDM is designed for
+        machine consumption, not human reading.
+      </div>
+
+      <p style="font-size:14px;color:var(--ink-dim);margin:0 0 12px">
+        The LDM uses <strong>blocks</strong> instead of segments, and adds
+        <strong>tags</strong> — semantic labels that describe both the structural
+        type and the content pattern. Blocks are ordered as they appeared in
+        the original document.
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">endpoint</span>
+        </div>
+        <pre>POST /export  { "session_id": "...", "format": "ai" }
+POST /ingest/file/ai</pre>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">example output — AIAdapter / LDM</span>
+          <button class="code-copy" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre>{
+  <span class="hl-key">"blocks"</span>: [
+    {
+      <span class="hl-key">"type"</span>: <span class="hl-str">"prose"</span>,
+      <span class="hl-key">"label"</span>: <span class="hl-null">null</span>,
+      <span class="hl-key">"content"</span>: {
+        <span class="hl-key">"text"</span>: <span class="hl-str">"In this matrix or 2 dimensional array the first row
+        is data of one object where each value is its relation
+        to other objects or features."</span>
+      },
+      <span class="hl-key">"tags"</span>: [
+        <span class="hl-str">"PROSE"</span>,
+        <span class="hl-str">"UNSTRUCTURED"</span>
+      ],
+      <span class="hl-key">"confidence"</span>: <span class="hl-num">1</span>
+    },
+    {
+      <span class="hl-key">"type"</span>: <span class="hl-str">"prose"</span>,
+      <span class="hl-key">"label"</span>: <span class="hl-null">null</span>,
+      <span class="hl-key">"content"</span>: {
+        <span class="hl-key">"text"</span>: <span class="hl-str">"Each row corresponds to one object (or entity,
+        or data sample)."</span>
+      },
+      <span class="hl-key">"tags"</span>: [
+        <span class="hl-str">"PROSE"</span>,
+        <span class="hl-str">"UNSTRUCTURED"</span>
+      ],
+      <span class="hl-key">"confidence"</span>: <span class="hl-num">1</span>
+    }
+    <span class="hl-cmt">// ... more blocks</span>
+  ]
+}</pre>
+      </div>
+
+      <h4 style="font-family:var(--mono);font-size:13px;font-weight:500;margin:24px 0 12px;color:var(--ink)">
+        LDM field reference
+      </h4>
+
+      <table class="field-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="field-name">type</span></td>
+            <td><span class="field-type-tag">string</span></td>
+            <td style="color:var(--ink-dim)">Structural type: prose · kv_block · table · tree · mixed</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">label</span></td>
+            <td><span class="field-type-tag">string|null</span></td>
+            <td style="color:var(--ink-dim)">Semantic label inferred from content (e.g. "Introduction", "Config"). null when none detected.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">content.text</span></td>
+            <td><span class="field-type-tag">string</span></td>
+            <td style="color:var(--ink-dim)">The block's text content, ready to embed or inject into a prompt.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">tags</span></td>
+            <td><span class="field-type-tag">array</span></td>
+            <td style="color:var(--ink-dim)">Semantic labels: PROSE · UNSTRUCTURED · STRUCTURED · KV · TABLE · TREE · MIXED. Multiple tags can apply.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">confidence</span></td>
+            <td><span class="field-type-tag">number</span></td>
+            <td style="color:var(--ink-dim)">Classification certainty 0.0–1.0. Use to filter blocks before passing to an LLM.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>LLM tip:</strong> Filter blocks by
+        <code style="font-family:var(--mono);font-size:12px">confidence &gt;= 0.8</code>
+        before injecting into a prompt. Use
+        <code style="font-family:var(--mono);font-size:12px">tags</code> to route blocks
+        to different prompt templates — prose blocks go into a summarisation prompt,
+        kv_block blocks go into an extraction prompt, table blocks get serialised
+        to markdown before injection.
+      </div>
+
+      <h4 style="font-family:var(--mono);font-size:13px;font-weight:500;margin:24px 0 12px;color:var(--ink)">
+        MachineAdapter vs AIAdapter — when to use which
+      </h4>
+
+      <table class="field-table">
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color:var(--ink-dim)">Store segments in PostgreSQL / MongoDB</td>
+            <td><span class="field-name">MachineAdapter</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--ink-dim)">Feed content into an LLM prompt</td>
+            <td><span class="field-name">AIAdapter</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--ink-dim)">Build a RAG retrieval index</td>
+            <td><span class="field-name">AIAdapter</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--ink-dim)">Export to CSV / data pipeline</td>
+            <td><span class="field-name">MachineAdapter</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--ink-dim)">Display cleaned document to a user</td>
+            <td><span class="field-name">HumanAdapter</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--ink-dim)">Detect and route by structure type</td>
+            <td><span class="field-name">Either — type field is the same in both</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <hr class="docs-divider">
+
+    <!-- API REFERENCE -->
+    <section class="docs-section" id="api-reference">
+      <span class="section-eyebrow">// API reference</span>
+      <h2 class="section-title">Endpoints</h2>
+      <p class="section-intro">
+        All endpoints require an <code style="font-family:var(--mono);font-size:13px">X-API-Key</code>
+        header for authenticated tiers. Free tier requests (no key) are limited
+        to 10 per day per IP. Get your key at
+        <a href="/dashboard" style="color:var(--accent-dk)">dashboard</a>.
+      </p>
+
+      <!-- /ingest -->
+      <div class="adapter-section" id="api-ingest">
+        <div class="adapter-header">
+          <span class="adapter-badge badge-machine">POST</span>
+          <h3 class="adapter-title">/ingest</h3>
+        </div>
+        <p style="font-size:14px;color:var(--ink-dim);margin-bottom:12px">
+          Register a text payload for processing. Returns a
+          <code style="font-family:var(--mono);font-size:12px">session_id</code>
+          — pass this to <code style="font-family:var(--mono);font-size:12px">/resolve</code> next.
+        </p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">request</span></div>
+          <pre>{
+  <span class="hl-key">"payload"</span>: <span class="hl-str">"your text here"</span>
+}</pre>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">response</span></div>
+          <pre>{
+  <span class="hl-key">"session_id"</span>: <span class="hl-str">"fc6cfd283de599e3"</span>,
+  <span class="hl-key">"status"</span>: <span class="hl-str">"created"</span>,
+  <span class="hl-key">"char_count"</span>: <span class="hl-num">142</span>,
+  <span class="hl-key">"line_count"</span>: <span class="hl-num">4</span>
+}</pre>
+        </div>
+      </div>
+
+      <!-- /resolve -->
+      <div class="adapter-section" id="api-resolve">
+        <div class="adapter-header">
+          <span class="adapter-badge badge-machine">POST</span>
+          <h3 class="adapter-title">/resolve</h3>
+        </div>
+        <p style="font-size:14px;color:var(--ink-dim);margin-bottom:12px">
+          Run the engine on a registered session. Returns the full envelope
+          with all segments classified. Processing time scales with document size.
+        </p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">request</span></div>
+          <pre>{
+  <span class="hl-key">"session_id"</span>: <span class="hl-str">"fc6cfd283de599e3"</span>
+}</pre>
+        </div>
+      </div>
+
+      <!-- /export -->
+      <div class="adapter-section" id="api-export">
+        <div class="adapter-header">
+          <span class="adapter-badge badge-machine">POST</span>
+          <h3 class="adapter-title">/export</h3>
+        </div>
+        <p style="font-size:14px;color:var(--ink-dim);margin-bottom:12px">
+          Export a resolved session in your chosen format.
+          Call after <code style="font-family:var(--mono);font-size:12px">/resolve</code> completes.
+        </p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">request</span></div>
+          <pre>{
+  <span class="hl-key">"session_id"</span>: <span class="hl-str">"fc6cfd283de599e3"</span>,
+  <span class="hl-key">"format"</span>: <span class="hl-str">"machine"</span>  <span class="hl-cmt">// "human" | "machine" | "ai"</span>
+}</pre>
+        </div>
+      </div>
+
+      <!-- /ingest/file -->
+      <div class="adapter-section" id="api-ingest-file">
+        <div class="adapter-header">
+          <span class="adapter-badge badge-ai">POST</span>
+          <h3 class="adapter-title">/ingest/file</h3>
+        </div>
+        <p style="font-size:14px;color:var(--ink-dim);margin-bottom:12px">
+          Upload a file directly — PDF, DOCX, XLSX, HTML, CSV, or plain text.
+          Runs all three pipeline stages in a single request and returns
+          the full COC envelope immediately.
+          Supported formats: <code style="font-family:var(--mono);font-size:12px">.pdf .docx .xlsx .html .csv .txt</code>
+          — max 50MB.
+        </p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">request — multipart/form-data</span></div>
+          <pre>curl -X POST https://moonlit-grail-386316.web.app/ingest/file \
+  -H "X-API-Key: qrynt_live_..." \
+  -F "file=@document.pdf"</pre>
+        </div>
+        <div class="callout">
+          <strong>Request units:</strong> File uploads consume
+          <code style="font-family:var(--mono);font-size:12px">ceil(characters / 100,000)</code>
+          units from your daily limit — a 300k character document costs 3 units.
+          Check your remaining units in the
+          <a href="/dashboard" style="color:var(--accent-dk)">dashboard</a>.
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<script>
+// Copy code button
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  const text = pre.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'copied';
+    setTimeout(() => btn.textContent = 'copy', 2000);
+  });
+}
+
+// Active sidebar link on scroll
+const sections = document.querySelectorAll('[id]');
+const links    = document.querySelectorAll('.sidebar-link');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(
+        `.sidebar-link[href="#${entry.target.id}"]`
+      );
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

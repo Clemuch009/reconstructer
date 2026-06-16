@@ -15,6 +15,7 @@ from api.middleware.auth import require_auth, consume_request, RequestContext
 from api.streaming import broadcast_to_sse_clients, publish_webhook
 from api.routes.document import store_coc
 from api.routes.ingest import _session_store, _evict_if_needed
+from api.dependencies import compute_request_units
 from ingestion.router import ingest, IngestionResult
 
 
@@ -134,7 +135,7 @@ async def _process_file(
 
     asyncio.create_task(broadcast_to_sse_clients(envelope))
     asyncio.create_task(publish_webhook(envelope))
-    await consume_request(ctx)
+    await consume_request(ctx, count=compute_request_units(normalized_text))
 
     return envelope, ingestion_result
 

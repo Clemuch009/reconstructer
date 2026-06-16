@@ -976,6 +976,177 @@
     footer { padding: 24px; flex-direction: column; gap: 16px; text-align: center; }
     .nav-links .nav-link { display: none; }
   }
+
+  /* ─── WHAT QRYNT RETURNS ─── */
+  .returns-section {
+    padding: 80px 48px;
+    background: var(--ink);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .returns-section::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      rgba(255,255,255,0.02) 39px,
+      rgba(255,255,255,0.02) 40px
+    );
+    pointer-events: none;
+  }
+
+  .returns-inner {
+    max-width: 1100px; margin: 0 auto;
+    position: relative; z-index: 1;
+  }
+
+  .returns-header { margin-bottom: 48px; }
+
+  .returns-eyebrow {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); letter-spacing: 0.12em;
+    text-transform: uppercase; display: block; margin-bottom: 14px;
+  }
+
+  .returns-title {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3.5vw, 42px);
+    font-weight: 400; color: #fff;
+    margin-bottom: 14px; line-height: 1.15;
+  }
+
+  .returns-sub {
+    font-size: 15px; color: rgba(255,255,255,0.45);
+    max-width: 560px; line-height: 1.7; font-weight: 300;
+  }
+
+  /* BEFORE / AFTER PANELS */
+  .returns-panels {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0; align-items: start;
+    margin-bottom: 48px;
+  }
+
+  .returns-panel {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; overflow: hidden;
+  }
+
+  .returns-panel-head {
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .returns-panel-label {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+
+  .returns-panel-label.input  { color: rgba(255,255,255,0.3); }
+  .returns-panel-label.output { color: var(--accent); }
+
+  .returns-panel-body {
+    padding: 20px 22px;
+    font-family: var(--mono); font-size: 12px;
+    line-height: 1.8; color: rgba(255,255,255,0.5);
+    min-height: 220px;
+  }
+
+  .returns-comment { color: rgba(255,255,255,0.2); }
+  .returns-key     { color: #7dd3fc; }
+  .returns-str     { color: #86efac; }
+  .returns-num     { color: #fbbf24; }
+
+  .returns-arrow {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 8px;
+    padding: 0 24px; padding-top: 80px;
+  }
+
+  .returns-arrow-line {
+    width: 1px; height: 40px;
+    background: rgba(255,255,255,0.12);
+  }
+
+  .returns-arrow-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--accent); letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: rgba(0,201,110,0.1);
+    border: 1px solid rgba(0,201,110,0.2);
+    padding: 4px 10px; border-radius: 20px;
+  }
+
+  /* TERM PILLS */
+  .returns-terms { margin-top: 8px; }
+
+  .returns-terms-label {
+    font-family: var(--mono); font-size: 11px;
+    color: rgba(255,255,255,0.3); letter-spacing: 0.1em;
+    text-transform: uppercase; display: block; margin-bottom: 16px;
+  }
+
+  .returns-pills {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px; margin-bottom: 28px;
+  }
+
+  .returns-pill {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px; padding: 14px 16px;
+    text-decoration: none;
+    display: flex; flex-direction: column; gap: 5px;
+    transition: all 0.15s;
+  }
+
+  .returns-pill:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(0,201,110,0.3);
+  }
+
+  .pill-term {
+    font-family: var(--mono); font-size: 12px;
+    font-weight: 500; color: #fff;
+  }
+
+  .pill-def {
+    font-size: 12px; color: rgba(255,255,255,0.4);
+    line-height: 1.5;
+  }
+
+  .pill-link {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); margin-top: 4px;
+  }
+
+  .returns-docs-link {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--accent); text-decoration: none;
+    border-bottom: 1px solid rgba(0,201,110,0.3);
+    padding-bottom: 2px; transition: border-color 0.15s;
+  }
+
+  .returns-docs-link:hover { border-color: var(--accent); }
+
+  @media (max-width: 900px) {
+    .returns-section { padding: 60px 24px; }
+    .returns-panels { grid-template-columns: 1fr; }
+    .returns-arrow { flex-direction: row; padding: 16px 0; }
+    .returns-arrow-line { width: 40px; height: 1px; }
+    .returns-pills { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 600px) {
+    .returns-pills { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -987,7 +1158,7 @@
     <span class="nav-logo-text">Qrynt</span>
   </a>
   <div class="nav-links">
-    <a href="/docs" class="nav-link">Docs</a>
+    <a href="/help" class="nav-link">Help</a>
     <a href="/pricing" class="nav-link">Pricing</a>
     <a href="/console" class="nav-link">Try Qrynt</a>
     <a href="/feedback" class="nav-link">Feedback</a>
@@ -1012,8 +1183,8 @@
         Try Qrynt
         <span>→</span>
       </a>
-      <a href="/docs" class="btn-secondary">
-        View Docs
+      <a href="/help" class="btn-secondary">
+        Read the docs
         <span style="font-size:12px">↗</span>
       </a>
     </div>
@@ -1022,6 +1193,119 @@
     <video autoplay loop muted playsinline class="hero-video">
       <source src="/assets/Qrynt_steps.webm" type="video/webm">
     </video>
+  </div>
+</section>
+
+<!-- WHAT QRYNT RETURNS -->
+<section class="returns-section">
+  <div class="returns-inner">
+
+    <div class="returns-header">
+      <span class="returns-eyebrow">// What Qrynt returns</span>
+      <h2 class="returns-title">Messy text in. Typed structure out.</h2>
+      <p class="returns-sub">
+        Qrynt reads your input, detects its structure, and returns
+        typed segments you can connect directly to a database, an AI pipeline,
+        or a review interface — without writing a parser.
+      </p>
+    </div>
+
+    <!-- BEFORE / AFTER -->
+    <div class="returns-panels">
+
+      <div class="returns-panel">
+        <div class="returns-panel-head">
+          <span class="returns-panel-label input">// Input — raw text</span>
+          <div class="proof-dots">
+            <div class="proof-dot"></div>
+            <div class="proof-dot"></div>
+            <div class="proof-dot"></div>
+          </div>
+        </div>
+        <div class="returns-panel-body">
+          <span class="returns-comment"># mixed content — chat export + explanation</span>
+          <br><br>
+          Matrix row explanation<br>
+          You said: In this matrix or 2D array<br>
+          the first row is data of one object...<br>
+          <br>
+          ChatGPT said: I see what you're describing<br>
+          Let's clarify:<br>
+          <br>
+          You have a 2D array (matrix).<br>
+          Each row corresponds to one object.
+        </div>
+      </div>
+
+      <div class="returns-arrow">
+        <div class="returns-arrow-line"></div>
+        <span class="returns-arrow-label">Qrynt</span>
+        <div class="returns-arrow-line"></div>
+      </div>
+
+      <div class="returns-panel">
+        <div class="returns-panel-head">
+          <span class="returns-panel-label output">// Output — typed segments</span>
+          <div class="proof-dots">
+            <div class="proof-dot" style="background:rgba(0,201,110,0.3)"></div>
+            <div class="proof-dot" style="background:rgba(0,201,110,0.3)"></div>
+            <div class="proof-dot" style="background:rgba(0,201,110,0.3)"></div>
+          </div>
+        </div>
+        <div class="returns-panel-body">
+          {<br>
+          &nbsp;&nbsp;<span class="returns-key">"segment_id"</span>: <span class="returns-str">"fc6cfd28..."</span>,<br>
+          &nbsp;&nbsp;<span class="returns-key">"type"</span>: <span class="returns-str">"prose"</span>,<br>
+          &nbsp;&nbsp;<span class="returns-key">"content"</span>: {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="returns-key">"text"</span>: <span class="returns-str">"Each row corresponds<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;to one object."</span><br>
+          &nbsp;&nbsp;},<br>
+          &nbsp;&nbsp;<span class="returns-key">"confidence"</span>: <span class="returns-num">1</span>,<br>
+          &nbsp;&nbsp;<span class="returns-key">"flags"</span>: []<br>
+          }
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TERM PILLS -->
+    <div class="returns-terms">
+      <span class="returns-terms-label">What each field means</span>
+      <div class="returns-pills">
+        <a href="/help#segment" class="returns-pill">
+          <span class="pill-term">segment</span>
+          <span class="pill-def">A coherent chunk of your input, classified independently</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#confidence" class="returns-pill">
+          <span class="pill-term">confidence</span>
+          <span class="pill-def">How certain the engine is about the classification (0–1)</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#prose" class="returns-pill">
+          <span class="pill-term">type: prose</span>
+          <span class="pill-def">Natural language — sentences, paragraphs, chat messages</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#kv_block" class="returns-pill">
+          <span class="pill-term">type: kv_block</span>
+          <span class="pill-def">Key-value pairs — config files, forms, metadata</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#machine-adapter" class="returns-pill">
+          <span class="pill-term">MachineAdapter</span>
+          <span class="pill-def">Flat JSON records — connect directly to your database</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#ai-adapter" class="returns-pill">
+          <span class="pill-term">AIAdapter / LDM</span>
+          <span class="pill-def">Logical Document Model — structured input for LLMs</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+      </div>
+      <a href="/help" class="returns-docs-link">Read the full documentation →</a>
+    </div>
+
   </div>
 </section>
 
@@ -1304,7 +1588,7 @@ fraud.ml: v3.1</div>
     Qrynt
   </div>
   <div class="footer-links">
-    <a href="/docs" class="footer-link">Docs</a>
+    <a href="/help" class="footer-link">Help</a>
     <a href="/pricing" class="footer-link">Pricing</a>
     <a href="/console" class="footer-link">Try Qrynt</a>
     <a href="/terms" class="footer-link">Terms</a>
