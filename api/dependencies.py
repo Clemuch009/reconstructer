@@ -46,7 +46,7 @@ async def verify_api_key(
 # Input validation
 # ---------------------------------
 
-MAX_INPUT_CHARS = 500_000   # 500k characters hard limit
+MAX_INPUT_CHARS = 500_00000   # 500k characters hard limit
 
 def validate_input_text(text: str) -> str:
     """
