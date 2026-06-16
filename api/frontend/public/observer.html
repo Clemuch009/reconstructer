@@ -213,25 +213,43 @@
 
   .upload-area {
     margin-top: 10px;
-    border: 1px dashed var(--border2);
-    border-radius: 3px;
-    padding: 8px 12px;
+    border: 1.5px dashed var(--primary);
+    border-radius: 5px;
+    padding: 12px 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     cursor: pointer;
     transition: all 0.2s;
+    background: var(--primary-dim);
   }
 
   .upload-area:hover {
     border-color: var(--primary);
-    background: var(--primary-dim);
+    background: var(--surface2);
   }
 
   .upload-text {
     font-family: var(--mono);
     font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .upload-text.label {
+    color: var(--primary);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  /* When a file is loaded: prompt steps back, filename leads */
+  .upload-area.has-file .upload-text.label {
     color: var(--text-muted);
+    font-weight: 400;
+    opacity: 0.7;
+  }
+  .upload-area.has-file #obs-file-name {
+    color: var(--primary);
+    font-weight: 600;
   }
 
   #obs-file-input { display: none; }
@@ -289,6 +307,17 @@
   .btn:hover {
     border-color: var(--primary);
     color: var(--primary);
+  }
+
+  .btn-download {
+    border-color: var(--primary);
+    color: var(--text);
+    font-weight: 600;
+  }
+  .btn-download:hover {
+    background: var(--primary);
+    color: #000;
+    border-color: var(--primary);
   }
 
   .btn-run {
@@ -489,7 +518,8 @@
   .download-label {
     font-family: var(--mono);
     font-size: 10px;
-    color: var(--text-muted);
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
     margin-right: 4px;
   }
 
@@ -788,8 +818,8 @@
       <textarea class="input-textarea" id="obs-input"
         placeholder="Paste logs, configs, mixed data..."></textarea>
 
-      <div class="upload-area" onclick="document.getElementById('obs-file-input').click()">
-        <span class="upload-text">↑ UPLOAD FILE</span>
+      <div class="upload-area" id="obs-upload-area" onclick="document.getElementById('obs-file-input').click()">
+        <span class="upload-text label" id="obs-upload-prompt">⬆ UPLOAD FILE</span>
         <span class="upload-text" id="obs-file-name">txt, csv, pdf, docx, xlsx</span>
       </div>
       <input type="file" id="obs-file-input" accept=".txt,.log,.csv,.json,.yaml,.yml,.md,.pdf,.docx,.xlsx,.html,.htm">
@@ -874,10 +904,10 @@
     </div>
 
     <div class="download-bar">
-      <span class="download-label">EXPORT</span>
-      <button class="btn" onclick="downloadExport('human')">↓ HUMAN</button>
-      <button class="btn" onclick="downloadExport('machine')">↓ MACHINE</button>
-      <button class="btn" onclick="downloadExport('ai')">↓ AI LDM</button>
+      <span class="download-label">DOWNLOAD</span>
+      <button class="btn btn-download" onclick="downloadExport('human')" title="Download human-readable .txt">⬇ HUMAN</button>
+      <button class="btn btn-download" onclick="downloadExport('machine')" title="Download machine JSON">⬇ MACHINE</button>
+      <button class="btn btn-download" onclick="downloadExport('ai')" title="Download AI LDM JSON">⬇ AI LDM</button>
     </div>
   </div>
 
@@ -1028,6 +1058,8 @@ document.getElementById('obs-file-input').addEventListener('change', e => {
 
 function obsHandleFile(file) {
   document.getElementById('obs-file-name').textContent = file.name;
+  document.getElementById('obs-upload-area').classList.add('has-file');
+  document.getElementById('obs-upload-prompt').textContent = '⬆ REPLACE';
   const ext = obsGetExt(file.name);
   if (OBS_BINARY_EXT.has(ext)) {
     obsPendingFile = file;
@@ -1036,6 +1068,7 @@ function obsHandleFile(file) {
     document.getElementById('obs-chars').textContent = file.size;
     document.getElementById('obs-pipeline-status').textContent =
       ext.toUpperCase().replace('.', '');
+    obsPreviewBinary(file);
   } else {
     obsPendingFile = null;
     const r = new FileReader();
@@ -1044,6 +1077,46 @@ function obsHandleFile(file) {
       updateInputMeta();
     };
     r.readAsText(file);
+  }
+}
+
+async function obsPreviewBinary(file) {
+  const apiKey = document.getElementById('obs-api-key').value.trim();
+  obsInput.value = `Extracting preview of ${file.name}...`;
+  obsInput.setAttribute('readonly', 'readonly');
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/ingest/file/preview`, {
+      method:  'POST',
+      headers: { 'X-API-Key': apiKey },
+      body:    formData,
+    });
+    if (obsPendingFile !== file) return;   // a newer file superseded this one
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      obsInput.value =
+        `[Preview unavailable]\n${err.detail?.message || err.detail || 'Could not extract preview.'}`;
+      return;
+    }
+    const data = await res.json();
+    if (data.has_text) {
+      obsInput.value = data.text;
+      document.getElementById('obs-lines').textContent = data.line_count;
+      document.getElementById('obs-chars').textContent = data.char_count;
+    } else {
+      const reason = (data.warnings && data.warnings.length)
+        ? data.warnings.join('\n')
+        : 'No extractable text found in this file.';
+      obsInput.value =
+        `[No extractable text — ${(data.source_format || 'file').toUpperCase()}]\n${reason}`;
+    }
+  } catch (e) {
+    if (obsPendingFile !== file) return;
+    obsInput.value = `[Preview failed]\n${e.message || e}`;
+  } finally {
+    if (obsPendingFile === file) obsInput.removeAttribute('readonly');
   }
 }
 
@@ -1484,12 +1557,12 @@ updateInputMeta();
 <style>
 .help-icon {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; height: 14px; border-radius: 50%;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  font-size: 9px; font-family: var(--mono);
-  color: rgba(255,255,255,0.35);
-  cursor: pointer; margin-left: 4px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(0,201,110,0.15);
+  border: 1px solid rgba(0,201,110,0.5);
+  font-size: 10px; font-family: var(--mono); font-weight: 600;
+  color: #00c96e;
+  cursor: pointer; margin-left: 5px;
   vertical-align: middle;
   transition: all 0.15s;
   position: relative; top: -1px;
@@ -1497,9 +1570,10 @@ updateInputMeta();
 }
 
 .help-icon:hover {
-  background: rgba(0,201,110,0.15);
-  border-color: rgba(0,201,110,0.4);
-  color: #00c96e;
+  background: rgba(0,201,110,0.3);
+  border-color: #00c96e;
+  color: #fff;
+  transform: scale(1.1);
 }
 
 .help-overlay {
@@ -1536,7 +1610,7 @@ updateInputMeta();
   width: 28px; height: 28px; border-radius: 6px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.35); font-size: 16px;
+  color: #00c96e; font-size: 16px;
   cursor: pointer; transition: all 0.15s;
   display: flex; align-items: center; justify-content: center;
 }
