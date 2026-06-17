@@ -18,12 +18,12 @@
 
   // ─── REPLACE WITH YOUR FIREBASE CONFIG ───
   const firebaseConfig = {
-    apiKey:            "AIzaSyA_HSkrnTmul10Vwa0ryWCGegbdx1IL9R8",
+    apiKey:            "YOUR_FIREBASE_API_KEY",
     authDomain:        "moonlit-grail-386316.firebaseapp.com",
     projectId:         "moonlit-grail-386316",
-    storageBucket:     "moonlit-grail-386316.firebasestorage.app",
-    messagingSenderId: "560904434756",
-    appId:             "1:560904434756:web:b5f5a2b09174ef5c2df811",
+    storageBucket:     "moonlit-grail-386316.appspot.com",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId:             "YOUR_APP_ID",
   };
 
   const app      = initializeApp(firebaseConfig);
@@ -40,11 +40,16 @@
 
   // ─── Register with Qrynt backend ───
   async function registerWithBackend(user) {
-    const idToken = await user.getIdToken();
+    const idToken     = await user.getIdToken();
+    // Pick up invite token from URL if present
+    const inviteToken = new URLSearchParams(window.location.search).get('invite') || null;
     const res = await fetch(`${API_BASE}/auth/signup`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id_token: idToken }),
+      body:    JSON.stringify({
+        id_token:     idToken,
+        invite_token: inviteToken,
+      }),
     });
 
     if (!res.ok) {

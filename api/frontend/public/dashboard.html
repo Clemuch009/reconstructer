@@ -3,47 +3,50 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard — Qrynt</title>
+<title>Workspace — Qrynt</title>
 <link rel="icon" type="image/png" href="/assets/QryNt.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-
-<!-- Firebase SDK -->
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script type="module">
-  import { initializeApp }     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getAuth, onAuthStateChanged, signOut }
-    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+  import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut as fbSignOut }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-  // ─── REPLACE WITH YOUR FIREBASE CONFIG ───
   const firebaseConfig = {
     apiKey:            "AIzaSyA_HSkrnTmul10Vwa0ryWCGegbdx1IL9R8",
     authDomain:        "moonlit-grail-386316.firebaseapp.com",
     projectId:         "moonlit-grail-386316",
-    storageBucket:     "moonlit-grail-386316.firebasestorage.app",
+    storageBucket:     "moonlit-grail-386316.appspot.com",
     messagingSenderId: "560904434756",
-    appId:             "1:560904434756:web:b5f5a2b09174ef5c2df811",
+    appId:             "1:560904434756:web:qrynt",
   };
 
-  const app     = initializeApp(firebaseConfig);
-  const auth    = getAuth(app);
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
   const API_BASE = '';
 
-  let currentUser  = null;
-  let profileData  = null;
-  let billingData  = null;
+  let currentUser    = null;
+  let currentIdToken = null;
+  let profileData    = null;
+  let billingData    = null;
+  let activeSection  = 'overview';
 
-  // ─── Auth guard ───
+  // ─── AUTH ───
   onAuthStateChanged(auth, async user => {
-    if (!user) {
-      window.location.href = '/signup';
-      return;
+    if (!user) { window.location.href = '/signup'; return; }
+    currentUser    = user;
+    currentIdToken = await user.getIdToken();
+    localStorage.setItem('qrynt_id_token', currentIdToken);
+    await loadDashboard(currentIdToken);
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('upgraded') === 'true') {
+      showToast('Plan upgraded successfully!');
+      window.history.replaceState({}, '', '/dashboard');
     }
-    currentUser = user;
-    const idToken = await user.getIdToken();
-    localStorage.setItem('qrynt_id_token', idToken);
-    await loadDashboard(idToken);
   });
 
+  // ─── LOAD ───
   async function loadDashboard(idToken) {
     showSkeleton(true);
     try {
@@ -53,7 +56,6 @@
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ id_token: idToken }),
         }).then(r => r.json()),
-
         fetch(`${API_BASE}/billing/status?id_token=${encodeURIComponent(idToken)}`)
           .then(r => r.json()),
       ]);
@@ -61,182 +63,311 @@
       profileData = profile;
       billingData = billing;
 
-      renderProfile(profile);
-      renderUsage(profile, billing);
+      renderWorkspaceSelector(profile);
+      renderOverview(profile, billing);
       renderKeys(profile);
-      renderStorage(profile);
+      renderUsageLimits(profile, billing);
+      renderMembers(profile);
       renderBilling(billing);
+      renderSettings(profile);
 
       if (profile.tier === 'team' || profile.tier === 'enterprise') {
         loadWorkspace(idToken);
       }
 
-      // Check for upgrade success
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('upgraded') === 'true') {
-        showToast('Plan upgraded successfully! 🎉');
-        window.history.replaceState({}, '', '/dashboard');
-      }
+      showSkeleton(false);
+      navigateTo(activeSection);
 
     } catch (err) {
-      showToast('Failed to load dashboard. Please refresh.', 'error');
-    } finally {
-      showSkeleton(false);
+      console.error(err);
+      showToast('Failed to load workspace.', 'error');
     }
   }
 
-  function renderProfile(profile) {
-    document.getElementById('user-email').textContent  = profile.email || '—';
-    document.getElementById('user-tier').textContent   = profile.tier?.toUpperCase() || '—';
-    document.getElementById('user-tier').className     = `tier-badge tier-${profile.tier}`;
+  // ─── NAVIGATION ───
+  window.navigateTo = function(section) {
+    activeSection = section;
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.section === section);
+    });
+    document.querySelectorAll('.ws-section').forEach(el => {
+      el.style.display = el.id === `sec-${section}` ? 'block' : 'none';
+    });
+    // Update URL hash without reload
+    history.replaceState(null, '', `#${section}`);
+  };
+
+  // Navigate from URL hash on load
+  const hashSection = window.location.hash.replace('#', '');
+  if (hashSection) activeSection = hashSection;
+
+  // ─── WORKSPACE SELECTOR ───
+  function renderWorkspaceSelector(profile) {
+    const tier = profile.tier || 'starter';
+    const name = profile.workspace_name || profile.email?.split('@')[0] || 'My Workspace';
+    document.getElementById('ws-name').textContent  = name;
+    document.getElementById('ws-tier').textContent  = tier.charAt(0).toUpperCase() + tier.slice(1);
+    document.getElementById('ws-avatar').textContent = name.charAt(0).toUpperCase();
   }
 
-  function renderUsage(profile, billing) {
-    const usage   = profile.usage  || {};
-    const limits  = profile.limits || {};
-    const today   = usage.requests_today || 0;
-    const limit   = limits.requests_per_day || 50;
-    const total   = usage.requests_total || 0;
-    const pct     = limit === -1 ? 0 : Math.min(100, (today / limit) * 100);
+  // ─── OVERVIEW ───
+  function renderOverview(profile, billing) {
+    const usage  = profile.usage  || {};
+    const limits = profile.limits || {};
+    const tier   = profile.tier   || 'starter';
 
-    document.getElementById('usage-today').textContent = today.toLocaleString();
-    document.getElementById('usage-limit').textContent =
-      limit === -1 ? 'unlimited' : limit.toLocaleString();
-    document.getElementById('usage-total').textContent = total.toLocaleString();
-    document.getElementById('usage-bar').style.width   = pct + '%';
-    document.getElementById('usage-bar').className     =
-      'usage-bar-fill ' + (pct > 90 ? 'bar-red' : pct > 70 ? 'bar-yellow' : 'bar-green');
+    document.getElementById('ov-requests-today').textContent =
+      `${usage.requests_today || 0} / ${limits.requests_per_day === -1 ? '∞' : limits.requests_per_day || 50}`;
+    document.getElementById('ov-requests-total').textContent =
+      (usage.requests_total || 0).toLocaleString();
+    document.getElementById('ov-plan').textContent =
+      tier.charAt(0).toUpperCase() + tier.slice(1);
+    document.getElementById('ov-last-request').textContent =
+      usage.last_request ? formatDate(usage.last_request) : 'Never';
 
-    if (usage.last_request) {
-      const d = new Date(usage.last_request);
-      document.getElementById('last-request').textContent =
-        d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-    }
+    // Usage bar
+    const today = usage.requests_today || 0;
+    const limit = limits.requests_per_day || 50;
+    const pct   = limit === -1 ? 0 : Math.min(100, (today / limit) * 100);
+    document.getElementById('ov-usage-bar').style.width = pct + '%';
+    document.getElementById('ov-usage-bar').className =
+      'usage-fill ' + (pct > 80 ? 'fill-warn' : 'fill-ok');
+
+    // Upgrade prompt
+    const showUpgrade = ['free', 'starter'].includes(tier);
+    document.getElementById('ov-upgrade-banner').style.display =
+      showUpgrade ? 'flex' : 'none';
   }
 
+  // ─── API KEYS ───
   function renderKeys(profile) {
     const keys    = profile.api_keys || [];
-    const list    = document.getElementById('keys-list');
-    const tier    = profile.tier;
-    const canAdd  = (profile.limits?.max_keys || 1) > keys.filter(k => k.active).length;
+    const tier    = profile.tier     || 'starter';
+    const maxKeys = profile.limits?.max_keys || 1;
+    const active  = keys.filter(k => k.active);
+    const canAdd  = maxKeys === -1 || active.length < maxKeys;
 
-    if (keys.length === 0) {
-      list.innerHTML = `<div class="empty-state">No API keys yet. Generate one below.</div>`;
-    } else {
-      list.innerHTML = keys.map(k => `
-        <div class="key-row ${k.active ? '' : 'key-inactive'}">
-          <div class="key-info">
-            <span class="key-prefix">${k.prefix}••••••••••••••••</span>
-            <span class="key-meta">${k.key_type} · created ${formatDate(k.created_at)}
-              ${k.last_used ? '· last used ' + formatDate(k.last_used) : '· never used'}
-            </span>
-          </div>
-          <div class="key-actions">
-            ${k.active
-              ? `<button class="btn-sm btn-danger" onclick="revokeKey('${k.prefix}')">Revoke</button>`
-              : `<span class="inactive-badge">Revoked</span>`
-            }
-          </div>
+    document.getElementById('keys-add-btn').disabled = !canAdd;
+    document.getElementById('keys-count').textContent =
+      `${active.length} / ${maxKeys === -1 ? '∞' : maxKeys}`;
+
+    const list = document.getElementById('keys-list');
+    if (!keys.length) {
+      list.innerHTML = `<div class="empty-state">No API keys yet. Generate your first key above.</div>`;
+      return;
+    }
+
+    list.innerHTML = keys.map(k => `
+      <div class="key-row ${k.active ? '' : 'key-revoked'}">
+        <div class="key-info">
+          <span class="key-prefix">${k.prefix}_...</span>
+          <span class="key-meta">${k.key_type} · created ${formatDate(k.created_at)}${k.last_used ? ' · last used ' + formatDate(k.last_used) : ''}</span>
         </div>
-      `).join('');
-    }
-
-    document.getElementById('add-key-btn').disabled = !canAdd;
-    document.getElementById('add-key-btn').title    =
-      canAdd ? '' : `Key limit reached for ${tier} tier`;
+        <div class="key-actions">
+          ${k.active
+            ? `<span class="badge badge-active">Active</span>
+               <button class="btn-ghost btn-danger" onclick="revokeKey('${k.prefix}')">Revoke</button>`
+            : `<span class="badge badge-revoked">Revoked</span>`
+          }
+        </div>
+      </div>
+    `).join('');
   }
 
-  function renderStorage(profile) {
-    const settings = profile.storage_settings || {};
-    const hasStorage = profile.limits?.storage || false;
+  // ─── USAGE & LIMITS ───
+  function renderUsageLimits(profile, billing) {
+    const usage  = profile.usage  || {};
+    const limits = profile.limits || {};
+    const tier   = profile.tier   || 'starter';
 
-    document.getElementById('storage-section').style.display =
-      hasStorage ? 'block' : 'none';
-    document.getElementById('storage-unavailable').style.display =
-      hasStorage ? 'none' : 'block';
+    const rows = [
+      { label: 'Requests today',    value: usage.requests_today  || 0, limit: limits.requests_per_day },
+      { label: 'Requests total',    value: usage.requests_total  || 0, limit: null },
+      { label: 'API keys',          value: (profile.api_keys||[]).filter(k=>k.active).length, limit: limits.max_keys },
+      { label: 'Storage',           value: limits.storage ? 'Enabled' : 'Not available', limit: null },
+      { label: 'Team members',      value: limits.max_members || 0, limit: null },
+    ];
 
-    if (hasStorage) {
-      document.getElementById('storage-toggle').checked   = settings.enabled || false;
-      document.getElementById('retention-select').value   = settings.retention_days || 7;
-      document.getElementById('auto-delete-toggle').checked = settings.auto_delete !== false;
+    document.getElementById('usage-table').innerHTML = rows.map(r => `
+      <div class="usage-row">
+        <span class="usage-label">${r.label}</span>
+        <span class="usage-value">
+          ${r.limit !== null && r.limit !== undefined
+            ? `${r.value} <span class="usage-sep">/</span> ${r.limit === -1 ? '∞' : r.limit}`
+            : r.value
+          }
+        </span>
+      </div>
+    `).join('');
+
+    // Reset info
+    const reset = usage.reset_date
+      ? `Daily limit resets at midnight UTC · next reset: ${usage.reset_date}`
+      : '';
+    document.getElementById('usage-reset').textContent = reset;
+  }
+
+  // ─── MEMBERS ───
+  function renderMembers(profile) {
+    const tier = profile.tier || 'starter';
+    const isTeam = ['team', 'enterprise'].includes(tier);
+
+    // Show trial banner for non-team users
+    document.getElementById('members-trial-banner').style.display =
+      isTeam ? 'none' : 'flex';
+    document.getElementById('members-content').style.display =
+      'block'; // always show — paywall on action
+  }
+
+  async function loadWorkspace(idToken) {
+    try {
+      const res = await fetch(
+        `${API_BASE}/auth/workspace?id_token=${encodeURIComponent(idToken)}`
+      );
+      if (!res.ok) return;
+      const ws = await res.json();
+      renderWorkspaceMembers(ws);
+    } catch (err) {
+      console.error('Workspace load failed:', err);
     }
   }
 
+  function renderWorkspaceMembers(ws) {
+    if (!ws || !ws.members) return;
+    const list = document.getElementById('members-list');
+    list.innerHTML = ws.members.map(m => `
+      <div class="member-row">
+        <div class="member-avatar">${m.email.charAt(0).toUpperCase()}</div>
+        <div class="member-info">
+          <span class="member-email">${m.email}</span>
+          <span class="member-role">${m.role}</span>
+        </div>
+        <div class="member-actions">
+          ${m.role !== 'owner'
+            ? `<button class="btn-ghost btn-danger" onclick="removeMember('${m.uid}')">Remove</button>`
+            : '<span class="badge badge-active">Owner</span>'
+          }
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ─── BILLING ───
   function renderBilling(billing) {
     const paddle = billing.paddle || {};
-    const tier    = billing.tier   || 'starter';
+    const tier   = billing.tier   || 'starter';
 
-    document.getElementById('billing-tier').textContent   = tier.charAt(0).toUpperCase() + tier.slice(1);
-    document.getElementById('billing-status').textContent = paddle.subscription_status || 'free';
-    document.getElementById('billing-status').className   =
-      'status-pill ' + (paddle.subscription_status === 'active' ? 'status-active' : 'status-free');
+    document.getElementById('bill-plan').textContent   = tier.charAt(0).toUpperCase() + tier.slice(1);
+    document.getElementById('bill-status').textContent = paddle.subscription_status || 'free';
+    document.getElementById('bill-status').className   =
+      'badge ' + (paddle.subscription_status === 'active' ? 'badge-active' : 'badge-free');
 
     if (paddle.current_period_end) {
-      document.getElementById('billing-renews').textContent =
+      document.getElementById('bill-renewal').textContent =
         'Renews ' + formatDate(paddle.current_period_end);
-      document.getElementById('billing-renews').style.display = 'block';
     }
 
     const isPaid = ['pro', 'team', 'enterprise'].includes(tier);
-    document.getElementById('manage-billing-btn').style.display =
+    document.getElementById('bill-manage-btn').style.display =
       isPaid ? 'inline-flex' : 'none';
-    document.getElementById('upgrade-btns').style.display =
+    document.getElementById('bill-upgrade-btns').style.display =
       !isPaid ? 'flex' : 'none';
   }
 
-  // ─── Generate key ───
-  window.generateKey = async function(keyType = 'live') {
-    const idToken = await currentUser.getIdToken();
-    const btn = document.getElementById('add-key-btn');
-    btn.disabled    = true;
-    btn.textContent = 'Generating...';
+  // ─── SETTINGS (storage) ───
+  function renderSettings(profile) {
+    const settings   = profile.storage_settings || {};
+    const hasStorage = profile.limits?.storage   || false;
 
+    document.getElementById('settings-storage-locked').style.display =
+      hasStorage ? 'none' : 'block';
+    document.getElementById('settings-storage-form').style.display =
+      hasStorage ? 'block' : 'none';
+
+    if (hasStorage) {
+      document.getElementById('storage-toggle').checked = settings.enabled || false;
+      document.querySelector(
+        `input[name="retention"][value="${settings.retention_days || 7}"]`
+      ).checked = true;
+      document.getElementById('storage-autodelete').checked =
+        settings.auto_delete !== false;
+    }
+  }
+
+  // Load stored documents
+  async function loadDocuments() {
+    const hasStorage = profileData?.limits?.storage || false;
+    document.getElementById('docs-locked').style.display   = hasStorage ? 'none' : 'block';
+    document.getElementById('docs-content').style.display  = hasStorage ? 'block' : 'none';
+    if (!hasStorage) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/auth/sessions?id_token=${encodeURIComponent(currentIdToken)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      renderDocuments(data.sessions || []);
+    } catch (err) {
+      console.error('Docs load failed:', err);
+    }
+  }
+
+  function renderDocuments(sessions) {
+    const list = document.getElementById('docs-list');
+    if (!sessions.length) {
+      list.innerHTML = `<div class="empty-state">No stored documents yet. Enable storage in Settings, then process a document.</div>`;
+      return;
+    }
+    list.innerHTML = `
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Session ID</th>
+            <th>Created</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sessions.map(s => `
+            <tr>
+              <td class="doc-id">${s.session_id?.substring(0, 12)}...</td>
+              <td>${formatDate(s.stored_at)}</td>
+              <td><span class="badge badge-active">Stored</span></td>
+              <td>
+                <button class="btn-ghost" onclick="deleteDoc('${s.session_id}')">Delete</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // ─── ACTIONS ───
+  window.generateKey = async function() {
+    const idToken = await currentUser.getIdToken();
     try {
       const res = await fetch(`${API_BASE}/auth/keys/generate`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ id_token: idToken, key_type: keyType }),
+        body:    JSON.stringify({ id_token: idToken, key_type: 'live' }),
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        showToast(data.detail || 'Failed to generate key.', 'error');
-        return;
+      if (res.ok) {
+        showNewKey(data.api_key);
+        await loadDashboard(idToken);
+      } else {
+        showToast(data.detail?.message || 'Failed to generate key.', 'error');
       }
-
-      showNewKey(data.api_key.key);
-      await loadDashboard(idToken);
-
     } catch (err) {
-      showToast('Something went wrong.', 'error');
-    } finally {
-      btn.disabled    = false;
-      btn.textContent = '+ Generate key';
+      showToast('Error generating key.', 'error');
     }
   };
 
-  function showNewKey(key) {
-    document.getElementById('new-key-value').textContent = key;
-    document.getElementById('new-key-modal').style.display = 'flex';
-  }
-
-  window.closeNewKey = function() {
-    document.getElementById('new-key-modal').style.display = 'none';
-  };
-
-  window.copyNewKey = function() {
-    const key = document.getElementById('new-key-value').textContent;
-    navigator.clipboard.writeText(key);
-    document.getElementById('copy-new-key').textContent = 'Copied!';
-    setTimeout(() => {
-      document.getElementById('copy-new-key').textContent = 'Copy';
-    }, 2000);
-  };
-
-  // ─── Revoke key ───
   window.revokeKey = async function(prefix) {
-    if (!confirm(`Revoke key ${prefix}••• ? This cannot be undone.`)) return;
-
+    if (!confirm(`Revoke key ${prefix}? This cannot be undone.`)) return;
     const idToken = await currentUser.getIdToken();
     try {
       const res = await fetch(`${API_BASE}/auth/keys/revoke`, {
@@ -249,40 +380,128 @@
         await loadDashboard(idToken);
       }
     } catch (err) {
-      showToast('Failed to revoke key.', 'error');
+      showToast('Error revoking key.', 'error');
     }
   };
 
-  // ─── Storage settings ───
   window.saveStorage = async function() {
-    const idToken    = await currentUser.getIdToken();
-    const enabled    = document.getElementById('storage-toggle').checked;
-    const retention  = parseInt(document.getElementById('retention-select').value);
-    const autoDelete = document.getElementById('auto-delete-toggle').checked;
+    const idToken  = await currentUser.getIdToken();
+    const enabled  = document.getElementById('storage-toggle').checked;
+    const retention = parseInt(
+      document.querySelector('input[name="retention"]:checked')?.value || 7
+    );
+    const autoDel  = document.getElementById('storage-autodelete').checked;
 
     try {
       const res = await fetch(`${API_BASE}/auth/storage/settings`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          id_token:       idToken,
-          enabled,
-          retention_days: retention,
-          auto_delete:    autoDelete,
+          id_token: idToken, enabled, retention_days: retention, auto_delete: autoDel
         }),
       });
       if (res.ok) showToast('Storage settings saved.');
       else showToast('Failed to save settings.', 'error');
     } catch {
-      showToast('Something went wrong.', 'error');
+      showToast('Error saving settings.', 'error');
     }
   };
 
-  // ─── Billing ───
+  window.inviteMember = async function() {
+    const tier = profileData?.tier || 'starter';
+    if (!['team', 'enterprise'].includes(tier)) {
+      window.location.href = '/pricing#team';
+      return;
+    }
+    const email = document.getElementById('invite-email').value.trim();
+    if (!email) return;
+    const idToken = await currentUser.getIdToken();
+    try {
+      const res = await fetch(`${API_BASE}/auth/workspace/invite`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken, email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // Show invite link — user copies and shares manually
+        document.getElementById('invite-email').value = '';
+        showInviteLink(data.invite_url, email, data.expires_at);
+        await loadWorkspace(idToken);
+      } else {
+        showToast(data.detail?.message || data.detail || 'Invite failed.', 'error');
+      }
+    } catch {
+      showToast('Error sending invite.', 'error');
+    }
+  };
+
+  function showInviteLink(url, email, expiresAt) {
+    document.getElementById('invite-link-url').value = url;
+    document.getElementById('invite-link-email').textContent = email;
+    document.getElementById('invite-link-expiry').textContent =
+      expiresAt ? `Expires ${formatDate(expiresAt)}` : 'Expires in 7 days';
+    document.getElementById('invite-link-box').style.display = 'block';
+  }
+
+  window.copyInviteLink = function() {
+    const url = document.getElementById('invite-link-url').value;
+    navigator.clipboard.writeText(url);
+    showToast('Invite link copied!');
+  };
+
+  window.renameWorkspace = async function() {
+    const name = document.getElementById('ws-rename-input').value.trim();
+    if (!name) return;
+    const idToken = await currentUser.getIdToken();
+    try {
+      const res = await fetch(`${API_BASE}/auth/workspace/rename`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken, name }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById('ws-name').textContent = name;
+        showToast('Workspace renamed.');
+      } else {
+        showToast(data.detail || 'Rename failed.', 'error');
+      }
+    } catch {
+      showToast('Error renaming workspace.', 'error');
+    }
+  };
+
+  window.removeMember = async function(uid) {
+    if (!confirm('Remove this member?')) return;
+    const idToken = await currentUser.getIdToken();
+    try {
+      await fetch(`${API_BASE}/auth/workspace/remove`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken, uid }),
+      });
+      await loadWorkspace(idToken);
+    } catch {}
+  };
+
+  window.deleteDoc = async function(sessionId) {
+    if (!confirm('Delete this document?')) return;
+    const idToken = await currentUser.getIdToken();
+    try {
+      await fetch(`${API_BASE}/auth/sessions/${sessionId}`, {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken }),
+      });
+      await loadDocuments();
+    } catch {}
+  };
+
   window.openPortal = async function() {
     const idToken = await currentUser.getIdToken();
     try {
-      const res = await fetch(`${API_BASE}/billing/portal`, {
+      const res  = await fetch(`${API_BASE}/billing/portal`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ id_token: idToken }),
@@ -290,943 +509,1261 @@
       const data = await res.json();
       if (res.ok) window.location.href = data.portal_url;
       else showToast(data.detail || 'Failed to open billing portal.', 'error');
-    } catch {
-      showToast('Something went wrong.', 'error');
-    }
-  };
-
-  window.upgradeTo = function(tier) {
-    window.location.href = `/pricing?upgrade=${tier}`;
-  };
-
-  // ─── Workspace ───
-  async function loadWorkspace(idToken) {
-    try {
-      const res = await fetch(
-        `${API_BASE}/auth/workspace?id_token=${encodeURIComponent(idToken)}`
-      );
-      if (!res.ok) return;
-      const ws = await res.json();
-      renderWorkspace(ws);
     } catch {}
-  }
-
-  function renderWorkspace(ws) {
-    document.getElementById('workspace-section').style.display = 'block';
-    document.getElementById('ws-name').textContent         = ws.name || '—';
-    document.getElementById('ws-role').textContent         = ws.your_role || '—';
-    document.getElementById('ws-members-count').textContent =
-      `${ws.member_count} / ${ws.max_members === -1 ? '∞' : ws.max_members}`;
-
-    const memberList = document.getElementById('ws-members');
-    memberList.innerHTML = (ws.members || []).map(m => `
-      <div class="member-row">
-        <div class="member-info">
-          <span class="member-email">${m.email}</span>
-          <span class="member-role role-${m.role}">${m.role}</span>
-        </div>
-        <span class="member-joined">joined ${formatDate(m.joined_at)}</span>
-      </div>
-    `).join('');
-  }
-
-  window.inviteMember = async function() {
-    const email = document.getElementById('invite-email').value.trim();
-    const uid   = document.getElementById('invite-uid').value.trim();
-    if (!email || !uid) {
-      showToast('Email and UID are required.', 'error');
-      return;
-    }
-    const idToken = await currentUser.getIdToken();
-    try {
-      const res = await fetch(`${API_BASE}/auth/workspace/invite`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ id_token: idToken, member_email: email, member_uid: uid }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showToast('Member invited.');
-        document.getElementById('invite-email').value = '';
-        document.getElementById('invite-uid').value   = '';
-        await loadWorkspace(idToken);
-      } else {
-        showToast(data.detail || 'Invite failed.', 'error');
-      }
-    } catch {
-      showToast('Something went wrong.', 'error');
-    }
   };
 
-  // ─── Sign out ───
   window.signOut = async function() {
-    await signOut(auth);
+    await fbSignOut(auth);
     localStorage.removeItem('qrynt_id_token');
-    localStorage.removeItem('qrynt_uid');
     window.location.href = '/';
   };
 
-  // ─── Delete account ───
   window.deleteAccount = async function() {
-    if (!confirm('Delete your account and all data? This cannot be undone.')) return;
+    if (!confirm('Delete your account? This is permanent and cannot be undone.')) return;
     const idToken = await currentUser.getIdToken();
     try {
-      await fetch(`${API_BASE}/auth/account?id_token=${encodeURIComponent(idToken)}`, {
-        method: 'DELETE',
+      await fetch(`${API_BASE}/auth/account`, {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken }),
       });
-      await signOut(auth);
       window.location.href = '/';
-    } catch {
-      showToast('Failed to delete account.', 'error');
-    }
+    } catch {}
   };
 
-  // ─── Helpers ───
+  // When navigating to Documents — load them
+  const _origNavigate = window.navigateTo;
+  window.navigateTo = function(section) {
+    _origNavigate(section);
+    if (section === 'documents') loadDocuments();
+  };
+
+  // ─── HELPERS ───
   function formatDate(iso) {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+    return new Date(iso).toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric'
+    });
   }
 
   function showSkeleton(show) {
-    document.getElementById('skeleton').style.display  = show ? 'block' : 'none';
-    document.getElementById('content').style.display   = show ? 'none'  : 'block';
+    document.getElementById('ws-skeleton').style.display = show ? 'block' : 'none';
+    document.getElementById('ws-content').style.display  = show ? 'none'  : 'block';
   }
+
+  function showNewKey(key) {
+    document.getElementById('new-key-val').textContent = key;
+    document.getElementById('new-key-modal').style.display = 'flex';
+  }
+
+  window.closeNewKey = function() {
+    document.getElementById('new-key-modal').style.display = 'none';
+  };
+
+  window.copyNewKey = function() {
+    const key = document.getElementById('new-key-val').textContent;
+    navigator.clipboard.writeText(key);
+    showToast('Key copied to clipboard.');
+  };
 
   function showToast(msg, type = 'success') {
-    const toast = document.getElementById('toast');
-    toast.textContent  = msg;
-    toast.className    = 'toast toast-' + type;
-    toast.style.display = 'block';
-    setTimeout(() => { toast.style.display = 'none'; }, 3500);
+    const t = document.getElementById('toast');
+    t.textContent  = msg;
+    t.className    = `toast toast-${type} show`;
+    setTimeout(() => t.classList.remove('show'), 3500);
   }
 </script>
-
 <style>
   :root {
-    --bg:        #f8f7f4;
-    --surface:   #ffffff;
-    --border:    #e8e5df;
-    --border2:   #d4d0c8;
-    --ink:       #1a1814;
-    --ink-dim:   #6b6760;
-    --ink-muted: #b0ada6;
+    --bg:        #0e0d0b;
+    --surface:   #161410;
+    --surface2:  #1e1c18;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.12);
+    --ink:       #f0ede8;
+    --ink-dim:   rgba(255,255,255,0.45);
+    --ink-muted: rgba(255,255,255,0.25);
     --accent:    #00c96e;
     --accent-dk: #009e56;
-    --accent-bg: #f0fdf6;
-    --red:       #ef4444;
-    --yellow:    #f59e0b;
+    --accent-bg: rgba(0,201,110,0.08);
+    --warn:      #f59e0b;
+    --danger:    #ef4444;
+    --sans:      'DM Sans', system-ui, sans-serif;
     --mono:      'IBM Plex Mono', monospace;
-    --sans:      'DM Sans', sans-serif;
+    --serif:     'Instrument Serif', Georgia, serif;
+    --sidebar-w: 220px;
+    --topbar-h:  56px;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--ink);
-    font-family: var(--sans);
-    font-size: 14px;
-    min-height: 100vh;
-  }
-
-  /* ─── NAV ─── */
-  nav {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 0 32px; height: 56px;
-    display: flex; align-items: center; justify-content: space-between;
-    position: sticky; top: 0; z-index: 100;
-  }
-
-  .nav-left {
-    display: flex; align-items: center; gap: 24px;
-  }
-
-  .nav-logo {
-    display: flex; align-items: center; gap: 8px;
-    text-decoration: none;
-  }
-
-  .nav-logo img { height: 22px; }
-
-  .nav-logo-text {
-    font-family: var(--mono); font-size: 13px;
-    font-weight: 500; color: var(--ink);
-  }
-
-  .nav-page {
-    font-size: 13px; color: var(--ink-muted);
-  }
-
-  .nav-right {
-    display: flex; align-items: center; gap: 8px;
-  }
-
-  .user-email {
-    font-size: 13px; color: var(--ink-dim);
-    font-family: var(--mono);
-  }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; }
 
   /* ─── LAYOUT ─── */
-  .layout {
+  .ws-layout {
     display: grid;
-    grid-template-columns: 220px 1fr;
-    min-height: calc(100vh - 56px);
+    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-rows: var(--topbar-h) 1fr;
+    height: 100vh;
   }
+
+  /* ─── TOPBAR ─── */
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    gap: 12px;
+  }
+
+  .topbar-logo {
+    display: flex; align-items: center; gap: 8px;
+    text-decoration: none; color: var(--ink);
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+  }
+
+  .topbar-logo img { width: 20px; height: 20px; }
+
+  .topbar-sep {
+    width: 1px; height: 18px;
+    background: var(--border2); margin: 0 4px;
+  }
+
+  .topbar-page {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink-dim);
+  }
+
+  .topbar-actions {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .process-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #000;
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    padding: 8px 16px; border-radius: 8px; border: none;
+    cursor: pointer; text-decoration: none;
+    transition: background 0.15s;
+  }
+
+  .process-btn:hover { background: #00e87e; }
+
+  .observer-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2); color: var(--ink-dim);
+    font-family: var(--mono); font-size: 12px;
+    padding: 7px 14px; border-radius: 8px;
+    border: 1px solid var(--border2);
+    cursor: pointer; text-decoration: none;
+    transition: all 0.15s;
+  }
+
+  .observer-btn:hover { color: var(--ink); border-color: var(--accent); }
+
+  .signout-btn {
+    background: none; border: 1px solid var(--border2);
+    color: var(--ink-muted); font-family: var(--mono); font-size: 11px;
+    padding: 6px 12px; border-radius: 6px; cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .signout-btn:hover { color: var(--ink); border-color: var(--border2); }
 
   /* ─── SIDEBAR ─── */
   .sidebar {
-    border-right: 1px solid var(--border);
-    padding: 24px 0;
     background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+    padding: 16px 0 24px;
   }
 
-  .sidebar-section {
+  /* Workspace selector */
+  .ws-selector {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px 16px;
+    border-bottom: 1px solid var(--border);
     margin-bottom: 8px;
   }
 
-  .sidebar-label {
-    font-family: var(--mono); font-size: 10px;
-    color: var(--ink-muted); letter-spacing: 0.1em;
-    text-transform: uppercase; padding: 0 20px;
-    margin-bottom: 4px; display: block;
+  .ws-avatar {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--accent-bg); border: 1px solid rgba(0,201,110,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+    color: var(--accent); flex-shrink: 0;
   }
 
-  .sidebar-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 9px 20px; font-size: 13px;
-    color: var(--ink-dim); cursor: pointer;
-    transition: all 0.15s; text-decoration: none;
-    border-left: 2px solid transparent;
-  }
+  .ws-selector-info { min-width: 0; }
 
-  .sidebar-item:hover {
-    color: var(--ink); background: var(--bg);
-  }
-
-  .sidebar-item.active {
-    color: var(--ink); background: var(--bg);
-    border-left-color: var(--accent);
-    font-weight: 500;
-  }
-
-  .sidebar-icon { font-size: 14px; opacity: 0.6; }
-
-  .sidebar-divider {
-    height: 1px; background: var(--border);
-    margin: 12px 20px;
-  }
-
-  /* ─── MAIN ─── */
-  .main {
-    padding: 32px;
-    overflow-y: auto;
-  }
-
-  /* ─── SECTION ─── */
-  .section {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 20px;
-  }
-
-  .section-head {
-    display: flex; align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-  }
-
-  .section-title {
-    font-size: 15px; font-weight: 600;
-    color: var(--ink); letter-spacing: -0.01em;
-  }
-
-  .section-sub {
-    font-size: 12px; color: var(--ink-muted);
-    margin-top: 2px;
-  }
-
-  /* ─── PROFILE ─── */
-  .profile-row {
-    display: flex; align-items: center;
-    justify-content: space-between;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .profile-row:last-child { border-bottom: none; }
-
-  .profile-label {
-    font-size: 12px; color: var(--ink-muted);
-    font-family: var(--mono); letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-
-  .profile-value {
-    font-size: 13px; color: var(--ink);
-    font-family: var(--mono);
-  }
-
-  .tier-badge {
-    font-family: var(--mono); font-size: 11px;
-    padding: 3px 10px; border-radius: 100px;
-    font-weight: 500; letter-spacing: 0.05em;
-  }
-
-  .tier-free, .tier-starter {
-    background: var(--bg); color: var(--ink-dim);
-    border: 1px solid var(--border2);
-  }
-
-  .tier-pro {
-    background: var(--accent-bg); color: var(--accent-dk);
-    border: 1px solid rgba(0,201,110,0.3);
-  }
-
-  .tier-team {
-    background: rgba(59,130,246,0.08); color: #1d4ed8;
-    border: 1px solid rgba(59,130,246,0.2);
-  }
-
-  .tier-enterprise {
-    background: rgba(168,85,247,0.08); color: #7c3aed;
-    border: 1px solid rgba(168,85,247,0.2);
-  }
-
-  /* ─── USAGE ─── */
-  .usage-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 16px; margin-bottom: 20px;
-  }
-
-  .usage-cell {
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: 8px; padding: 14px 16px;
-  }
-
-  .usage-cell-label {
-    font-family: var(--mono); font-size: 10px;
-    color: var(--ink-muted); letter-spacing: 0.08em;
-    text-transform: uppercase; margin-bottom: 6px;
+  .ws-selector-name {
+    font-size: 13px; font-weight: 500; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     display: block;
   }
 
-  .usage-cell-value {
+  .ws-selector-tier {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--accent); letter-spacing: 0.08em;
+  }
+
+  /* Nav items */
+  .nav-group { padding: 4px 8px; }
+
+  .nav-label {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-muted); letter-spacing: 0.12em;
+    text-transform: uppercase; padding: 8px 8px 4px;
+    display: block;
+  }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 7px;
+    font-size: 13px; color: var(--ink-dim);
+    cursor: pointer; text-decoration: none;
+    transition: all 0.12s; border: none;
+    background: none; width: 100%; text-align: left;
+  }
+
+  .nav-item:hover { background: var(--surface2); color: var(--ink); }
+
+  .nav-item.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid rgba(0,201,110,0.15);
+  }
+
+  .nav-icon {
+    font-size: 13px; opacity: 0.7; width: 16px;
+    text-align: center; flex-shrink: 0;
+  }
+
+  .nav-item.active .nav-icon { opacity: 1; }
+
+  .nav-divider {
+    height: 1px; background: var(--border);
+    margin: 8px 16px;
+  }
+
+  .nav-external {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 7px;
+    font-size: 13px; color: var(--ink-muted);
+    text-decoration: none; transition: all 0.12s;
+  }
+
+  .nav-external:hover { background: var(--surface2); color: var(--ink); }
+
+  .nav-ext-badge {
+    margin-left: auto;
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-muted); opacity: 0.6;
+  }
+
+  /* ─── MAIN CONTENT ─── */
+  .ws-main {
+    overflow-y: auto;
+    padding: 32px 40px;
+    background: var(--bg);
+  }
+
+  .ws-section { display: none; }
+
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 28px;
+  }
+
+  .section-title {
+    font-family: var(--serif); font-size: 26px;
+    font-weight: 400; color: var(--ink);
+  }
+
+  .section-sub {
+    font-size: 13px; color: var(--ink-dim);
+    margin-top: 4px;
+  }
+
+  /* ─── KPI CARDS ─── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px;
+  }
+
+  .kpi-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-muted); letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 10px; display: block;
+  }
+
+  .kpi-value {
     font-family: var(--mono); font-size: 22px;
     font-weight: 500; color: var(--ink);
-    line-height: 1;
   }
 
-  .usage-bar-wrap {
-    height: 6px; background: var(--border);
-    border-radius: 3px; overflow: hidden;
-    margin-bottom: 6px;
+  .kpi-value.accent { color: var(--accent); }
+
+  /* ─── USAGE BAR ─── */
+  .usage-track {
+    height: 4px; background: var(--surface2);
+    border-radius: 2px; margin: 16px 0 8px; overflow: hidden;
   }
 
-  .usage-bar-fill {
-    height: 100%; border-radius: 3px;
-    transition: width 0.5s ease;
+  .usage-fill {
+    height: 100%; border-radius: 2px; transition: width 0.3s;
   }
 
-  .bar-green  { background: var(--accent); }
-  .bar-yellow { background: var(--yellow); }
-  .bar-red    { background: var(--red); }
+  .fill-ok   { background: var(--accent); }
+  .fill-warn { background: var(--warn); }
 
-  .usage-detail {
-    font-size: 12px; color: var(--ink-muted);
-    font-family: var(--mono);
+  .usage-hint {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink-muted);
   }
 
-  /* ─── KEYS ─── */
+  /* ─── UPGRADE BANNER ─── */
+  .upgrade-banner {
+    background: var(--accent-bg);
+    border: 1px solid rgba(0,201,110,0.2);
+    border-radius: 10px; padding: 16px 20px;
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .upgrade-banner-text {
+    flex: 1; font-size: 13px; color: var(--ink-dim);
+  }
+
+  .upgrade-banner-text strong { color: var(--ink); }
+
+  .btn-upgrade {
+    background: var(--accent); color: #000;
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    padding: 8px 16px; border-radius: 7px; border: none;
+    cursor: pointer; text-decoration: none; white-space: nowrap;
+    transition: background 0.15s;
+  }
+
+  .btn-upgrade:hover { background: #00e87e; }
+
+  /* ─── CARDS / SECTIONS ─── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 16px; overflow: hidden;
+  }
+
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .card-title {
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    color: var(--ink); letter-spacing: 0.05em;
+  }
+
+  .card-body { padding: 20px; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 7px; border: 1px solid var(--border2);
+    background: var(--surface2); color: var(--ink);
+    font-family: var(--mono); font-size: 12px;
+    cursor: pointer; transition: all 0.15s; text-decoration: none;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn:disabled {
+    opacity: 0.4; cursor: not-allowed;
+  }
+
+  .btn:disabled:hover { border-color: var(--border2); color: var(--ink); }
+
+  .btn-primary {
+    background: var(--accent); color: #000;
+    border-color: transparent; font-weight: 500;
+  }
+
+  .btn-primary:hover { background: #00e87e; color: #000; border-color: transparent; }
+
+  .btn-ghost {
+    background: none; border: none; padding: 4px 8px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink-muted); cursor: pointer; border-radius: 4px;
+    transition: all 0.12s;
+  }
+
+  .btn-ghost:hover { background: var(--surface2); color: var(--ink); }
+
+  .btn-danger { color: var(--danger) !important; }
+  .btn-danger:hover { background: rgba(239,68,68,0.1) !important; }
+
+  /* ─── BADGES ─── */
+  .badge {
+    font-family: var(--mono); font-size: 10px; font-weight: 500;
+    padding: 2px 8px; border-radius: 10px;
+  }
+
+  .badge-active { background: rgba(0,201,110,0.1); color: var(--accent); border: 1px solid rgba(0,201,110,0.2); }
+  .badge-free   { background: var(--surface2); color: var(--ink-muted); border: 1px solid var(--border); }
+  .badge-revoked { background: rgba(239,68,68,0.08); color: var(--danger); border: 1px solid rgba(239,68,68,0.15); }
+
+  /* ─── KEY ROWS ─── */
   .key-row {
-    display: flex; align-items: center;
-    justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between;
     padding: 12px 0;
     border-bottom: 1px solid var(--border);
   }
 
   .key-row:last-child { border-bottom: none; }
-  .key-inactive { opacity: 0.45; }
-
-  .key-info { flex: 1; }
+  .key-row.key-revoked { opacity: 0.45; }
 
   .key-prefix {
-    font-family: var(--mono); font-size: 13px;
-    color: var(--ink); display: block; margin-bottom: 3px;
+    font-family: var(--mono); font-size: 13px; color: var(--ink);
+    display: block; margin-bottom: 3px;
   }
 
   .key-meta {
-    font-size: 11px; color: var(--ink-muted);
-    font-family: var(--mono);
+    font-family: var(--mono); font-size: 11px; color: var(--ink-muted);
   }
 
-  .key-actions { display: flex; gap: 8px; }
+  .key-actions { display: flex; align-items: center; gap: 8px; }
 
-  .inactive-badge {
-    font-family: var(--mono); font-size: 10px;
-    color: var(--ink-muted);
-    border: 1px solid var(--border);
-    padding: 2px 8px; border-radius: 3px;
+  /* ─── USAGE TABLE ─── */
+  .usage-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
   }
 
-  /* ─── BUTTONS ─── */
-  .btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 16px; border-radius: 6px;
-    font-family: var(--sans); font-size: 13px;
-    font-weight: 500; cursor: pointer;
-    border: 1px solid var(--border2);
-    background: transparent; color: var(--ink-dim);
-    transition: all 0.15s; text-decoration: none;
+  .usage-row:last-child { border-bottom: none; }
+  .usage-label { font-size: 13px; color: var(--ink-dim); }
+  .usage-value { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+  .usage-sep   { color: var(--ink-muted); margin: 0 4px; }
+
+  /* ─── MEMBERS ─── */
+  .trial-banner {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 10px; padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 16px;
   }
 
-  .btn:hover { border-color: var(--ink); color: var(--ink); }
-
-  .btn-primary {
-    background: var(--ink); color: #fff;
-    border-color: var(--ink);
+  .trial-banner-text {
+    flex: 1; font-size: 13px; color: var(--ink-dim);
   }
 
-  .btn-primary:hover { background: var(--accent-dk); border-color: var(--accent-dk); }
+  .trial-banner-text strong { color: var(--ink); }
 
-  .btn-accent {
-    background: var(--accent); color: #fff;
-    border-color: var(--accent);
-  }
-
-  .btn-accent:hover { background: var(--accent-dk); }
-
-  .btn-sm {
-    padding: 4px 10px; font-size: 12px;
-    border-radius: 4px;
-  }
-
-  .btn-danger {
-    color: var(--red); border-color: rgba(239,68,68,0.3);
-  }
-
-  .btn-danger:hover {
-    background: rgba(239,68,68,0.06);
-    border-color: var(--red);
-  }
-
-  /* ─── STORAGE ─── */
-  .storage-row {
-    display: flex; align-items: center;
-    justify-content: space-between;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .storage-row:last-child { border-bottom: none; }
-
-  .storage-label { font-size: 13px; color: var(--ink); }
-  .storage-hint  { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
-
-  /* Toggle switch */
-  .switch {
-    position: relative; width: 40px; height: 22px;
-    display: inline-block;
-  }
-
-  .switch input { display: none; }
-
-  .switch-slider {
-    position: absolute; inset: 0;
-    background: var(--border2); border-radius: 11px;
-    cursor: pointer; transition: background 0.2s;
-  }
-
-  .switch-slider::before {
-    content: ''; position: absolute;
-    top: 3px; left: 3px;
-    width: 16px; height: 16px;
-    background: #fff; border-radius: 50%;
-    transition: transform 0.2s;
-  }
-
-  input:checked + .switch-slider { background: var(--accent); }
-  input:checked + .switch-slider::before { transform: translateX(18px); }
-
-  select {
-    padding: 6px 10px; border-radius: 6px;
-    border: 1px solid var(--border2);
-    background: var(--surface);
-    font-family: var(--mono); font-size: 12px;
-    color: var(--ink); outline: none;
-  }
-
-  select:focus { border-color: var(--accent); }
-
-  /* ─── BILLING ─── */
-  .billing-row {
-    display: flex; align-items: center;
-    justify-content: space-between; padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .billing-row:last-child { border-bottom: none; }
-
-  .billing-row-label {
-    font-size: 12px; color: var(--ink-muted);
-    font-family: var(--mono); text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
-  .billing-row-value {
-    font-family: var(--mono); font-size: 13px; color: var(--ink);
-  }
-
-  .status-pill {
-    font-family: var(--mono); font-size: 11px;
-    padding: 3px 10px; border-radius: 100px;
-    font-weight: 500; letter-spacing: 0.05em;
-  }
-
-  .status-active {
-    background: var(--accent-bg); color: var(--accent-dk);
-    border: 1px solid rgba(0,201,110,0.3);
-  }
-
-  .status-free {
-    background: var(--bg); color: var(--ink-muted);
-    border: 1px solid var(--border2);
-  }
-
-  .upgrade-btns {
-    display: flex; gap: 10px; flex-wrap: wrap;
-    margin-top: 16px;
-  }
-
-  /* ─── WORKSPACE ─── */
   .member-row {
-    display: flex; align-items: center;
-    justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
   }
 
   .member-row:last-child { border-bottom: none; }
 
-  .member-info { display: flex; align-items: center; gap: 10px; }
-
-  .member-email {
-    font-family: var(--mono); font-size: 12px; color: var(--ink);
+  .member-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--surface2); border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 13px; color: var(--ink-dim);
+    flex-shrink: 0;
   }
 
-  .member-role {
-    font-family: var(--mono); font-size: 10px;
-    padding: 2px 8px; border-radius: 3px;
-    letter-spacing: 0.05em;
-  }
-
-  .role-owner   { background: var(--accent-bg); color: var(--accent-dk); }
-  .role-admin   { background: rgba(59,130,246,0.08); color: #1d4ed8; }
-  .role-member  { background: var(--bg); color: var(--ink-muted); }
-
-  .member-joined {
-    font-size: 11px; color: var(--ink-muted);
-    font-family: var(--mono);
-  }
+  .member-email { font-size: 13px; color: var(--ink); display: block; }
+  .member-role  { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); }
+  .member-actions { margin-left: auto; }
 
   .invite-row {
-    display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;
+    display: flex; gap: 10px; margin-top: 16px;
   }
 
-  .invite-row input {
-    flex: 1; min-width: 160px; padding: 8px 12px;
-    border: 1px solid var(--border2); border-radius: 6px;
-    font-family: var(--mono); font-size: 12px;
-    color: var(--ink); outline: none; background: var(--surface);
+  .invite-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 7px; padding: 8px 14px;
+    font-family: var(--mono); font-size: 12px; color: var(--ink);
+    outline: none;
   }
 
-  .invite-row input:focus { border-color: var(--accent); }
+  .invite-input:focus { border-color: var(--accent); }
 
-  /* ─── DANGER ZONE ─── */
-  .danger-zone {
-    border-color: rgba(239,68,68,0.2);
+  /* ─── BILLING ─── */
+  .billing-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
   }
 
-  .danger-zone .section-title { color: var(--red); }
+  .billing-row:last-child { border-bottom: none; }
+  .billing-label { font-size: 13px; color: var(--ink-dim); }
+  .billing-value { font-family: var(--mono); font-size: 13px; color: var(--ink); }
 
-  /* ─── MODAL ─── */
+  .upgrade-btns {
+    display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap;
+  }
+
+  /* ─── SETTINGS / STORAGE ─── */
+  .settings-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 16px 0; border-bottom: 1px solid var(--border); gap: 20px;
+  }
+
+  .settings-row:last-child { border-bottom: none; }
+
+  .settings-label { font-size: 13px; color: var(--ink); font-weight: 500; }
+  .settings-hint  { font-size: 12px; color: var(--ink-muted); margin-top: 3px; }
+
+  .toggle {
+    position: relative; width: 40px; height: 22px; flex-shrink: 0;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .toggle-slider {
+    position: absolute; inset: 0; border-radius: 22px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    transition: 0.2s; cursor: pointer;
+  }
+
+  .toggle-slider::before {
+    content: ''; position: absolute;
+    width: 16px; height: 16px; border-radius: 50%;
+    left: 2px; top: 2px;
+    background: var(--ink-muted); transition: 0.2s;
+  }
+
+  .toggle input:checked + .toggle-slider { background: var(--accent-bg); border-color: var(--accent); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--accent); }
+
+  .retention-options { display: flex; gap: 8px; }
+
+  .retention-option input { display: none; }
+
+  .retention-option label {
+    font-family: var(--mono); font-size: 11px;
+    padding: 5px 12px; border-radius: 6px;
+    border: 1px solid var(--border2); color: var(--ink-muted);
+    cursor: pointer; transition: all 0.15s;
+  }
+
+  .retention-option input:checked + label {
+    border-color: var(--accent); color: var(--accent);
+    background: var(--accent-bg);
+  }
+
+  .locked-feature {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px;
+    display: flex; align-items: center; gap: 14px;
+  }
+
+  .locked-icon { font-size: 18px; opacity: 0.5; }
+
+  .locked-text { font-size: 13px; color: var(--ink-dim); }
+  .locked-text strong { color: var(--ink); }
+
+  /* ─── DOCUMENTS TABLE ─── */
+  .docs-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+
+  .docs-table th {
+    font-family: var(--mono); font-size: 10px; color: var(--ink-muted);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    text-align: left; padding: 8px 12px;
+    border-bottom: 1px solid var(--border2);
+  }
+
+  .docs-table td {
+    padding: 12px 12px; border-bottom: 1px solid var(--border);
+    color: var(--ink-dim);
+  }
+
+  .docs-table tr:hover td { background: var(--surface2); }
+  .doc-id { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+
+  /* ─── EMPTY STATE ─── */
+  .empty-state {
+    padding: 32px; text-align: center;
+    font-size: 13px; color: var(--ink-muted);
+  }
+
+  /* ─── SKELETON ─── */
+  .skel {
+    background: var(--surface2); border-radius: 6px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50%       { opacity: 0.7; }
+  }
+
+  /* ─── NEW KEY MODAL ─── */
   .modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.5);
-    display: none; align-items: center; justify-content: center;
-    z-index: 200;
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(0,0,0,0.6); align-items: center; justify-content: center;
   }
 
-  .modal-card {
-    background: var(--surface);
-    border-radius: 14px; padding: 32px;
-    width: 100%; max-width: 440px;
-    margin: 24px;
+  .modal-overlay.open, .modal-overlay[style*="flex"] { display: flex; }
+
+  .modal {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 12px; padding: 28px; width: 480px; max-width: 95vw;
   }
 
   .modal-title {
-    font-size: 18px; font-weight: 600;
-    margin-bottom: 6px; color: var(--ink);
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+    color: var(--ink); margin-bottom: 6px;
   }
 
-  .modal-sub {
-    font-size: 13px; color: var(--ink-dim);
-    margin-bottom: 20px; line-height: 1.5;
+  .modal-warn {
+    font-size: 12px; color: var(--warn); margin-bottom: 16px;
   }
 
-  .modal-key {
+  .key-display {
     background: var(--bg); border: 1px solid var(--border2);
-    border-radius: 8px; padding: 14px;
-    font-family: var(--mono); font-size: 12px;
-    color: var(--accent-dk); word-break: break-all;
-    margin-bottom: 10px; line-height: 1.5;
+    border-radius: 7px; padding: 12px 16px;
+    font-family: var(--mono); font-size: 12px; color: var(--accent);
+    word-break: break-all; margin-bottom: 16px;
   }
 
-  .modal-warning {
-    font-size: 12px; color: #92400e;
-    background: rgba(234,179,8,0.08);
-    border: 1px solid rgba(234,179,8,0.2);
-    border-radius: 6px; padding: 10px;
-    margin-bottom: 20px; line-height: 1.5;
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ─── DANGER ZONE ─── */
+  .danger-zone {
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 10px; overflow: hidden; margin-top: 24px;
   }
 
-  .modal-actions { display: flex; gap: 10px; }
-  .modal-actions button { flex: 1; }
-
-  /* ─── SKELETON ─── */
-  .skeleton-block {
-    background: linear-gradient(90deg, var(--border) 25%, var(--bg) 50%, var(--border) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 6px; height: 16px; margin-bottom: 10px;
+  .danger-head {
+    background: rgba(239,68,68,0.05);
+    padding: 12px 20px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--danger); letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(239,68,68,0.15);
   }
 
-  @keyframes shimmer {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+  .danger-body { padding: 20px; }
+
+  .danger-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 20px;
   }
+
+  .danger-label { font-size: 13px; color: var(--ink); }
+  .danger-hint  { font-size: 12px; color: var(--ink-muted); margin-top: 3px; }
+
+  .btn-danger-solid {
+    background: rgba(239,68,68,0.1); color: var(--danger);
+    border: 1px solid rgba(239,68,68,0.2);
+    font-family: var(--mono); font-size: 11px;
+    padding: 7px 14px; border-radius: 6px; cursor: pointer;
+    transition: all 0.15s; white-space: nowrap;
+  }
+
+  .btn-danger-solid:hover { background: rgba(239,68,68,0.2); }
 
   /* ─── TOAST ─── */
   .toast {
-    position: fixed; bottom: 24px; right: 24px;
+    position: fixed; bottom: 24px; right: 24px; z-index: 400;
     padding: 12px 20px; border-radius: 8px;
-    font-size: 13px; font-weight: 500;
-    display: none; z-index: 300;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    font-family: var(--mono); font-size: 12px;
+    opacity: 0; transform: translateY(8px);
+    transition: all 0.2s; pointer-events: none;
   }
 
-  .toast-success { background: var(--ink); color: #fff; }
-  .toast-error   { background: var(--red); color: #fff; }
-
-  /* ─── EMPTY ─── */
-  .empty-state {
-    font-size: 13px; color: var(--ink-muted);
-    padding: 16px 0; font-family: var(--mono);
-  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast-success { background: var(--accent); color: #000; }
+  .toast-error   { background: var(--danger); color: #fff; }
 
   /* ─── RESPONSIVE ─── */
   @media (max-width: 768px) {
-    .layout { grid-template-columns: 1fr; }
-    .sidebar { display: none; }
-    .usage-grid { grid-template-columns: 1fr 1fr; }
+    .ws-layout { grid-template-columns: 1fr; }
+    .sidebar   { display: none; }
+    .ws-main   { padding: 20px 16px; }
+    .kpi-grid  { grid-template-columns: 1fr 1fr; }
   }
 </style>
 </head>
 <body>
 
-<!-- NAV -->
-<nav>
-  <div class="nav-left">
-    <a href="/" class="nav-logo">
-      <img src="/assets/QryNt.png" alt="Qrynt">
-      <span class="nav-logo-text">Qrynt</span>
-    </a>
-    <span class="nav-page">/ Dashboard</span>
-  </div>
-  <div class="nav-right">
-    <span class="user-email" id="user-email">—</span>
-    <button class="btn btn-sm" onclick="signOut()">Sign out</button>
-  </div>
-</nav>
+<div class="ws-layout">
 
-<div class="layout">
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="/" class="topbar-logo">
+      <img src="/assets/QryNt.png" alt="Qrynt">
+      Qrynt
+    </a>
+    <div class="topbar-sep"></div>
+    <span class="topbar-page">Workspace</span>
+
+    <div class="topbar-actions">
+      <a href="/console" class="process-btn">
+        + Process Data
+      </a>
+      <a href="/observer" class="observer-btn">
+        ◎ Observer
+      </a>
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
+    </div>
+  </header>
 
   <!-- SIDEBAR -->
-  <div class="sidebar">
-    <div class="sidebar-section">
-      <span class="sidebar-label">Overview</span>
-      <a class="sidebar-item active" href="#usage">
-        <span class="sidebar-icon">◉</span> Usage
+  <aside class="sidebar">
+
+    <!-- Workspace selector -->
+    <div class="ws-selector">
+      <div class="ws-avatar" id="ws-avatar">Q</div>
+      <div class="ws-selector-info">
+        <span class="ws-selector-name" id="ws-name">Workspace</span>
+        <span class="ws-selector-tier" id="ws-tier">Starter</span>
+      </div>
+    </div>
+
+    <!-- Main nav -->
+    <div class="nav-group">
+      <span class="nav-label">Workspace</span>
+      <button class="nav-item active" data-section="overview" onclick="navigateTo('overview')">
+        <span class="nav-icon">◉</span> Overview
+      </button>
+    </div>
+
+    <div class="nav-group">
+      <span class="nav-label">Tools</span>
+      <a href="/console" class="nav-external">
+        <span class="nav-icon">⌗</span> Playground
+        <span class="nav-ext-badge">↗</span>
       </a>
-      <a class="sidebar-item" href="#keys">
-        <span class="sidebar-icon">◈</span> API Keys
+      <a href="/observer" class="nav-external">
+        <span class="nav-icon">◎</span> Observer
+        <span class="nav-ext-badge">↗</span>
       </a>
     </div>
-    <div class="sidebar-divider"></div>
-    <div class="sidebar-section">
-      <span class="sidebar-label">Account</span>
-      <a class="sidebar-item" href="#billing">
-        <span class="sidebar-icon">◇</span> Billing
-      </a>
-      <a class="sidebar-item" href="#storage">
-        <span class="sidebar-icon">◫</span> Storage
-      </a>
-      <a class="sidebar-item" href="#workspace">
-        <span class="sidebar-icon">◱</span> Team
+
+    <div class="nav-divider"></div>
+
+    <div class="nav-group">
+      <span class="nav-label">Data</span>
+      <button class="nav-item" data-section="documents" onclick="navigateTo('documents')">
+        <span class="nav-icon">◫</span> Documents
+      </button>
+    </div>
+
+    <div class="nav-group">
+      <span class="nav-label">Account</span>
+      <button class="nav-item" data-section="keys" onclick="navigateTo('keys')">
+        <span class="nav-icon">◈</span> API Keys
+      </button>
+      <button class="nav-item" data-section="usage" onclick="navigateTo('usage')">
+        <span class="nav-icon">◌</span> Usage & Limits
+      </button>
+      <button class="nav-item" data-section="members" onclick="navigateTo('members')">
+        <span class="nav-icon">◱</span> Members
+      </button>
+      <button class="nav-item" data-section="billing" onclick="navigateTo('billing')">
+        <span class="nav-icon">◇</span> Billing
+      </button>
+    </div>
+
+    <div class="nav-group">
+      <span class="nav-label">Config</span>
+      <button class="nav-item" data-section="settings" onclick="navigateTo('settings')">
+        <span class="nav-icon">⊙</span> Settings
+      </button>
+    </div>
+
+    <div class="nav-divider"></div>
+
+    <div class="nav-group">
+      <a href="/help" class="nav-external">
+        <span class="nav-icon">→</span> Help & Docs
+        <span class="nav-ext-badge">↗</span>
       </a>
     </div>
-    <div class="sidebar-divider"></div>
-    <div class="sidebar-section">
-      <a class="sidebar-item" href="/console">
-        <span class="sidebar-icon">→</span> Try Qrynt
-      </a>
-      <a class="sidebar-item" href="/docs">
-        <span class="sidebar-icon">→</span> API Docs
-      </a>
-    </div>
-  </div>
+
+  </aside>
 
   <!-- MAIN -->
-  <div class="main">
+  <main class="ws-main">
 
-    <!-- Skeleton -->
-    <div id="skeleton">
-      <div class="section">
-        <div class="skeleton-block" style="width:30%;height:20px;margin-bottom:20px"></div>
-        <div class="skeleton-block"></div>
-        <div class="skeleton-block" style="width:80%"></div>
-        <div class="skeleton-block" style="width:60%"></div>
+    <!-- SKELETON -->
+    <div id="ws-skeleton">
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="skel" style="height:14px;width:60%;margin-bottom:12px"></div><div class="skel" style="height:28px;width:40%"></div></div>
+        <div class="kpi-card"><div class="skel" style="height:14px;width:60%;margin-bottom:12px"></div><div class="skel" style="height:28px;width:40%"></div></div>
+        <div class="kpi-card"><div class="skel" style="height:14px;width:60%;margin-bottom:12px"></div><div class="skel" style="height:28px;width:40%"></div></div>
+        <div class="kpi-card"><div class="skel" style="height:14px;width:60%;margin-bottom:12px"></div><div class="skel" style="height:28px;width:40%"></div></div>
       </div>
-      <div class="section">
-        <div class="skeleton-block" style="width:40%;height:18px;margin-bottom:16px"></div>
-        <div class="skeleton-block"></div>
-        <div class="skeleton-block" style="width:70%"></div>
-      </div>
+      <div class="skel" style="height:80px;border-radius:10px"></div>
     </div>
 
-    <!-- Content -->
-    <div id="content" style="display:none">
+    <div id="ws-content" style="display:none">
 
-      <!-- Profile -->
-      <div class="section">
+      <!-- ── OVERVIEW ── -->
+      <div class="ws-section" id="sec-overview">
         <div class="section-head">
           <div>
-            <div class="section-title">Account</div>
+            <div class="section-title">Overview</div>
+            <div class="section-sub">Workspace health and usage summary</div>
           </div>
-          <span id="user-tier" class="tier-badge">—</span>
         </div>
-        <div class="profile-row">
-          <span class="profile-label">Email</span>
-          <span class="profile-value" id="user-email-val">—</span>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">Requests today</span>
+            <span class="kpi-value" id="ov-requests-today">— / —</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Requests total</span>
+            <span class="kpi-value" id="ov-requests-total">—</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Current plan</span>
+            <span class="kpi-value accent" id="ov-plan">—</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Last active</span>
+            <span class="kpi-value" style="font-size:14px" id="ov-last-request">—</span>
+          </div>
         </div>
-        <div class="profile-row">
-          <span class="profile-label">Last request</span>
-          <span class="profile-value" id="last-request">—</span>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-head">
+            <span class="card-title">Daily usage</span>
+          </div>
+          <div class="card-body">
+            <div class="usage-track">
+              <div class="usage-fill fill-ok" id="ov-usage-bar" style="width:0%"></div>
+            </div>
+            <span class="usage-hint" id="ov-usage-hint">
+              Loading usage data…
+            </span>
+          </div>
+        </div>
+
+        <div class="upgrade-banner" id="ov-upgrade-banner" style="display:none">
+          <div class="upgrade-banner-text">
+            <strong>Unlock more with Pro</strong> — 1,000 requests/day, document storage,
+            3 API keys, and file upload support.
+          </div>
+          <a href="/pricing" class="btn-upgrade">Upgrade →</a>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">Quick actions</span>
+          </div>
+          <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap">
+            <a href="/console" class="btn">⌗ Open Playground</a>
+            <a href="/observer" class="btn">◎ Open Observer</a>
+            <button class="btn" onclick="navigateTo('keys')">◈ Manage API Keys</button>
+            <button class="btn" onclick="navigateTo('documents')">◫ View Documents</button>
+          </div>
         </div>
       </div>
 
-      <!-- Usage -->
-      <div class="section" id="usage">
+      <!-- ── DOCUMENTS ── -->
+      <div class="ws-section" id="sec-documents">
         <div class="section-head">
           <div>
-            <div class="section-title">Usage</div>
-            <div class="section-sub">Resets daily at midnight UTC</div>
+            <div class="section-title">Documents</div>
+            <div class="section-sub">Processed documents stored in your workspace</div>
           </div>
         </div>
-        <div class="usage-grid">
-          <div class="usage-cell">
-            <span class="usage-cell-label">Today</span>
-            <div class="usage-cell-value" id="usage-today">—</div>
-          </div>
-          <div class="usage-cell">
-            <span class="usage-cell-label">Daily limit</span>
-            <div class="usage-cell-value" id="usage-limit">—</div>
-          </div>
-          <div class="usage-cell">
-            <span class="usage-cell-label">All time</span>
-            <div class="usage-cell-value" id="usage-total">—</div>
+
+        <div id="docs-locked" style="display:none">
+          <div class="locked-feature">
+            <span class="locked-icon">◫</span>
+            <div class="locked-text">
+              <strong>Document storage is available on Pro and Team plans.</strong><br>
+              Enable storage to retrieve past results, replay processing, and build document history.
+            </div>
+            <a href="/pricing" class="btn-upgrade">Upgrade →</a>
           </div>
         </div>
-        <div class="usage-bar-wrap">
-          <div class="usage-bar-fill bar-green" id="usage-bar" style="width:0%"></div>
-        </div>
-        <div class="usage-detail">
-          <span id="usage-today-b">0</span> /
-          <span id="usage-limit-b">50</span> requests used today
+
+        <div id="docs-content" style="display:none">
+          <div class="card">
+            <div class="card-head">
+              <span class="card-title">Stored documents</span>
+              <button class="btn" onclick="loadDocuments()">↺ Refresh</button>
+            </div>
+            <div class="card-body" style="padding:0">
+              <div id="docs-list">
+                <div class="empty-state">Loading documents…</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- API Keys -->
-      <div class="section" id="keys">
+      <!-- ── API KEYS ── -->
+      <div class="ws-section" id="sec-keys">
         <div class="section-head">
           <div>
             <div class="section-title">API Keys</div>
-            <div class="section-sub">Keep your keys secret</div>
+            <div class="section-sub">Manage authentication credentials for API access</div>
           </div>
-          <button class="btn btn-primary" id="add-key-btn"
-            onclick="generateKey('live')">
-            + Generate key
-          </button>
         </div>
-        <div id="keys-list"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">Keys <span id="keys-count" style="color:var(--ink-muted);font-weight:400">0 / 1</span></span>
+            <button class="btn btn-primary" id="keys-add-btn" onclick="generateKey()">
+              + Generate key
+            </button>
+          </div>
+          <div class="card-body">
+            <div id="keys-list">
+              <div class="empty-state">Loading keys…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-head"><span class="card-title">Security notes</span></div>
+          <div class="card-body" style="font-size:13px;color:var(--ink-dim);line-height:1.7">
+            Keys are shown only once on generation — store them securely.<br>
+            Pass your key via the <code style="font-family:var(--mono);font-size:12px;background:var(--surface2);padding:1px 6px;border-radius:3px">X-API-Key</code> header on every request.<br>
+            Revoked keys stop working immediately. Usage counters are preserved.
+          </div>
+        </div>
       </div>
 
-      <!-- Billing -->
-      <div class="section" id="billing">
+      <!-- ── USAGE & LIMITS ── -->
+      <div class="ws-section" id="sec-usage">
         <div class="section-head">
-          <div class="section-title">Billing</div>
-          <button class="btn" id="manage-billing-btn"
+          <div>
+            <div class="section-title">Usage & Limits</div>
+            <div class="section-sub">Current consumption and plan limits</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="card-title">Plan limits</span></div>
+          <div class="card-body">
+            <div id="usage-table"></div>
+            <div style="margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-muted)" id="usage-reset"></div>
+          </div>
+        </div>
+
+        <div class="upgrade-banner" id="usage-upgrade" style="margin-top:16px">
+          <div class="upgrade-banner-text">
+            Need higher limits? <strong>Pro gives you 1,000 requests/day</strong>,
+            Team gives you 10,000.
+          </div>
+          <a href="/pricing" class="btn-upgrade">See plans →</a>
+        </div>
+      </div>
+
+      <!-- ── MEMBERS ── -->
+      <div class="ws-section" id="sec-members">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Members</div>
+            <div class="section-sub">Manage team access to this workspace</div>
+          </div>
+        </div>
+
+        <div class="trial-banner" id="members-trial-banner" style="display:none">
+          <div class="trial-banner-text">
+            <strong>Team workspaces are available on the Team plan.</strong><br>
+            You can set up your workspace now — members won't be able to join
+            until you upgrade.
+          </div>
+          <a href="/pricing#team" class="btn-upgrade">Upgrade to Team →</a>
+        </div>
+
+        <div id="members-content">
+          <div class="card">
+            <div class="card-head">
+              <span class="card-title">Team members</span>
+            </div>
+            <div class="card-body">
+              <div id="members-list">
+                <div class="member-row">
+                  <div class="member-avatar" id="owner-avatar">—</div>
+                  <div class="member-info">
+                    <span class="member-email" id="owner-email">—</span>
+                    <span class="member-role">Owner</span>
+                  </div>
+                  <div class="member-actions">
+                    <span class="badge badge-active">Owner</span>
+                  </div>
+                </div>
+              </div>
+              <div class="invite-row">
+                <input type="email" class="invite-input" id="invite-email"
+                  placeholder="colleague@company.com">
+                <button class="btn btn-primary" onclick="inviteMember()">
+                  Generate invite link
+                </button>
+              </div>
+
+              <!-- Invite link display — shown after generating -->
+              <div id="invite-link-box" style="display:none;margin-top:16px;
+                background:var(--surface2);border:1px solid var(--border2);
+                border-radius:8px;padding:14px 16px">
+                <div style="font-family:var(--mono);font-size:11px;
+                  color:var(--ink-muted);margin-bottom:8px">
+                  INVITE LINK FOR <span id="invite-link-email" style="color:var(--ink)"></span>
+                  · <span id="invite-link-expiry" style="color:var(--warn)"></span>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <input id="invite-link-url" type="text" readonly
+                    style="flex:1;background:var(--bg);border:1px solid var(--border);
+                    border-radius:6px;padding:8px 12px;font-family:var(--mono);
+                    font-size:11px;color:var(--accent);outline:none">
+                  <button class="btn btn-primary" onclick="copyInviteLink()">Copy</button>
+                </div>
+                <div style="font-size:12px;color:var(--ink-muted);margin-top:8px">
+                  Share this link manually — email, Slack, WhatsApp, or any channel.
+                  Invitee signs up via this link and auto-joins your workspace.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── BILLING ── -->
+      <div class="ws-section" id="sec-billing">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Billing</div>
+            <div class="section-sub">Subscription and payment management</div>
+          </div>
+          <button class="btn" id="bill-manage-btn"
             onclick="openPortal()" style="display:none">
             Manage subscription
           </button>
         </div>
-        <div class="billing-row">
-          <span class="billing-row-label">Plan</span>
-          <span class="billing-row-value" id="billing-tier">—</span>
-        </div>
-        <div class="billing-row">
-          <span class="billing-row-label">Status</span>
-          <span class="status-pill status-free" id="billing-status">—</span>
-        </div>
-        <div class="billing-row" id="billing-renews-row">
-          <span class="billing-row-label">Renewal</span>
-          <span class="billing-row-value" id="billing-renews"
-            style="display:none">—</span>
-        </div>
-        <div class="upgrade-btns" id="upgrade-btns">
-          <button class="btn btn-accent" onclick="upgradeTo('pro')">
-            Upgrade to Pro — $29/mo
-          </button>
-          <button class="btn btn-primary" onclick="upgradeTo('team')">
-            Upgrade to Team — $79/mo
-          </button>
-        </div>
-      </div>
 
-      <!-- Storage -->
-      <div id="storage-unavailable" style="display:none">
-        <div class="section">
-          <div class="section-head">
-            <div class="section-title">Storage</div>
-          </div>
-          <p style="font-size:13px;color:var(--ink-dim);line-height:1.6">
-            Document storage is available on Pro and Team plans.
-            <a href="/pricing" style="color:var(--accent-dk)">Upgrade →</a>
-          </p>
-        </div>
-      </div>
-
-      <div class="section" id="storage-section" style="display:none">
-        <div class="section-head">
-          <div class="section-title">Storage</div>
-          <button class="btn btn-primary" onclick="saveStorage()">
-            Save settings
-          </button>
-        </div>
-        <div class="storage-row">
-          <div>
-            <div class="storage-label">Enable document storage</div>
-            <div class="storage-hint">
-              Store processed documents for retrieval and replay
+        <div class="card">
+          <div class="card-head"><span class="card-title">Current plan</span></div>
+          <div class="card-body">
+            <div class="billing-row">
+              <span class="billing-label">Plan</span>
+              <span class="billing-value" id="bill-plan">—</span>
+            </div>
+            <div class="billing-row">
+              <span class="billing-label">Status</span>
+              <span id="bill-status" class="badge badge-free">—</span>
+            </div>
+            <div class="billing-row" id="bill-renewal-row">
+              <span class="billing-label">Renewal</span>
+              <span class="billing-value" id="bill-renewal">—</span>
             </div>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="storage-toggle">
-            <span class="switch-slider"></span>
-          </label>
         </div>
-        <div class="storage-row">
-          <div>
-            <div class="storage-label">Retention period</div>
-            <div class="storage-hint">Documents older than this are deleted</div>
-          </div>
-          <select id="retention-select">
-            <option value="7">7 days</option>
-            <option value="30">30 days</option>
-            <option value="90">90 days</option>
-          </select>
-        </div>
-        <div class="storage-row">
-          <div>
-            <div class="storage-label">Auto-delete on expiry</div>
-            <div class="storage-hint">
-              Automatically delete documents when retention period ends
-            </div>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="auto-delete-toggle" checked>
-            <span class="switch-slider"></span>
-          </label>
+
+        <div class="upgrade-btns" id="bill-upgrade-btns" style="display:none">
+          <a href="/pricing" class="btn btn-primary">Upgrade to Pro — $29/mo</a>
+          <a href="/pricing#team" class="btn">Upgrade to Team — $79/mo</a>
         </div>
       </div>
 
-      <!-- Workspace / Team -->
-      <div class="section" id="workspace-section" style="display:none">
+      <!-- ── SETTINGS ── -->
+      <div class="ws-section" id="sec-settings">
         <div class="section-head">
           <div>
-            <div class="section-title" id="ws-name">Team workspace</div>
-            <div class="section-sub">
-              <span id="ws-members-count">—</span> members ·
-              your role: <span id="ws-role">—</span>
+            <div class="section-title">Settings</div>
+            <div class="section-sub">Workspace configuration and storage preferences</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-head"><span class="card-title">Workspace</span></div>
+          <div class="card-body">
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">Workspace name</div>
+                <div class="settings-hint">Visible to all members in your workspace</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="text" id="ws-rename-input"
+                  style="background:var(--surface2);border:1px solid var(--border2);
+                  border-radius:6px;padding:7px 12px;font-family:var(--mono);
+                  font-size:12px;color:var(--ink);outline:none;width:180px"
+                  placeholder="My Workspace"
+                  onfocus="this.style.borderColor='var(--accent)'"
+                  onblur="this.style.borderColor='var(--border2)'">
+                <button class="btn" onclick="renameWorkspace()">Save</button>
+              </div>
             </div>
           </div>
         </div>
-        <div id="ws-members"></div>
-        <div class="invite-row">
-          <input type="email" id="invite-email" placeholder="member@company.com">
-          <input type="text" id="invite-uid" placeholder="Firebase UID">
-          <button class="btn btn-primary" onclick="inviteMember()">
-            Invite
-          </button>
-        </div>
-      </div>
 
-      <!-- Danger zone -->
-      <div class="section danger-zone">
-        <div class="section-head">
-          <div class="section-title">Danger zone</div>
-        </div>
-        <div style="display:flex;align-items:center;
-          justify-content:space-between;padding:8px 0">
-          <div>
-            <div style="font-size:13px;font-weight:500">Delete account</div>
-            <div style="font-size:12px;color:var(--ink-muted);margin-top:2px">
-              Permanently delete your account and all data. Cannot be undone.
+        <div class="card">
+          <div class="card-head"><span class="card-title">Document storage</span></div>
+          <div class="card-body">
+
+            <div id="settings-storage-locked" style="display:none">
+              <div class="locked-feature">
+                <span class="locked-icon">◫</span>
+                <div class="locked-text">
+                  <strong>Storage is available on Pro and Team plans.</strong><br>
+                  Store processed documents for retrieval, replay, and audit trails.
+                </div>
+                <a href="/pricing" class="btn-upgrade">Upgrade →</a>
+              </div>
+            </div>
+
+            <div id="settings-storage-form" style="display:none">
+              <div class="settings-row">
+                <div>
+                  <div class="settings-label">Enable document storage</div>
+                  <div class="settings-hint">Store processed documents for retrieval and replay</div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="storage-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="settings-row">
+                <div>
+                  <div class="settings-label">Retention period</div>
+                  <div class="settings-hint">Documents older than this are deleted automatically</div>
+                </div>
+                <div class="retention-options">
+                  <label class="retention-option">
+                    <input type="radio" name="retention" value="7" checked>
+                    <label>7 days</label>
+                  </label>
+                  <label class="retention-option">
+                    <input type="radio" name="retention" value="30">
+                    <label>30 days</label>
+                  </label>
+                  <label class="retention-option">
+                    <input type="radio" name="retention" value="90">
+                    <label>90 days</label>
+                  </label>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <div>
+                  <div class="settings-label">Auto-delete on expiry</div>
+                  <div class="settings-hint">Automatically delete documents when retention period ends</div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="storage-autodelete" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div style="margin-top:20px">
+                <button class="btn btn-primary" onclick="saveStorage()">Save settings</button>
+              </div>
             </div>
           </div>
-          <button class="btn btn-danger btn-sm" onclick="deleteAccount()">
-            Delete account
-          </button>
+        </div>
+
+        <div class="danger-zone">
+          <div class="danger-head">Danger zone</div>
+          <div class="danger-body">
+            <div class="danger-row">
+              <div>
+                <div class="danger-label">Sign out</div>
+                <div class="danger-hint">Sign out of this workspace</div>
+              </div>
+              <button class="btn-danger-solid" onclick="signOut()">Sign out</button>
+            </div>
+            <div class="danger-row" style="margin-top:16px">
+              <div>
+                <div class="danger-label">Delete account</div>
+                <div class="danger-hint">Permanently delete your account and all data</div>
+              </div>
+              <button class="btn-danger-solid" onclick="deleteAccount()">Delete account</button>
+            </div>
+          </div>
         </div>
       </div>
 
-    </div>
-  </div>
+    </div><!-- /ws-content -->
+  </main>
 </div>
 
-<!-- New key modal -->
+<!-- NEW KEY MODAL -->
 <div class="modal-overlay" id="new-key-modal">
-  <div class="modal-card">
-    <div class="modal-title">New API key generated</div>
-    <div class="modal-sub">
-      Copy this key now. It will not be shown again.
-    </div>
-    <div class="modal-key" id="new-key-value">—</div>
-    <div class="modal-warning">
-      ⚠ Store this key securely. Anyone with this key can
-      make requests on your behalf.
-    </div>
+  <div class="modal">
+    <div class="modal-title">API key generated</div>
+    <div class="modal-warn">⚠ Copy this key now — it will not be shown again.</div>
+    <div class="key-display" id="new-key-val"></div>
     <div class="modal-actions">
-      <button class="btn" id="copy-new-key" onclick="copyNewKey()">Copy</button>
+      <button class="btn" onclick="copyNewKey()">Copy key</button>
       <button class="btn btn-primary" onclick="closeNewKey()">Done</button>
     </div>
   </div>
 </div>
 
-<!-- Toast -->
+<!-- TOAST -->
 <div class="toast" id="toast"></div>
+
+<script>
+// Set owner info once profile loads
+document.addEventListener('DOMContentLoaded', () => {
+  // Patch renderOverview to also update usage hint
+  const _orig = window.navigateTo;
+});
+
+// Patch renderOverview to set usage hint text
+const _patchOverview = () => {
+  const ov = document.getElementById('ov-usage-hint');
+  if (ov && window.profileData) {
+    const u = window.profileData.usage || {};
+    const l = window.profileData.limits || {};
+    const today = u.requests_today || 0;
+    const limit = l.requests_per_day || 50;
+    ov.textContent = limit === -1
+      ? `${today} requests used today · unlimited plan`
+      : `${today} of ${limit} requests used today`;
+  }
+};
+
+// Expose for module scope
+Object.defineProperty(window, 'profileData', {
+  get() { return window._profileData; },
+  set(v) { window._profileData = v; setTimeout(_patchOverview, 50); }
+});
+
+// Set owner avatar/email in members section once loaded
+const _patchMembers = () => {
+  const p = window._profileData;
+  if (!p) return;
+  const el = document.getElementById('owner-email');
+  const av = document.getElementById('owner-avatar');
+  if (el) el.textContent = p.email || '—';
+  if (av) av.textContent = (p.email || 'Q').charAt(0).toUpperCase();
+};
+
+const _origSet = Object.getOwnPropertyDescriptor(window, 'profileData').set;
+Object.defineProperty(window, 'profileData', {
+  get() { return window._profileData; },
+  set(v) {
+    window._profileData = v;
+    setTimeout(_patchOverview, 50);
+    setTimeout(_patchMembers, 50);
+  }
+});
+</script>
 
 </body>
 </html>

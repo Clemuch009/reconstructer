@@ -1,6 +1,9 @@
 # api/auth/router.py
 
 from typing import Optional
+import secrets
+import string
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 
@@ -15,11 +18,22 @@ from api.auth.firestore import (
     delete_session,
     delete_all_sessions,
     TIER_LIMITS,
+    _get_db,
+    USERS_COL,
+)
+from api.auth.workspace import (
+    create_workspace,
+    get_workspace,
+    remove_member,
+    update_member_role,
+    delete_workspace,
 )
 from api.dependencies import verify_api_key
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+PENDING_INVITES_COL = "pending_invites"
 
 
 # ---------------------------------
@@ -29,10 +43,6 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 _firebase_app = None
 
 def _get_firebase():
-    """
-    Lazy Firebase Admin SDK initialization.
-    Uses Application Default Credentials on Cloud Run.
-    """
     global _firebase_app
     if _firebase_app is None:
         import firebase_admin
@@ -44,11 +54,6 @@ def _get_firebase():
 
 
 def _verify_firebase_token(id_token: str) -> dict:
-    """
-    Verify Firebase ID token.
-    Returns decoded token claims.
-    Raises HTTPException on invalid token.
-    """
     try:
         from firebase_admin import auth
         _get_firebase()
@@ -61,22 +66,42 @@ def _verify_firebase_token(id_token: str) -> dict:
         )
 
 
+def _get_user_role(user: dict) -> str:
+    return user.get("workspace_role", "member")
+
+
+def _require_role(user: dict, minimum_role: str) -> None:
+    hierarchy = {"owner": 3, "admin": 2, "member": 1}
+    role = _get_user_role(user)
+    if hierarchy.get(role, 0) < hierarchy.get(minimum_role, 0):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"This action requires {minimum_role} role or higher.",
+        )
+
+
+def _generate_invite_token() -> str:
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(32))
+
+
 # ---------------------------------
 # Request models
 # ---------------------------------
 
 class SignupRequest(BaseModel):
-    id_token: str          # Firebase ID token from client-side auth
+    id_token:     str
+    invite_token: Optional[str] = None   # optional — from invite URL
 
 
 class GenerateKeyRequest(BaseModel):
     id_token: str
-    key_type: str = "live"  # "live" | "test"
+    key_type: str = "live"
 
 
 class RevokeKeyRequest(BaseModel):
     id_token: str
-    prefix:   str           # key prefix to revoke
+    prefix:   str
 
 
 class StorageSettingsRequest(BaseModel):
@@ -86,9 +111,25 @@ class StorageSettingsRequest(BaseModel):
     auto_delete:    bool = True
 
 
-class DeleteSessionRequest(BaseModel):
+class CreateWorkspaceRequest(BaseModel):
+    id_token: str
+    name:     str
+
+
+class InviteMemberRequest(BaseModel):
+    id_token: str
+    email:    str
+
+
+class RenameWorkspaceRequest(BaseModel):
+    id_token: str
+    name:     str
+
+
+class UpdateRoleRequest(BaseModel):
     id_token:   str
-    session_id: str
+    member_uid: str
+    new_role:   str
 
 
 # ---------------------------------
@@ -99,63 +140,122 @@ class DeleteSessionRequest(BaseModel):
 async def signup(request: SignupRequest) -> dict:
     """
     Register a new user after Firebase client-side auth.
-
-    Flow:
-    1. Client authenticates via Firebase (email/Google)
-    2. Client sends Firebase ID token to this endpoint
-    3. We verify token, create Firestore user record
-    4. Generate initial API key
-    5. Return key — shown ONCE, never again
-
-    Rules:
-    - ID token verified server-side — never trust client claims
-    - User record created in Firestore
-    - One starter key generated automatically on signup
-    - Full key returned once — user must save it
+    Accepts optional invite_token — auto-joins workspace if valid.
     """
     decoded = _verify_firebase_token(request.id_token)
     uid     = decoded["uid"]
     email   = decoded.get("email", "")
 
-    # Check if user already exists
     existing = get_user(uid)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="User already registered. Use /auth/login to get your details.",
+            detail="User already registered. Use /auth/login.",
         )
 
-    # Create user record
     user = create_user(uid=uid, email=email, tier="starter")
 
-    # Generate initial API key
     api_key    = generate_key(key_type="live")
     stored_key = to_stored_key(api_key)
     add_api_key(uid, stored_key)
 
-    return {
+    # Process invite token if present
+    invite_message = None
+    if request.invite_token:
+        invite_message = _process_invite(uid, email, request.invite_token)
+
+    result = {
         "uid":     uid,
         "email":   email,
         "tier":    "starter",
         "limits":  TIER_LIMITS["starter"],
         "api_key": {
-            "key":      api_key["key"],     # shown ONCE
+            "key":      api_key["key"],
             "prefix":   api_key["prefix"],
             "key_type": api_key["key_type"],
             "warning":  "Save this key — it will not be shown again.",
         },
     }
 
+    if invite_message:
+        result["invite"] = invite_message
+
+    return result
+
+
+def _process_invite(uid: str, email: str, token: str) -> Optional[str]:
+    """
+    Process a workspace invite token on signup.
+    Returns a status message or None on failure.
+    """
+    try:
+        db  = _get_db()
+        doc = db.collection(PENDING_INVITES_COL).document(token).get()
+        if not doc.exists:
+            return "Invite token not found or expired."
+
+        invite = doc.to_dict()
+
+        # Check not already used
+        if invite.get("used", False):
+            return "Invite token already used."
+
+        # Check expiry
+        expires_at = invite.get("expires_at", "")
+        if expires_at and datetime.now(timezone.utc).isoformat() > expires_at:
+            return "Invite token expired."
+
+        # Check email matches (optional but recommended)
+        if invite.get("invitee_email") and invite["invitee_email"] != email:
+            return "Invite was for a different email address."
+
+        workspace_id   = invite["workspace_id"]
+        workspace_name = invite.get("workspace_name", "")
+        role           = invite.get("role", "member")
+
+        # Add member to workspace
+        workspace = get_workspace(workspace_id)
+        if not workspace:
+            return "Workspace no longer exists."
+
+        now = datetime.now(timezone.utc).isoformat()
+        members = workspace.get("members", [])
+        members.append({
+            "uid":       uid,
+            "email":     email,
+            "role":      role,
+            "joined_at": now,
+            "active":    True,
+        })
+
+        db.collection("workspaces").document(workspace_id).update({
+            "members":      members,
+            "member_count": len([m for m in members if m.get("active", True)]),
+        })
+
+        # Update user record
+        db.collection(USERS_COL).document(uid).update({
+            "workspace_id":   workspace_id,
+            "workspace_role": role,
+            "workspace_name": workspace_name,
+            "tier":           "team",  # grant team tier on joining
+        })
+
+        # Mark invite as used
+        db.collection(PENDING_INVITES_COL).document(token).update({
+            "used":    True,
+            "used_by": uid,
+            "used_at": now,
+        })
+
+        return f"Joined workspace '{workspace_name}' as {role}."
+
+    except Exception as e:
+        return f"Could not process invite: {str(e)[:100]}"
+
 
 @router.post("/login")
 async def login(request: SignupRequest) -> dict:
-    """
-    Retrieve user profile for existing user.
-    Verifies Firebase token — returns user record without keys.
-
-    Keys are never returned after initial signup.
-    If key is lost — revoke and generate a new one.
-    """
     decoded = _verify_firebase_token(request.id_token)
     uid     = decoded["uid"]
 
@@ -166,7 +266,6 @@ async def login(request: SignupRequest) -> dict:
             detail="User not found. Please sign up first.",
         )
 
-    # Return safe profile — no key hashes exposed
     safe_keys = [
         {
             "prefix":     k["prefix"],
@@ -186,6 +285,9 @@ async def login(request: SignupRequest) -> dict:
         "api_keys":         safe_keys,
         "storage_settings": user.get("storage_settings", {}),
         "usage":            user.get("usage", {}),
+        "workspace_id":     user.get("workspace_id"),
+        "workspace_role":   user.get("workspace_role"),
+        "workspace_name":   user.get("workspace_name"),
     }
 
 
@@ -195,21 +297,12 @@ async def login(request: SignupRequest) -> dict:
 
 @router.post("/keys/generate")
 async def generate_api_key(request: GenerateKeyRequest) -> dict:
-    """
-    Generate a new API key for authenticated user.
-    Enforces max_keys limit per tier.
-
-    Key returned ONCE — user must save it.
-    """
     decoded = _verify_firebase_token(request.id_token)
     uid     = decoded["uid"]
 
     user = get_user(uid)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
+        raise HTTPException(status_code=404, detail="User not found.")
 
     tier     = user.get("tier", "starter")
     max_keys = TIER_LIMITS[tier]["max_keys"]
@@ -232,7 +325,7 @@ async def generate_api_key(request: GenerateKeyRequest) -> dict:
 
     return {
         "api_key": {
-            "key":      api_key["key"],     # shown ONCE
+            "key":      api_key["key"],
             "prefix":   api_key["prefix"],
             "key_type": api_key["key_type"],
             "warning":  "Save this key — it will not be shown again.",
@@ -242,10 +335,6 @@ async def generate_api_key(request: GenerateKeyRequest) -> dict:
 
 @router.post("/keys/revoke")
 async def revoke_key(request: RevokeKeyRequest) -> dict:
-    """
-    Revoke an API key by prefix.
-    Key is deactivated — record preserved for audit.
-    """
     decoded = _verify_firebase_token(request.id_token)
     uid     = decoded["uid"]
 
@@ -259,7 +348,7 @@ async def revoke_key(request: RevokeKeyRequest) -> dict:
     return {
         "status":  "revoked",
         "prefix":  request.prefix,
-        "message": "Key deactivated. Generate a new key if needed.",
+        "message": "Key deactivated.",
     }
 
 
@@ -269,19 +358,12 @@ async def revoke_key(request: RevokeKeyRequest) -> dict:
 
 @router.post("/storage/settings")
 async def update_storage(request: StorageSettingsRequest) -> dict:
-    """
-    Update storage preferences for Pro/Enterprise users.
-    Returns error if tier does not support storage.
-    """
     decoded = _verify_firebase_token(request.id_token)
     uid     = decoded["uid"]
 
     user = get_user(uid)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
+        raise HTTPException(status_code=404, detail="User not found.")
 
     tier = user.get("tier", "starter")
     if not TIER_LIMITS.get(tier, {}).get("storage", False):
@@ -290,7 +372,7 @@ async def update_storage(request: StorageSettingsRequest) -> dict:
             detail=f"Storage is not available on the {tier} tier. Upgrade to Pro.",
         )
 
-    success = update_storage_settings(
+    update_storage_settings(
         uid=uid,
         enabled=request.enabled,
         retention_days=request.retention_days,
@@ -308,77 +390,46 @@ async def update_storage(request: StorageSettingsRequest) -> dict:
 
 
 # ---------------------------------
-# Session history (Pro/Enterprise)
+# Session history
 # ---------------------------------
 
 @router.get("/sessions")
-async def list_sessions(
-    id_token: str,
-    limit:    int = 20,
-) -> dict:
-    """
-    List stored sessions for authenticated user.
-    Returns empty list if storage not enabled.
-    """
+async def list_sessions(id_token: str, limit: int = 20) -> dict:
     decoded = _verify_firebase_token(id_token)
     uid     = decoded["uid"]
 
     user = get_user(uid)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
+        raise HTTPException(status_code=404, detail="User not found.")
 
     settings = user.get("storage_settings", {})
     if not settings.get("enabled", False):
         return {
             "sessions": [],
-            "message":  "Storage not enabled. Enable in /auth/storage/settings.",
+            "message":  "Storage not enabled. Enable in Settings → Document storage.",
         }
 
     sessions = get_stored_sessions(uid, limit=min(limit, 100))
-    return {
-        "count":    len(sessions),
-        "sessions": sessions,
-    }
+    return {"count": len(sessions), "sessions": sessions}
 
 
 @router.delete("/sessions/{session_id}")
-async def delete_one_session(
-    session_id: str,
-    id_token:   str,
-) -> dict:
-    """
-    Delete a specific stored session.
-    User-controlled deletion — GDPR compliant.
-    """
+async def delete_one_session(session_id: str, id_token: str) -> dict:
     decoded = _verify_firebase_token(id_token)
     uid     = decoded["uid"]
-
     delete_session(uid, session_id)
-    return {
-        "status":     "deleted",
-        "session_id": session_id,
-    }
+    return {"status": "deleted", "session_id": session_id}
 
 
 @router.delete("/sessions")
-async def delete_all_user_sessions(
-    id_token: str,
-) -> dict:
-    """
-    Delete ALL stored sessions for authenticated user.
-    Right to erasure — GDPR Article 17.
-    """
+async def delete_all_user_sessions(id_token: str) -> dict:
     decoded = _verify_firebase_token(id_token)
     uid     = decoded["uid"]
-
-    count = delete_all_sessions(uid)
+    count   = delete_all_sessions(uid)
     return {
-        "status":          "deleted",
+        "status":           "deleted",
         "sessions_deleted": count,
-        "message":         "All stored sessions permanently deleted.",
+        "message":          "All stored sessions permanently deleted.",
     }
 
 
@@ -387,77 +438,101 @@ async def delete_all_user_sessions(
 # ---------------------------------
 
 @router.delete("/account")
-async def delete_account(
-    id_token: str,
-) -> dict:
-    """
-    Delete user account and all associated data.
-    GDPR Article 17 — right to erasure.
-
-    Deletes:
-    - All stored sessions
-    - User record in Firestore
-    - Firebase Auth account
-    """
+async def delete_account(id_token: str) -> dict:
     decoded = _verify_firebase_token(id_token)
     uid     = decoded["uid"]
 
-    # Delete all sessions
     delete_all_sessions(uid)
-
-    # Delete Firestore user record
-    from api.auth.firestore import _get_db, USERS_COL
     _get_db().collection(USERS_COL).document(uid).delete()
 
-    # Delete Firebase Auth account
     try:
         from firebase_admin import auth
         auth.delete_user(uid)
     except Exception:
         pass
 
-    return {
-        "status":  "deleted",
-        "message": "Account and all associated data permanently deleted.",
-    }
-
-# Add to api/auth/router.py
-
-from api.auth.workspace import (
-    create_workspace,
-    get_workspace,
-    invite_member,
-    remove_member,
-    update_member_role,
-    delete_workspace,
-)
+    return {"status": "deleted", "message": "Account permanently deleted."}
 
 
-class CreateWorkspaceRequest(BaseModel):
-    id_token: str
-    name:     str
-
-
-class InviteMemberRequest(BaseModel):
-    id_token:     str
-    member_email: str
-    member_uid:   str
-    role:         str = "member"
-
-
-class UpdateRoleRequest(BaseModel):
-    id_token:   str
-    member_uid: str
-    new_role:   str
-
+# ---------------------------------
+# Workspace
+# ---------------------------------
 
 @router.post("/workspace/create")
-async def create_workspace_endpoint(
-    request: CreateWorkspaceRequest,
-) -> dict:
+async def create_workspace_endpoint(request: CreateWorkspaceRequest) -> dict:
+    decoded = _verify_firebase_token(request.id_token)
+    uid     = decoded["uid"]
+
+    user = get_user(uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    name = request.name.strip() or user["email"].split("@")[0]
+
+    workspace = create_workspace(
+        owner_uid=uid,
+        owner_email=user["email"],
+        name=name,
+        tier=user.get("tier", "starter"),
+    )
+
+    _get_db().collection(USERS_COL).document(uid).update({
+        "workspace_id":   workspace["workspace_id"],
+        "workspace_role": "owner",
+        "workspace_name": name,
+    })
+
+    return {
+        "workspace_id": workspace["workspace_id"],
+        "name":         workspace["name"],
+        "tier":         workspace["tier"],
+    }
+
+
+@router.get("/workspace")
+async def get_workspace_endpoint(id_token: str) -> dict:
+    decoded = _verify_firebase_token(id_token)
+    uid     = decoded["uid"]
+
+    user = get_user(uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    workspace_id = user.get("workspace_id")
+    if not workspace_id:
+        raise HTTPException(status_code=404, detail="No workspace found.")
+
+    workspace = get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found.")
+
+    return {
+        "workspace_id": workspace["workspace_id"],
+        "name":         workspace["name"],
+        "tier":         workspace["tier"],
+        "member_count": workspace.get("member_count", 1),
+        "max_members":  workspace.get("max_members", 10),
+        "your_role":    user.get("workspace_role", "owner"),
+        "members": [
+            {
+                "uid":       m.get("uid", ""),
+                "email":     m["email"],
+                "role":      m["role"],
+                "joined_at": m.get("joined_at"),
+                "active":    m.get("active", True),
+            }
+            for m in workspace.get("members", [])
+            if m.get("active", True)
+        ],
+    }
+
+
+@router.post("/workspace/invite")
+async def invite_member_endpoint(request: InviteMemberRequest) -> dict:
     """
-    Create a workspace for Team/Enterprise user.
-    Called automatically after Team tier upgrade.
+    Create an invite link for a new member.
+    Returns a URL the owner shares manually — no email sending needed.
+    Invitee clicks the link → signs up → auto-joins workspace.
     """
     decoded = _verify_firebase_token(request.id_token)
     uid     = decoded["uid"]
@@ -470,29 +545,94 @@ async def create_workspace_endpoint(
     if tier not in ("team", "enterprise"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Workspace requires Team or Enterprise tier.",
+            detail="Team workspace requires Team or Enterprise plan.",
         )
 
-    workspace = create_workspace(
-        owner_uid=uid,
-        owner_email=user["email"],
-        name=request.name,
-        tier=tier,
-    )
+    _require_role(user, "admin")
+
+    workspace_id = user.get("workspace_id")
+    if not workspace_id:
+        raise HTTPException(status_code=404, detail="No workspace found. Create one first.")
+
+    workspace = get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found.")
+
+    # Check member limit
+    active  = [m for m in workspace.get("members", []) if m.get("active", True)]
+    max_m   = workspace.get("max_members", 10)
+    if max_m != -1 and len(active) >= max_m:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Workspace is at member limit ({max_m}).",
+        )
+
+    # Check not already a member
+    if request.email in [m["email"] for m in workspace.get("members", [])]:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{request.email} is already a member.",
+        )
+
+    # Create pending invite record
+    token      = _generate_invite_token()
+    db         = _get_db()
+    now        = datetime.now(timezone.utc)
+    expires_at = (now + timedelta(days=7)).isoformat()
+
+    db.collection(PENDING_INVITES_COL).document(token).set({
+        "token":          token,
+        "workspace_id":   workspace_id,
+        "workspace_name": workspace.get("name", ""),
+        "inviter_uid":    uid,
+        "inviter_email":  user["email"],
+        "invitee_email":  request.email,
+        "role":           "member",
+        "created_at":     now.isoformat(),
+        "expires_at":     expires_at,
+        "used":           False,
+    })
+
+    invite_url = f"https://moonlit-grail-386316.web.app/signup?invite={token}"
 
     return {
-        "workspace_id": workspace["workspace_id"],
-        "name":         workspace["name"],
-        "tier":         workspace["tier"],
-        "max_members":  workspace["max_members"],
+        "status":     "created",
+        "invite_url": invite_url,
+        "email":      request.email,
+        "expires_at": expires_at,
+        "message":    f"Share this link with {request.email}. Expires in 7 days.",
     }
 
 
-@router.get("/workspace")
-async def get_workspace_endpoint(id_token: str) -> dict:
-    """
-    Get workspace details for authenticated user.
-    """
+@router.post("/workspace/rename")
+async def rename_workspace(request: RenameWorkspaceRequest) -> dict:
+    """Rename workspace. Owner only."""
+    decoded = _verify_firebase_token(request.id_token)
+    uid     = decoded["uid"]
+
+    user = get_user(uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    _require_role(user, "owner")
+
+    workspace_id = user.get("workspace_id")
+    if not workspace_id:
+        raise HTTPException(status_code=404, detail="No workspace found.")
+
+    name = request.name.strip()
+    if not name or len(name) > 50:
+        raise HTTPException(status_code=422, detail="Name must be 1–50 characters.")
+
+    db = _get_db()
+    db.collection("workspaces").document(workspace_id).update({"name": name})
+    db.collection(USERS_COL).document(uid).update({"workspace_name": name})
+
+    return {"status": "renamed", "name": name}
+
+
+@router.delete("/workspace/member/{member_uid}")
+async def remove_member_endpoint(member_uid: str, id_token: str) -> dict:
     decoded = _verify_firebase_token(id_token)
     uid     = decoded["uid"]
 
@@ -500,78 +640,9 @@ async def get_workspace_endpoint(id_token: str) -> dict:
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
+    _require_role(user, "admin")
+
     workspace_id = user.get("workspace_id")
-    if not workspace_id:
-        raise HTTPException(
-            status_code=404,
-            detail="No workspace found. Create one or join a team.",
-        )
-
-    workspace = get_workspace(workspace_id)
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found.")
-
-    # Return safe view — no internal IDs of other users exposed beyond email
-    return {
-        "workspace_id": workspace["workspace_id"],
-        "name":         workspace["name"],
-        "tier":         workspace["tier"],
-        "member_count": workspace["member_count"],
-        "max_members":  workspace["max_members"],
-        "your_role":    user.get("workspace_role"),
-        "members": [
-            {
-                "email":     m["email"],
-                "role":      m["role"],
-                "joined_at": m["joined_at"],
-                "active":    m["active"],
-            }
-            for m in workspace.get("members", [])
-            if m["active"]
-        ],
-        "usage":    workspace.get("usage", {}),
-    }
-
-
-@router.post("/workspace/invite")
-async def invite_member_endpoint(
-    request: InviteMemberRequest,
-) -> dict:
-    decoded      = _verify_firebase_token(request.id_token)
-    uid          = decoded["uid"]
-    user         = get_user(uid)
-    workspace_id = user.get("workspace_id") if user else None
-
-    if not workspace_id:
-        raise HTTPException(status_code=404, detail="No workspace found.")
-
-    success, message = invite_member(
-        workspace_id=workspace_id,
-        inviter_uid=uid,
-        member_email=request.member_email,
-        member_uid=request.member_uid,
-        role=request.role,
-    )
-
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=message,
-        )
-
-    return {"status": "invited", "message": message}
-
-
-@router.delete("/workspace/member/{member_uid}")
-async def remove_member_endpoint(
-    member_uid: str,
-    id_token:   str,
-) -> dict:
-    decoded      = _verify_firebase_token(id_token)
-    uid          = decoded["uid"]
-    user         = get_user(uid)
-    workspace_id = user.get("workspace_id") if user else None
-
     if not workspace_id:
         raise HTTPException(status_code=404, detail="No workspace found.")
 
@@ -582,24 +653,23 @@ async def remove_member_endpoint(
     )
 
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=message,
-        )
+        raise HTTPException(status_code=403, detail=message)
 
     return {"status": "removed", "message": message}
 
 
 @router.patch("/workspace/member/{member_uid}/role")
-async def update_role_endpoint(
-    member_uid: str,
-    request:    UpdateRoleRequest,
-) -> dict:
-    decoded      = _verify_firebase_token(request.id_token)
-    uid          = decoded["uid"]
-    user         = get_user(uid)
-    workspace_id = user.get("workspace_id") if user else None
+async def update_role_endpoint(member_uid: str, request: UpdateRoleRequest) -> dict:
+    decoded = _verify_firebase_token(request.id_token)
+    uid     = decoded["uid"]
 
+    user = get_user(uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    _require_role(user, "owner")
+
+    workspace_id = user.get("workspace_id")
     if not workspace_id:
         raise HTTPException(status_code=404, detail="No workspace found.")
 
@@ -611,9 +681,6 @@ async def update_role_endpoint(
     )
 
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=message,
-        )
+        raise HTTPException(status_code=403, detail=message)
 
     return {"status": "updated", "message": message}
