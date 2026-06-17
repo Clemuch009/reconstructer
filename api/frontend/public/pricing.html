@@ -608,7 +608,7 @@
     <span class="nav-logo-text">Qrynt</span>
   </a>
   <div class="nav-links">
-    <a href="/docs" class="nav-link">Docs</a>
+    <a href="/help" class="nav-link">Help</a>
     <a href="/console" class="nav-link">Try Qrynt</a>
     <a href="/feedback" class="nav-link">Feedback</a>
     <a href="/signup" class="nav-cta">Get started</a>
@@ -743,7 +743,11 @@
     <ul class="feature-list">
       <li class="feature-item strong">
         <span class="feature-check check-green">✓</span>
-        10,000 requests / day
+        10,000 requests / day — shared pool
+      </li>
+      <li class="feature-item" style="font-size:11px;color:var(--ink-muted);padding-left:22px;margin-top:-6px">
+        All members draw from one concurrent pool.
+        Atomic tracking — no double-counting.
       </li>
       <li class="feature-item">
         <span class="feature-check check-green">✓</span>
@@ -756,6 +760,11 @@
       <li class="feature-item">
         <span class="feature-check check-green">✓</span>
         Up to 10 members
+        <!-- Need more than 10 members? Contact us for a custom plan -->
+      </li>
+      <li class="feature-item">
+        <span class="feature-check check-green">✓</span>
+        Per-member usage breakdown
       </li>
       <li class="feature-item">
         <span class="feature-check check-green">✓</span>
@@ -766,6 +775,12 @@
         Admin controls
       </li>
     </ul>
+    <div style="margin-top:14px;font-size:11px;color:var(--ink-muted);
+      border-top:1px solid var(--border);padding-top:12px">
+      Need more than 10 members or higher volume?
+      <a href="mailto:qrynttech@gmail.com"
+        style="color:var(--accent-dk);text-decoration:none">Contact us →</a>
+    </div>
   </div>
 
   <!-- Enterprise -->

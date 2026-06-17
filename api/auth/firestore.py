@@ -312,6 +312,7 @@ def check_usage_limit(uid: str, tier: str) -> tuple[bool, dict]:
     """
     Check if user is within their daily request limit.
     Returns (within_limit, usage_dict).
+    For team/enterprise tiers, use check_workspace_limit instead.
     """
     db  = _get_db()
     ref = db.collection(USERS_COL).document(uid)
@@ -336,6 +337,177 @@ def check_usage_limit(uid: str, tier: str) -> tuple[bool, dict]:
 
     within_limit = usage.get("requests_today", 0) < limit
     return within_limit, usage
+
+
+# ---------------------------------
+# Workspace usage — shared pool (team tier)
+# Uses Firestore transactions for atomic check + increment
+# ---------------------------------
+
+WORKSPACES_COL = "workspaces"
+
+
+def check_and_increment_workspace(
+    workspace_id: str,
+    uid:          str,
+    tier:         str,
+    count:        int = 1,
+) -> tuple[bool, dict]:
+    """
+    Atomically check and increment the workspace shared request pool.
+
+    Uses a Firestore transaction to guarantee correctness under
+    concurrent requests from multiple team members. The transaction:
+    1. Reads current workspace usage
+    2. Checks against tier limit
+    3. Increments atomically if within limit
+    4. Resets daily counter if new day
+
+    Returns (allowed, usage_dict).
+
+    Member-level breakdown (non-transactional, approximate):
+    After a successful transaction, increments the member's own
+    contribution counter on the workspace document using
+    firestore.Increment() — atomic but outside the transaction,
+    so counts may be off by 1 under extreme concurrency.
+    This is acceptable for "who used the most today" display.
+    """
+    from google.cloud import firestore as fs
+
+    db    = _get_db()
+    ref   = db.collection(WORKSPACES_COL).document(workspace_id)
+    today = _today()
+
+    limit = TIER_LIMITS.get(tier, TIER_LIMITS["team"]).get("requests_per_day", 0)
+
+    # Enterprise — unlimited, skip counter entirely
+    if limit == -1:
+        # Still log member usage non-transactionally for visibility
+        _log_member_usage(workspace_id, uid, count, today)
+        return True, {"requests_today": 0, "limit": -1}
+
+    usage_result: dict = {}
+    allowed      = False
+
+    @fs.transactional
+    def _txn(transaction):
+        nonlocal allowed, usage_result
+
+        doc = ref.get(transaction=transaction)
+        if not doc.exists:
+            allowed = False
+            return
+
+        data  = doc.to_dict()
+        usage = data.get("usage", {})
+
+        # Reset daily counter if new day
+        if usage.get("reset_date") != today:
+            usage = {
+                "requests_today": 0,
+                "requests_total": usage.get("requests_total", 0),
+                "reset_date":     today,
+                "last_request":   None,
+                "member_usage":   {},  # reset per-member breakdown too
+            }
+
+        current = usage.get("requests_today", 0)
+
+        if current + count > limit:
+            allowed      = False
+            usage_result = {
+                "requests_today": current,
+                "limit":          limit,
+                "remaining":      max(0, limit - current),
+            }
+            return
+
+        # Within limit — increment
+        usage["requests_today"] = current + count
+        usage["requests_total"] = usage.get("requests_total", 0) + count
+        usage["last_request"]   = datetime.now(timezone.utc).isoformat()
+        usage["reset_date"]     = today
+
+        transaction.update(ref, {"usage": usage})
+
+        allowed      = True
+        usage_result = {
+            "requests_today": usage["requests_today"],
+            "limit":          limit,
+            "remaining":      max(0, limit - usage["requests_today"]),
+        }
+
+    transaction = db.transaction()
+    _txn(transaction)
+
+    # Non-transactional member breakdown — approximate, best-effort
+    if allowed:
+        _log_member_usage(workspace_id, uid, count, today)
+
+    return allowed, usage_result
+
+
+def _log_member_usage(
+    workspace_id: str,
+    uid:          str,
+    count:        int,
+    today:        str,
+) -> None:
+    """
+    Log per-member usage on the workspace document.
+    Non-transactional — uses atomic Increment so concurrent
+    writes don't lose counts, but not tied to the limit check.
+    Best-effort: used for dashboard breakdown display only.
+    """
+    from google.cloud import firestore as fs
+
+    try:
+        db  = _get_db()
+        ref = db.collection(WORKSPACES_COL).document(workspace_id)
+        ref.update({
+            f"member_usage.{uid}.{today}": fs.Increment(count),
+        })
+    except Exception:
+        pass  # never block a request on analytics logging
+
+
+def get_workspace_usage(workspace_id: str) -> dict:
+    """
+    Get current workspace usage stats.
+    Returns usage dict with today's count, total, member breakdown.
+    """
+    db  = _get_db()
+    doc = db.collection(WORKSPACES_COL).document(workspace_id).get()
+
+    if not doc.exists:
+        return {}
+
+    data  = doc.to_dict()
+    usage = data.get("usage", {})
+    today = _today()
+
+    # Reset if stale
+    if usage.get("reset_date") != today:
+        usage["requests_today"] = 0
+
+    # Per-member breakdown for today
+    member_usage = data.get("member_usage", {})
+    today_breakdown = {
+        uid: counts.get(today, 0)
+        for uid, counts in member_usage.items()
+        if counts.get(today, 0) > 0
+    }
+
+    return {
+        "requests_today":   usage.get("requests_today", 0),
+        "requests_total":   usage.get("requests_total", 0),
+        "reset_date":       usage.get("reset_date", today),
+        "last_request":     usage.get("last_request"),
+        "member_breakdown": today_breakdown,
+    }
+
+
+
 
 
 # ---------------------------------

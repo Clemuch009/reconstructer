@@ -59,6 +59,7 @@ class RequestContext:
     __slots__ = (
         "uid",
         "tier",
+        "workspace_id",
         "is_free_tier",
         "is_authenticated",
         "key_hash",
@@ -69,6 +70,7 @@ class RequestContext:
         self,
         uid:              Optional[str],
         tier:             str,
+        workspace_id:     Optional[str],
         is_free_tier:     bool,
         is_authenticated: bool,
         key_hash:         Optional[str],
@@ -76,6 +78,7 @@ class RequestContext:
     ):
         self.uid              = uid
         self.tier             = tier
+        self.workspace_id     = workspace_id
         self.is_free_tier     = is_free_tier
         self.is_authenticated = is_authenticated
         self.key_hash         = key_hash
@@ -115,6 +118,7 @@ async def require_auth(
     ctx = RequestContext(
         uid=limit_result.uid,
         tier=limit_result.tier,
+        workspace_id=limit_result.workspace_id,
         is_free_tier=limit_result.is_free_tier,
         is_authenticated=not limit_result.is_free_tier,
         key_hash=key_hash,
@@ -153,22 +157,26 @@ async def consume_request(ctx: RequestContext, count: int = 1) -> None:
     Increment usage counter after successful request.
 
     count — number of units to consume, default 1.
-    Pass compute_request_units(text) for proportional cost:
-        ceil(chars / 100_000), minimum 1.
+    Pass compute_request_units(text) for proportional cost.
 
-    Free tier:   increments IP counter by count
-    Authenticated: increments daily counter by count
-    Both: updates key last_used timestamp
+    Routing:
+    - Free tier:   increments IP counter by count
+    - Team/Enterprise: atomic workspace transaction (correct under concurrency)
+    - Pro/Starter: increments personal daily counter by count
     Non-blocking — failures never affect the response.
     """
     try:
         if ctx.is_free_tier:
-            # Pass the original Request stored in limit_result
             if ctx.limit_result.request is not None:
                 consume_free_tier(ctx.limit_result.request, count=count)
         else:
             if ctx.uid:
-                consume_authenticated_limit(ctx.uid, count=count)
+                consume_authenticated_limit(
+                    uid=ctx.uid,
+                    workspace_id=ctx.workspace_id,
+                    tier=ctx.tier,
+                    count=count,
+                )
                 if ctx.key_hash:
                     update_key_last_used(ctx.uid, ctx.key_hash)
     except Exception:

@@ -61,19 +61,57 @@ def consume_free_tier(request: Request, count: int = 1) -> int:
 # ---------------------------------
 
 def check_authenticated_limit(
-    uid:  str,
-    tier: str,
+    uid:          str,
+    tier:         str,
+    workspace_id: Optional[str] = None,
 ) -> Tuple[bool, dict]:
+    """
+    Check if authenticated user is within their daily limit.
+
+    Routing:
+    - team/enterprise + workspace_id → workspace shared pool
+      (transactional check, no increment yet)
+    - pro/starter → personal per-user counter
+    """
     from api.auth.firestore import check_usage_limit
+
+    if tier in ("team", "enterprise") and workspace_id:
+        # For team: read workspace usage for the check
+        # Actual atomic check+increment happens in consume_authenticated_limit
+        from api.auth.firestore import get_workspace_usage, TIER_LIMITS
+        usage = get_workspace_usage(workspace_id)
+        limit = TIER_LIMITS.get(tier, {}).get("requests_per_day", 0)
+        if limit == -1:
+            return True, usage
+        allowed = usage.get("requests_today", 0) < limit
+        return allowed, usage
+
     return check_usage_limit(uid, tier)
 
 
-def consume_authenticated_limit(uid: str, count: int = 1) -> dict:
+def consume_authenticated_limit(
+    uid:          str,
+    workspace_id: Optional[str] = None,
+    tier:         str = "starter",
+    count:        int = 1,
+) -> dict:
     """
-    Increment usage counter for authenticated user by count units.
-    Returns updated usage dict after all increments.
-    Call only after request is processed successfully.
+    Increment usage counter after successful request.
+
+    Routing:
+    - team/enterprise + workspace_id → atomic workspace transaction
+    - pro/starter/free → personal per-user counter
     """
+    if tier in ("team", "enterprise") and workspace_id:
+        from api.auth.firestore import check_and_increment_workspace
+        _, usage = check_and_increment_workspace(
+            workspace_id=workspace_id,
+            uid=uid,
+            tier=tier,
+            count=count,
+        )
+        return usage
+
     from api.auth.firestore import increment_usage
     result = {}
     for _ in range(count):
@@ -121,11 +159,12 @@ class LimitCheckResult:
         "allowed",
         "tier",
         "uid",
+        "workspace_id",
         "current_count",
         "limit",
         "is_free_tier",
         "headers",
-        "request",       # stored for consume_free_tier call
+        "request",
     )
 
     def __init__(
@@ -133,6 +172,7 @@ class LimitCheckResult:
         allowed:       bool,
         tier:          str,
         uid:           Optional[str],
+        workspace_id:  Optional[str],
         current_count: int,
         limit:         int,
         is_free_tier:  bool,
@@ -142,6 +182,7 @@ class LimitCheckResult:
         self.allowed       = allowed
         self.tier          = tier
         self.uid           = uid
+        self.workspace_id  = workspace_id
         self.current_count = current_count
         self.limit         = limit
         self.is_free_tier  = is_free_tier
@@ -172,6 +213,7 @@ def check_request_limit(
             allowed=allowed,
             tier="free",
             uid=None,
+            workspace_id=None,
             current_count=count,
             limit=limit,
             is_free_tier=True,
@@ -186,6 +228,7 @@ def check_request_limit(
             allowed=False,
             tier="unknown",
             uid=None,
+            workspace_id=None,
             current_count=0,
             limit=0,
             is_free_tier=False,
@@ -201,6 +244,7 @@ def check_request_limit(
             allowed=False,
             tier="unknown",
             uid=None,
+            workspace_id=None,
             current_count=0,
             limit=0,
             is_free_tier=False,
@@ -219,6 +263,7 @@ def check_request_limit(
             allowed=False,
             tier=user.get("tier", "starter"),
             uid=user.get("uid"),
+            workspace_id=user.get("workspace_id"),
             current_count=0,
             limit=0,
             is_free_tier=False,
@@ -226,10 +271,32 @@ def check_request_limit(
             request=request,
         )
 
-    uid   = user.get("uid", "")
-    tier  = user.get("tier", "starter")
+    uid          = user.get("uid", "")
+    tier         = user.get("tier", "starter")
+    workspace_id = user.get("workspace_id")
 
-    allowed, usage_dict = check_authenticated_limit(uid, tier)
+    # Team/Enterprise → check workspace shared pool
+    if tier in ("team", "enterprise") and workspace_id:
+        allowed, usage_dict = check_authenticated_limit(
+            uid=uid, tier=tier, workspace_id=workspace_id
+        )
+        limit       = TIER_LIMITS.get(tier, {}).get("requests_per_day", 0)
+        today_count = usage_dict.get("requests_today", 0)
+        headers     = build_limit_headers(tier, today_count, limit)
+        return LimitCheckResult(
+            allowed=allowed,
+            tier=tier,
+            uid=uid,
+            workspace_id=workspace_id,
+            current_count=today_count,
+            limit=limit,
+            is_free_tier=False,
+            headers=headers,
+            request=request,
+        )
+
+    # Pro/Starter → personal counter
+    allowed, usage_dict = check_authenticated_limit(uid=uid, tier=tier)
     limit       = TIER_LIMITS.get(tier, {}).get("requests_per_day", 0)
     today_count = usage_dict.get("requests_today", 0)
     headers     = build_limit_headers(tier, today_count, limit)
@@ -238,6 +305,7 @@ def check_request_limit(
         allowed=allowed,
         tier=tier,
         uid=uid,
+        workspace_id=workspace_id,
         current_count=today_count,
         limit=limit,
         is_free_tier=False,
