@@ -666,10 +666,17 @@ def store_session(
         "expires_at": expires_at,
     }
 
+    # COC envelope uses source_id as the document identifier
+    doc_id = (
+        session.get("session_id") or
+        session.get("source_id") or
+        "unknown"
+    )
+
     db.collection(USERS_COL)\
       .document(uid)\
       .collection(SESSIONS_COL)\
-      .document(session.get("session_id", "unknown"))\
+      .document(doc_id)\
       .set(session_doc)
 
     return True
@@ -682,6 +689,7 @@ def get_stored_sessions(
     """
     Retrieve stored sessions for a user.
     Filters out expired sessions.
+    Single order_by to avoid composite index requirement.
     """
     db  = _get_db()
     now = datetime.now(timezone.utc).isoformat()
@@ -691,8 +699,7 @@ def get_stored_sessions(
         .document(uid)
         .collection(SESSIONS_COL)
         .where("expires_at", ">", now)
-        .order_by("expires_at")
-        .order_by("stored_at", direction="DESCENDING")
+        .order_by("expires_at", direction="DESCENDING")
         .limit(limit)
         .stream()
     )
