@@ -16,9 +16,10 @@
     apiKey:            "AIzaSyA_HSkrnTmul10Vwa0ryWCGegbdx1IL9R8",
     authDomain:        "moonlit-grail-386316.firebaseapp.com",
     projectId:         "moonlit-grail-386316",
-    storageBucket:     "moonlit-grail-386316.appspot.com",
+    storageBucket:     "moonlit-grail-386316.firebasestorage.app",
     messagingSenderId: "560904434756",
-    appId:             "1:560904434756:web:qrynt",
+    appId:             "1:560904434756:web:b5f5a2b09174ef5c2df811",
+    measurementId:     "G-4S749T4863",
   };
 
   const app  = initializeApp(firebaseConfig);
@@ -62,6 +63,7 @@
 
       profileData = profile;
       billingData = billing;
+      window._profileData = profile;
 
       renderWorkspaceSelector(profile);
       renderOverview(profile, billing);
@@ -71,12 +73,18 @@
       renderBilling(billing);
       renderSettings(profile);
 
-      if (profile.tier === 'team' || profile.tier === 'enterprise') {
-        loadWorkspace(idToken);
-      }
+      // Always attempt workspace load — Members section needs it
+      // loadWorkspace handles 404 gracefully (no workspace yet)
+      loadWorkspace(idToken);
 
       showSkeleton(false);
       navigateTo(activeSection);
+
+      // Patch helpers — called after DOM is populated
+      setTimeout(() => {
+        if (window._patchOverview) window._patchOverview();
+        if (window._patchMembers) window._patchMembers();
+      }, 100);
 
     } catch (err) {
       console.error(err);
@@ -224,6 +232,16 @@
       const res = await fetch(
         `${API_BASE}/auth/workspace?id_token=${encodeURIComponent(idToken)}`
       );
+      if (res.status === 404) {
+        // No workspace yet — show create prompt in Members section
+        document.getElementById('members-list').innerHTML = `
+          <div class="empty-state">
+            No workspace created yet.
+            <button class="btn btn-primary" style="margin-top:12px"
+              onclick="createWorkspace()">Create workspace</button>
+          </div>`;
+        return;
+      }
       if (!res.ok) return;
       const ws = await res.json();
       renderWorkspaceMembers(ws);
@@ -231,6 +249,22 @@
       console.error('Workspace load failed:', err);
     }
   }
+
+  window.createWorkspace = async function() {
+    const name    = profileData?.email?.split('@')[0] || 'My Workspace';
+    const idToken = await currentUser.getIdToken();
+    try {
+      const res = await fetch(`${API_BASE}/auth/workspace/create`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id_token: idToken, name }),
+      });
+      if (res.ok) {
+        showToast('Workspace created.');
+        await loadWorkspace(idToken);
+      }
+    } catch {}
+  };
 
   function renderWorkspaceMembers(ws) {
     if (!ws || !ws.members) return;
@@ -1718,51 +1752,33 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// Set owner info once profile loads
-document.addEventListener('DOMContentLoaded', () => {
-  // Patch renderOverview to also update usage hint
-  const _orig = window.navigateTo;
-});
+// Simple helpers called from the module after profileData is set.
+// No Object.defineProperty needed — module calls these directly.
 
-// Patch renderOverview to set usage hint text
-const _patchOverview = () => {
+window._patchOverview = function() {
+  const p  = window._profileData;
   const ov = document.getElementById('ov-usage-hint');
-  if (ov && window.profileData) {
-    const u = window.profileData.usage || {};
-    const l = window.profileData.limits || {};
-    const today = u.requests_today || 0;
-    const limit = l.requests_per_day || 50;
-    ov.textContent = limit === -1
-      ? `${today} requests used today · unlimited plan`
-      : `${today} of ${limit} requests used today`;
-  }
+  if (!ov || !p) return;
+  const u     = p.usage  || {};
+  const l     = p.limits || {};
+  const today = u.requests_today || 0;
+  const limit = l.requests_per_day || 50;
+  ov.textContent = limit === -1
+    ? `${today} requests used today · unlimited plan`
+    : `${today} of ${limit} requests used today`;
 };
 
-// Expose for module scope
-Object.defineProperty(window, 'profileData', {
-  get() { return window._profileData; },
-  set(v) { window._profileData = v; setTimeout(_patchOverview, 50); }
-});
-
-// Set owner avatar/email in members section once loaded
-const _patchMembers = () => {
+window._patchMembers = function() {
   const p = window._profileData;
   if (!p) return;
   const el = document.getElementById('owner-email');
   const av = document.getElementById('owner-avatar');
   if (el) el.textContent = p.email || '—';
   if (av) av.textContent = (p.email || 'Q').charAt(0).toUpperCase();
+  // Pre-fill rename input with current workspace name
+  const ri = document.getElementById('ws-rename-input');
+  if (ri && p.workspace_name) ri.value = p.workspace_name;
 };
-
-const _origSet = Object.getOwnPropertyDescriptor(window, 'profileData').set;
-Object.defineProperty(window, 'profileData', {
-  get() { return window._profileData; },
-  set(v) {
-    window._profileData = v;
-    setTimeout(_patchOverview, 50);
-    setTimeout(_patchMembers, 50);
-  }
-});
 </script>
 
 </body>
