@@ -30,6 +30,57 @@ _JSON_THRESHOLD       = 0.4    # fraction of lines with JSON structure
 _MIN_LINES            = 3
 _SAMPLE_LINES         = 50
 
+# Binary detection — applied BEFORE the decode chain. latin-1 (last in the
+# chain) decodes ANY byte sequence, so without this pre-check the is_binary
+# path below is unreachable and true binary content is silently accepted as
+# mojibake text. These thresholds gate that fallback.
+_BINARY_SAMPLE_BYTES  = 4096   # inspect only the head — enough to classify
+_BINARY_NONTEXT_RATIO = 0.30   # > this fraction of non-text bytes ⇒ binary
+
+
+# ---------------------------------
+# Binary pre-check
+# ---------------------------------
+
+# Bytes that legitimately appear in text: printable ASCII + common whitespace
+# controls (tab, newline, carriage return, form feed, backspace, bell, escape).
+_TEXT_BYTES = bytes(range(0x20, 0x7F)) + b"\t\n\r\f\b\x07\x1b"
+_TEXT_BYTE_SET = frozenset(_TEXT_BYTES)
+
+
+def _looks_binary(raw_bytes: bytes) -> bool:
+    """
+    Decide whether raw_bytes is binary BEFORE attempting text decoding.
+
+    Two signals:
+    1. A NUL byte (0x00) almost never occurs in real text and is the single
+       strongest binary indicator.
+    2. A high fraction of non-text bytes in the head of the content.
+
+    Conservative by design: empty input is NOT binary (handled elsewhere as
+    empty), and UTF-16 text — which legitimately contains NUL bytes — is
+    deliberately excluded from the NUL rule so it still decodes downstream.
+    """
+    if not raw_bytes:
+        return False
+
+    sample = raw_bytes[:_BINARY_SAMPLE_BYTES]
+
+    # NUL byte ⇒ binary, UNLESS it looks like UTF-16 (BOM, or regular
+    # alternating-NUL pattern), which the decode chain handles as text.
+    if b"\x00" in sample:
+        if sample[:2] in (b"\xff\xfe", b"\xfe\xff"):
+            return False  # UTF-16 BOM — let the decode chain handle it
+        nul_ratio = sample.count(0) / len(sample)
+        # UTF-16 ASCII text is ~50% NUL in a regular pattern; treat a moderate,
+        # high NUL ratio as possible UTF-16 and defer to the decode chain.
+        if 0.30 <= nul_ratio <= 0.60:
+            return False
+        return True
+
+    nontext = sum(1 for b in sample if b not in _TEXT_BYTE_SET)
+    return (nontext / len(sample)) > _BINARY_NONTEXT_RATIO
+
 
 # ---------------------------------
 # Line classifiers — corrected
@@ -287,10 +338,12 @@ def handle_unknown(
     Router makes all final routing decisions.
 
     Pipeline:
-    1. Attempt text decoding — full encoding chain
-    2. Binary content → is_binary: True, router rejects gracefully
-    3. Classify content → format_hint + confidence_breakdown
-    4. Return UnknownHandlerResult — router consumes signals
+    1. Binary pre-check — reject binary BEFORE decoding (latin-1 would
+       otherwise decode anything and mask binary content)
+    2. Attempt text decoding — full encoding chain
+    3. Binary content → is_binary: True, router rejects gracefully
+    4. Classify content → format_hint + confidence_breakdown
+    5. Return UnknownHandlerResult — router consumes signals
 
     Rules:
     - Never raises
@@ -304,7 +357,26 @@ def handle_unknown(
     encoding_used:  Optional[str] = None
     decoded_text:   str = ""
 
-    # Step 1 — attempt decoding
+    # Step 1 — binary pre-check (before decoding).
+    # latin-1 at the end of the decode chain cannot fail, so without this the
+    # binary branch below is unreachable and binary content is accepted as
+    # mojibake. Reject obvious binary here; genuine text (incl. UTF-16) passes.
+    if _looks_binary(raw_bytes):
+        warnings.append(
+            f"Cannot decode as text — binary content detected. "
+            f"Filename: {filename or 'unknown'}"
+        )
+        return UnknownHandlerResult(
+            format_hint="unknown",
+            decoded_text="",
+            encoding_used=None,
+            confidence_breakdown={},
+            source_signals=["Binary — failed binary pre-check"],
+            warnings=warnings,
+            is_binary=True,
+        )
+
+    # Step 2 — attempt decoding
     for codec, label in _DECODE_CHAIN:
         try:
             decoded_text  = raw_bytes.decode(codec)
@@ -333,7 +405,7 @@ def handle_unknown(
     if filename:
         source_signals.append(f"Filename: {filename}")
 
-    # Step 2 — classify content
+    # Step 3 — classify content
     format_hint, breakdown, classify_signals = _classify_content(decoded_text)
     source_signals.extend(classify_signals)
 

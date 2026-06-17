@@ -111,8 +111,13 @@ def detect_format(
         for magic, fmt in _MAGIC_BYTES:
             if raw_bytes[:len(magic)] == magic:
                 if fmt == "xlsx":
-                    # PK header — could be xlsx or docx
-                    magic_format = _detect_ooxml(raw_bytes)
+                    # PK header — could be xlsx or docx. A successful probe
+                    # returns "docx"/"xlsx"; a FAILED probe returns "unknown",
+                    # which is NOT a positive magic result — treat it as no
+                    # magic match so a valid extension hint (e.g. .xlsx/.docx)
+                    # can still resolve below instead of being overridden.
+                    probed = _detect_ooxml(raw_bytes)
+                    magic_format = probed if probed != "unknown" else None
                 else:
                     magic_format = fmt
                 break

@@ -47,8 +47,9 @@
     color: var(--text);
     font-family: var(--sans);
     font-size: 14px;
-    min-height: 100vh;
-    overflow-x: hidden;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
   }
 
   /* Scan line effect */
@@ -147,7 +148,8 @@
   main {
     display: grid;
     grid-template-columns: var(--split, 1fr) 6px 1fr;
-    height: calc(100vh - 52px - 24px);   
+    height: calc(100dvh - 52px - 24px);
+    min-height: 0;
     position: relative;
     z-index: 1;
   }
@@ -370,6 +372,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
 
   /* Tabs */
@@ -404,7 +408,8 @@
   .tab-content {
     display: none;
     flex: 1;
-    overflow-y: auto;
+    min-height: 0;        /* critical — lets flex child shrink below content size */
+    overflow: hidden;     /* clip, not scroll — output-area scrolls internally */
     position: relative;
   }
 
@@ -416,6 +421,7 @@
   /* Output area */
   .output-area {
     flex: 1;
+    min-height: 0;        /* critical — allows scroll within bounded flex child */
     padding: 20px;
     font-family: var(--mono);
     font-size: 12px;
@@ -779,8 +785,10 @@ region: eu-west-1
         <span class="validation-badge" id="validation-badge">—</span>
       </div>
       <div class="footer-actions">
-        <button class="btn" onclick="copyOutput()" title="Copy output to clipboard">COPY</button>
-        <button class="btn btn-download" onclick="downloadHuman()" id="download-btn" title="Download as .txt file">⬇ DOWNLOAD .TXT</button>
+        <button class="btn" onclick="copyOutput()" title="Copy active view to clipboard">COPY</button>
+        <button class="btn btn-download" onclick="downloadFormat('human')" id="download-human-btn" title="Download human-readable .txt">⬇ .TXT</button>
+        <button class="btn btn-download" onclick="downloadFormat('machine')" id="download-machine-btn" title="Download machine records .json">⬇ MACHINE</button>
+        <button class="btn btn-download" onclick="downloadFormat('ai')" id="download-ai-btn" title="Download AI LDM .json">⬇ AI LDM</button>
       </div>
     </div>
 
@@ -1181,7 +1189,6 @@ function renderHuman(text) {
   el.style.display = 'block';
   el.textContent   = text;
   document.getElementById('output-footer').style.display = 'flex';
-  document.getElementById('download-btn').style.display  = 'inline-block';
 }
 
 function renderMachine(data) {
@@ -1313,13 +1320,28 @@ function copySchema() {
   navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
 }
 
-function downloadHuman() {
-  if (!currentHuman) return;
-  const blob = new Blob([currentHuman], { type: 'text/plain' });
+function downloadFormat(fmt) {
+  let content, ext, mime;
+  if (fmt === 'human') {
+    if (!currentHuman) return;
+    content = currentHuman;
+    ext = 'txt'; mime = 'text/plain';
+  } else if (fmt === 'machine') {
+    if (!currentMachine) return;
+    content = JSON.stringify(currentMachine, null, 2);
+    ext = 'machine.json'; mime = 'application/json';
+  } else if (fmt === 'ai') {
+    if (!currentAI) return;
+    content = JSON.stringify(currentAI, null, 2);
+    ext = 'ai.json'; mime = 'application/json';
+  } else {
+    return;
+  }
+  const blob = new Blob([content], { type: mime });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `session_${currentSessionId || 'output'}.txt`;
+  a.download = `session_${currentSessionId || 'output'}.${ext}`;
   a.click();
   URL.revokeObjectURL(url);
 }

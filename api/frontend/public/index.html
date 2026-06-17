@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 	<!-- Google tag (gtag.js) -->
-	<script async src="https://www.googletagmanager.com/gtag/js?id=G-H745S05DBF"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-H745S05DBF"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
@@ -11,1633 +11,1613 @@
   gtag('config', 'G-H745S05DBF');
 </script>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qrynt — Reliable structured data from messy text</title>
+<meta name="description" content="Qrynt analyzes unstructured logs, documents, and text and produces validated human, machine, and AI-ready structured output.">
 <link rel="icon" type="image/png" href="/assets/QryNt.png">
 <link rel="apple-touch-icon" href="/assets/QryNt.png">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TRE — Developer Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg:        #0d0d0d;
-    --surface:   #141414;
-    --surface2:  #1a1a1a;
-    --border:    #1e1e1e;
-    --border2:   #2a2a2a;
-    --text:      #e8e8e8;
-    --text-dim:  #666;
-    --text-muted:#444;
-    --primary:   #00ff88;
-    --primary-dim:#00ff8822;
-    --blue:      #3b82f6;
-    --green:     #22c55e;
-    --purple:    #a855f7;
-    --orange:    #f97316;
-    --yellow:    #eab308;
-    --grey:      #6b7280;
-    --red:       #ef4444;
-    --mono:      'JetBrains Mono', monospace;
-    --sans:      'DM Sans', sans-serif;
+    --bg:       #f8f7f4;
+    --surface:  #ffffff;
+    --border:   #e8e5df;
+    --border2:  #d4d0c8;
+    --ink:      #1a1814;
+    --ink-dim:  #6b6760;
+    --ink-muted:#b0ada6;
+    --accent:   #00c96e;
+    --accent-dk:#009e56;
+    --accent-bg:#f0fdf6;
+    --code-bg:  #1a1814;
+    --code-text:#00c96e;
+    --serif:    'Instrument Serif', Georgia, serif;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+
+    --c-prose:     #9ca3af;
+    --c-table:     #3b82f6;
+    --c-kv:        #22c55e;
+    --c-hierarchy: #a855f7;
+    --c-context:   #f97316;
+    --c-mixed:     #eab308;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  html { scroll-behavior: smooth; }
+
   body {
     background: var(--bg);
-    color: var(--text);
+    color: var(--ink);
     font-family: var(--sans);
-    font-size: 14px;
-    min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.6;
     overflow-x: hidden;
   }
 
-  /* Scan line effect */
-  body::before {
+  /* Grain overlay */
+  body::after {
     content: '';
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,255,136,0.015) 2px,
-      rgba(0,255,136,0.015) 4px
-    );
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
     pointer-events: none;
-    z-index: 0;
+    z-index: 1000;
+    opacity: 0.4;
   }
 
-  /* Header */
-  header {
+  /* ─── NAV ─── */
+  nav {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: var(--bg);
+    background: rgba(248,247,244,0.92);
+    backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
-    padding: 0 24px;
-    height: 52px;
+    padding: 0 48px;
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
 
-  .logo {
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--primary);
-    letter-spacing: 0.1em;
+  .nav-logo {
     display: flex;
     align-items: center;
     gap: 10px;
+    text-decoration: none;
   }
 
-  .logo-dot {
-    width: 6px;
-    height: 6px;
-    background: var(--primary);
-    border-radius: 50%;
-    animation: pulse 2s infinite;
+  .nav-logo img {
+    height: 28px;
+    width: auto;
   }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50%       { opacity: 0.4; transform: scale(0.8); }
+  .nav-logo-text {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.02em;
   }
 
-  .header-right {
+  .nav-links {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 8px;
   }
 
-  .api-key-input {
-    background: var(--surface);
-    border: 1px solid var(--border2);
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 11px;
-    padding: 6px 12px;
-    border-radius: 4px;
-    width: 200px;
-    outline: none;
-    transition: border-color 0.2s;
+  .nav-link {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--ink-dim);
+    text-decoration: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    transition: all 0.15s;
   }
 
-  .api-key-input:focus {
-    border-color: var(--primary);
+  .nav-link:hover {
+    color: var(--ink);
+    background: var(--border);
   }
 
-  .api-key-input::placeholder {
-    color: var(--text-muted);
+  .nav-cta {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--ink);
+    text-decoration: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    margin-left: 8px;
   }
 
-  .badge {
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 3px 8px;
-    border-radius: 3px;
-    background: var(--primary-dim);
-    color: var(--primary);
-    border: 1px solid var(--primary);
-    letter-spacing: 0.05em;
+  .nav-cta:hover {
+    background: var(--accent-dk);
+    transform: translateY(-1px);
   }
 
-  /* Main layout */
-  main {
+  /* ─── HERO ─── */
+  .hero {
+    padding: 0 48px;
+    max-width: 1400px;
+    margin: 0 auto;
     display: grid;
-    grid-template-columns: var(--split, 1fr) 6px 1fr;
-    height: calc(100vh - 52px - 24px);   
+    grid-template-columns: 1fr 1.4fr;
+    gap: 48px;
+    align-items: center;
+    min-height: calc(100vh - 60px);
+  }
+
+  .hero-left {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .hero-right {
+    position: relative;
+    margin-right: -48px;
+  }
+
+  .hero-video {
+    width: 100%;
+    height: calc(100vh - 60px);
+    object-fit: contain;
+    object-position: left;
+    border-radius: 10px 0 0 10px;
+    border: 1px solid var(--border);
+    border-right: none;
+    box-shadow: -24px 0 80px rgba(0,0,0,0.08);
+    display: block;
+    background: #1a1814;
+  }
+
+  .hero-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent-dk);
+    background: var(--accent-bg);
+    border: 1px solid rgba(0,201,110,0.3);
+    padding: 5px 12px;
+    border-radius: 100px;
+    margin-bottom: 32px;
+    letter-spacing: 0.04em;
+  }
+
+  .hero-label-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: breathe 2s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%       { transform: scale(0.7); opacity: 0.5; }
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(44px, 6vw, 76px);
+    font-weight: 400;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    max-width: 800px;
+    margin-bottom: 28px;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--ink-dim);
+  }
+
+  .hero-sub {
+    font-size: 18px;
+    color: var(--ink-dim);
+    max-width: 520px;
+    line-height: 1.65;
+    margin-bottom: 44px;
+    font-weight: 300;
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--ink);
+    text-decoration: none;
+    padding: 13px 28px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    letter-spacing: -0.01em;
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-dk);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,158,86,0.25);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink-dim);
+    text-decoration: none;
+    padding: 13px 24px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+    transform: translateY(-1px);
+  }
+
+  /* ─── PROOF SECTION ─── */
+  .proof {
+    background: var(--ink);
+    padding: 80px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .proof::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 40px,
+      rgba(255,255,255,0.015) 40px,
+      rgba(255,255,255,0.015) 41px
+    );
+  }
+
+  .proof-inner {
+    max-width: 1100px;
+    margin: 0 auto;
     position: relative;
     z-index: 1;
   }
 
-  /* Vertical draggable splitter between input and output */
-  .splitter {
-    background: var(--border);
-    cursor: col-resize;
-    position: relative;
-    transition: background 0.15s;
-  }
-  .splitter:hover,
-  .splitter.dragging {
-    background: var(--primary);
-  }
-  .splitter::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 2px;
-    height: 28px;
-    background: var(--border2);
-    border-radius: 2px;
-  }
-  body.col-resizing {
-    cursor: col-resize;
-    user-select: none;
+  .proof-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
   }
 
-  /* Left panel */
-  .panel-left {
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
+  .proof-title {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3.5vw, 44px);
+    color: #fff;
+    font-weight: 400;
+    margin-bottom: 48px;
+    line-height: 1.15;
+  }
+
+  .proof-grid {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0;
+    align-items: start;
+  }
+
+  .proof-panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
     overflow: hidden;
-    min-height: 0;
-    height: 100%;
   }
 
-  .panel-header {
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border);
+  .proof-panel-head {
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--surface);
   }
 
-  .panel-title {
+  .proof-panel-label {
     font-family: var(--mono);
     font-size: 11px;
-    color: var(--text-dim);
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
 
-  .panel-actions {
+  .proof-panel-label.input  { color: rgba(255,255,255,0.35); }
+  .proof-panel-label.output { color: var(--accent); }
+
+  .proof-dots {
     display: flex;
-    gap: 8px;
-    align-items: center;
+    gap: 5px;
   }
 
-  .btn {
-    font-family: var(--mono);
-    font-size: 11px;
-    padding: 5px 12px;
-    border-radius: 3px;
-    border: 1px solid var(--border2);
-    background: transparent;
-    color: var(--text-dim);
-    cursor: pointer;
-    transition: all 0.15s;
-    letter-spacing: 0.05em;
+  .proof-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
   }
 
-  .btn:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
-
-  .btn-primary {
-    background: var(--primary);
-    color: #000;
-    border-color: var(--primary);
-    font-weight: 600;
-  }
-
-  .btn-primary:hover {
-    background: #00cc6e;
-    border-color: #00cc6e;
-    color: #000;
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .toggle-group {
-    display: flex;
-    background: var(--bg);
-    border: 1px solid var(--border2);
-    border-radius: 3px;
-    overflow: hidden;
-  }
-
-  .toggle-btn {
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 4px 10px;
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s;
-    letter-spacing: 0.05em;
-  }
-
-  .toggle-btn.active {
-    background: var(--surface2);
-    color: var(--primary);
-  }
-
-  textarea {
-    flex: 1 1 0;
-    background: transparent;
-    border: none;
-    min-height: 0;
-    height: 0;            /* let flex own the height; content scrolls internally */
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 12px;
-    line-height: 1.6;
-    padding: 20px;
-    resize: none;
-    outline: none;
-    overflow-y: auto;     /* scroll big files instead of pushing the toolbar off-screen */
-  }
-
-  textarea::placeholder {
-    color: var(--text-muted);
-  }
-
-  .drop-zone {
-    margin: 12px 20px;
-    border: 1.5px dashed var(--primary);
-    border-radius: 6px;
-    padding: 16px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: var(--primary-dim);
-    flex-shrink: 0;
-  }
-
-  .drop-zone:hover,
-  .drop-zone.drag-over {
-    border-color: var(--primary);
-    background: var(--surface2);
-  }
-
-  .drop-zone-text {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-dim);
-  }
-
-  .drop-zone-text.label {
-    color: var(--primary);
-    font-weight: 600;
-    letter-spacing: 0.05em;
-  }
-
-  .drop-zone.drag-over .drop-zone-text {
-    color: var(--primary);
-  }
-
-  /* Download button — visually distinct from passive actions */
-  .btn-download {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
-  .btn-download:hover {
-    background: var(--primary-dim);
-  }
-
-  #file-input { display: none; }
-
-  .process-bar {
-    padding: 12px 20px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--surface);
-    flex-shrink: 0;
-  }
-
-  /* Right panel */
-  .panel-right {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-
-  /* Tabs */
-  .tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-  }
-
-  .tab {
-    font-family: var(--mono);
-    font-size: 11px;
-    padding: 12px 20px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s;
-    letter-spacing: 0.05em;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    text-transform: uppercase;
-  }
-
-  .tab:hover { color: var(--text-dim); }
-
-  .tab.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
-  }
-
-  .tab-content {
-    display: none;
-    flex: 1;
-    overflow-y: auto;
-    position: relative;
-  }
-
-  .tab-content.active {
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* Output area */
-  .output-area {
-    flex: 1;
+  .proof-body {
     padding: 20px;
     font-family: var(--mono);
     font-size: 12px;
     line-height: 1.7;
-    color: var(--text);
+    min-height: 280px;
+  }
+
+  .proof-body.messy {
+    color: rgba(255,255,255,0.4);
     white-space: pre-wrap;
-    overflow-y: auto;
   }
 
-  .output-area.json {
-    font-size: 11px;
+  .proof-body.clean {
+    color: var(--accent);
+    white-space: pre-wrap;
   }
 
-  .empty-state {
-    flex: 1;
+  .proof-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    flex-shrink: 0;
+    padding-top: 120px;
+  }
+
+  .arrow-inner {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 12px;
-    color: var(--text-muted);
-  }
-
-  .empty-icon {
-    font-size: 32px;
-    opacity: 0.3;
-  }
-
-  .empty-text {
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 0.05em;
-  }
-
-  /* Output footer */
-  .output-footer {
-    padding: 10px 20px;
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .stats-row {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .stat {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-dim);
-  }
-
-  .stat-value {
-    color: var(--primary);
-    font-weight: 600;
-  }
-
-  .validation-badge {
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 3px 8px;
-    border-radius: 3px;
-    letter-spacing: 0.05em;
-    font-weight: 600;
-  }
-
-  .validation-badge.valid {
-    background: rgba(34,197,94,0.1);
-    color: var(--green);
-    border: 1px solid var(--green);
-  }
-
-  .validation-badge.invalid {
-    background: rgba(239,68,68,0.1);
-    color: var(--red);
-    border: 1px solid var(--red);
-  }
-
-  .footer-actions {
-    display: flex;
     gap: 8px;
   }
 
-  /* curl snippet */
-  .curl-section {
-    border-top: 1px solid var(--border);
-    background: var(--surface);
+  .arrow-line {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, transparent, var(--accent));
   }
 
-  .curl-header {
-    padding: 10px 20px;
+  .arrow-head {
+    font-size: 18px;
+    color: var(--accent);
+  }
+
+  .arrow-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    opacity: 0.6;
+  }
+
+  /* Type tags */
+  .type-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    margin-right: 4px;
+    margin-bottom: 2px;
+  }
+
+  .tag-kv        { background: rgba(34,197,94,0.15);  color: #4ade80; }
+  .tag-table     { background: rgba(59,130,246,0.15);  color: #60a5fa; }
+  .tag-hierarchy { background: rgba(168,85,247,0.15);  color: #c084fc; }
+  .tag-context   { background: rgba(249,115,22,0.15);  color: #fb923c; }
+  .tag-prose     { background: rgba(156,163,175,0.15); color: #9ca3af; }
+
+  .output-key   { color: #60a5fa; }
+  .output-val   { color: #4ade80; }
+  .output-str   { color: #fb923c; }
+  .output-num   { color: #c084fc; }
+  .output-punct { color: rgba(255,255,255,0.3); }
+
+  /* ─── ADAPTERS ─── */
+  .section {
+    padding: 100px 48px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent-dk);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .section-title {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3vw, 40px);
+    font-weight: 400;
+    line-height: 1.15;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+
+  .section-sub {
+    font-size: 16px;
+    color: var(--ink-dim);
+    max-width: 520px;
+    font-weight: 300;
+    margin-bottom: 56px;
+    line-height: 1.7;
+  }
+
+  .adapters-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .adapter-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .adapter-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  .adapter-card.human::before   { background: var(--ink); opacity: 1; }
+  .adapter-card.machine::before { background: var(--c-table); opacity: 1; }
+  .adapter-card.ai::before      { background: var(--c-hierarchy); opacity: 1; }
+
+  .adapter-card:hover {
+    border-color: var(--border2);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+  }
+
+  .adapter-icon {
+    font-family: var(--mono);
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+
+  .adapter-icon.human    { color: var(--ink); }
+  .adapter-icon.machine  { color: var(--c-table); }
+  .adapter-icon.ai       { color: var(--c-hierarchy); }
+
+  .adapter-name {
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .adapter-desc {
+    font-size: 14px;
+    color: var(--ink-dim);
+    line-height: 1.6;
+    margin-bottom: 20px;
+    font-weight: 300;
+  }
+
+  .adapter-example {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--ink-dim);
+    white-space: pre;
+    overflow: hidden;
+  }
+
+  /* ─── VALIDATION ─── */
+  .validation-section {
+    background: var(--accent-bg);
+    border-top: 1px solid rgba(0,201,110,0.15);
+    border-bottom: 1px solid rgba(0,201,110,0.15);
+    padding: 100px 48px;
+  }
+
+  .validation-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+
+  .validation-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 40px;
+  }
+
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid rgba(0,201,110,0.2);
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--ink);
+    transition: all 0.2s;
+  }
+
+  .check-item:hover {
+    border-color: var(--accent);
+    transform: translateX(4px);
+  }
+
+  .check-mark {
+    width: 22px;
+    height: 22px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #fff;
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+
+  .score-card {
+    background: var(--surface);
+    border: 1px solid rgba(0,201,110,0.25);
+    border-radius: 16px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,201,110,0.08);
+  }
+
+  .score-number {
+    font-family: var(--serif);
+    font-size: 96px;
+    line-height: 1;
+    color: var(--accent-dk);
+    margin-bottom: 8px;
+    letter-spacing: -0.04em;
+  }
+
+  .score-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+
+  .score-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+  }
+
+  .score-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .curl-header:hover .panel-title {
-    color: var(--primary);
-  }
-
-  .curl-body {
-    padding: 0 20px 16px;
-    display: none;
-  }
-
-  .curl-body.open { display: block; }
-
-  .curl-code {
-    background: var(--bg);
-    border: 1px solid var(--border2);
-    border-radius: 4px;
-    padding: 14px 16px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.6;
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
-
-  .curl-code .keyword { color: var(--primary); }
-  .curl-code .string  { color: var(--orange); }
-  .curl-code .flag    { color: var(--blue); }
-
-  /* Loading state */
-  .loading {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 20px;
     font-family: var(--mono);
     font-size: 12px;
-    color: var(--text-dim);
   }
 
-  .spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--border2);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+  .score-row-label { color: var(--ink-dim); }
+  .score-row-val   { color: var(--accent-dk); font-weight: 500; }
+
+  /* ─── WHO USES IT ─── */
+  .users-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
   }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb {
-    background: var(--border2);
-    border-radius: 2px;
-  }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-
-  /* JSON syntax highlight */
-  .json-key    { color: var(--blue); }
-  .json-string { color: var(--orange); }
-  .json-number { color: var(--green); }
-  .json-bool   { color: var(--purple); }
-  .json-null   { color: var(--text-muted); }
-
-  /* Copy schema button */
-  .copy-schema-btn {
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 3px 8px;
-    border-radius: 3px;
-    border: 1px solid var(--border2);
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .copy-schema-btn:hover {
-    border-color: var(--blue);
-    color: var(--blue);
-  }
-
-  /* Status bar */
-  .status-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 24px;
+  .user-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
     background: var(--surface);
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    gap: 20px;
-    z-index: 50;
+    transition: all 0.2s;
   }
 
-  .status-item {
+  .user-card:hover {
+    border-color: var(--border2);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+    transform: translateY(-2px);
+  }
+
+  .user-type {
     font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
     display: flex;
     align-items: center;
+    gap: 8px;
+  }
+
+  .user-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .user-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+
+  .user-desc {
+    font-size: 14px;
+    color: var(--ink-dim);
+    line-height: 1.65;
+    font-weight: 300;
+    margin-bottom: 20px;
+  }
+
+  .user-tags {
+    display: flex;
+    flex-wrap: wrap;
     gap: 6px;
   }
 
-  .status-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--primary);
+  .user-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    color: var(--ink-dim);
   }
 
-  .status-dot.idle { background: var(--text-muted); }
-  .status-dot.error { background: var(--red); }
+  /* ─── ARCHITECTURE ─── */
+  .arch-section {
+    background: var(--ink);
+    padding: 100px 48px;
+  }
 
-  /* Error state */
-  .error-state {
-    padding: 20px;
+  .arch-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+
+  .arch-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+
+  .arch-step {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    position: relative;
+    transition: all 0.2s;
+  }
+
+  .arch-step:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: var(--accent);
+  }
+
+  .arch-step + .arch-step {
+    margin-top: -1px;
+    border-radius: 0;
+  }
+
+  .arch-step:first-child { border-radius: 8px 8px 0 0; }
+  .arch-step:last-child  { border-radius: 0 0 8px 8px; }
+
+  .arch-connector {
+    width: 1px;
+    height: 20px;
+    background: linear-gradient(to bottom, rgba(0,201,110,0.3), rgba(0,201,110,0.6));
+    margin-left: 34px;
+  }
+
+  .arch-step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0,201,110,0.1);
+    border: 1px solid rgba(0,201,110,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-family: var(--mono);
-    font-size: 12px;
-    color: var(--red);
+    font-size: 11px;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .arch-step-info { flex: 1; }
+
+  .arch-step-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+  }
+
+  .arch-step-desc {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
+    margin-top: 2px;
+  }
+
+  .arch-step-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: rgba(255,255,255,0.25);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  .arch-outputs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .arch-output {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.02);
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  /* ─── FINAL CTA ─── */
+  .cta-section {
+    padding: 120px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,201,110,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cta-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .cta-title {
+    font-family: var(--serif);
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+  }
+
+  .cta-sub {
+    font-size: 17px;
+    color: var(--ink-dim);
+    font-weight: 300;
+    margin-bottom: 44px;
     line-height: 1.6;
+  }
+
+  .cta-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .footer-logo img {
+    height: 18px;
+    opacity: 0.5;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+  }
+
+  .footer-link {
+    font-size: 13px;
+    color: var(--ink-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .footer-link:hover { color: var(--ink); }
+
+  .footer-copy {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-family: var(--mono);
+  }
+
+  /* ─── ANIMATIONS ─── */
+  .fade-up {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .fade-up.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .stagger-1 { transition-delay: 0.1s; }
+  .stagger-2 { transition-delay: 0.2s; }
+  .stagger-3 { transition-delay: 0.3s; }
+  .stagger-4 { transition-delay: 0.4s; }
+  .stagger-5 { transition-delay: 0.5s; }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 900px) {
+    nav { padding: 0 24px; }
+    .hero { padding: 60px 24px; grid-template-columns: 1fr; min-height: auto; gap: 40px; }
+    .hero-right { order: -1; margin-right: 0; }
+    .hero-video { height: 280px; border-radius: 10px; border: 1px solid var(--border); }
+    .proof { padding: 60px 24px; }
+    .proof-grid { grid-template-columns: 1fr; gap: 0; }
+    .proof-arrow { display: none; }
+    .section { padding: 70px 24px; }
+    .adapters-grid { grid-template-columns: 1fr; }
+    .validation-section { padding: 70px 24px; }
+    .validation-inner { grid-template-columns: 1fr; gap: 40px; }
+    .users-grid { grid-template-columns: 1fr; }
+    .arch-section { padding: 70px 24px; }
+    .arch-inner { grid-template-columns: 1fr; gap: 40px; }
+    .cta-section { padding: 80px 24px; }
+    footer { padding: 24px; flex-direction: column; gap: 16px; text-align: center; }
+    .nav-links .nav-link { display: none; }
+  }
+
+  /* ─── WHAT QRYNT RETURNS ─── */
+  .returns-section {
+    padding: 80px 48px;
+    background: var(--ink);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .returns-section::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      rgba(255,255,255,0.02) 39px,
+      rgba(255,255,255,0.02) 40px
+    );
+    pointer-events: none;
+  }
+
+  .returns-inner {
+    max-width: 1100px; margin: 0 auto;
+    position: relative; z-index: 1;
+  }
+
+  .returns-header { margin-bottom: 48px; }
+
+  .returns-eyebrow {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); letter-spacing: 0.12em;
+    text-transform: uppercase; display: block; margin-bottom: 14px;
+  }
+
+  .returns-title {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3.5vw, 42px);
+    font-weight: 400; color: #fff;
+    margin-bottom: 14px; line-height: 1.15;
+  }
+
+  .returns-sub {
+    font-size: 15px; color: rgba(255,255,255,0.45);
+    max-width: 560px; line-height: 1.7; font-weight: 300;
+  }
+
+  /* BEFORE / AFTER PANELS */
+  .returns-panels {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0; align-items: start;
+    margin-bottom: 48px;
+  }
+
+  .returns-panel {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; overflow: hidden;
+  }
+
+  .returns-panel-head {
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .returns-panel-label {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+
+  .returns-panel-label.input  { color: rgba(255,255,255,0.3); }
+  .returns-panel-label.output { color: var(--accent); }
+
+  .returns-panel-body {
+    padding: 20px 22px;
+    font-family: var(--mono); font-size: 12px;
+    line-height: 1.8; color: rgba(255,255,255,0.5);
+    min-height: 220px;
+  }
+
+  .returns-comment { color: rgba(255,255,255,0.2); }
+  .returns-key     { color: #7dd3fc; }
+  .returns-str     { color: #86efac; }
+  .returns-num     { color: #fbbf24; }
+
+  .returns-arrow {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 8px;
+    padding: 0 24px; padding-top: 80px;
+  }
+
+  .returns-arrow-line {
+    width: 1px; height: 40px;
+    background: rgba(255,255,255,0.12);
+  }
+
+  .returns-arrow-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--accent); letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: rgba(0,201,110,0.1);
+    border: 1px solid rgba(0,201,110,0.2);
+    padding: 4px 10px; border-radius: 20px;
+  }
+
+  /* TERM PILLS */
+  .returns-terms { margin-top: 8px; }
+
+  .returns-terms-label {
+    font-family: var(--mono); font-size: 11px;
+    color: rgba(255,255,255,0.3); letter-spacing: 0.1em;
+    text-transform: uppercase; display: block; margin-bottom: 16px;
+  }
+
+  .returns-pills {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px; margin-bottom: 28px;
+  }
+
+  .returns-pill {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px; padding: 14px 16px;
+    text-decoration: none;
+    display: flex; flex-direction: column; gap: 5px;
+    transition: all 0.15s;
+  }
+
+  .returns-pill:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(0,201,110,0.3);
+  }
+
+  .pill-term {
+    font-family: var(--mono); font-size: 12px;
+    font-weight: 500; color: #fff;
+  }
+
+  .pill-def {
+    font-size: 12px; color: rgba(255,255,255,0.4);
+    line-height: 1.5;
+  }
+
+  .pill-link {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); margin-top: 4px;
+  }
+
+  .returns-docs-link {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--accent); text-decoration: none;
+    border-bottom: 1px solid rgba(0,201,110,0.3);
+    padding-bottom: 2px; transition: border-color 0.15s;
+  }
+
+  .returns-docs-link:hover { border-color: var(--accent); }
+
+  @media (max-width: 900px) {
+    .returns-section { padding: 60px 24px; }
+    .returns-panels { grid-template-columns: 1fr; }
+    .returns-arrow { flex-direction: row; padding: 16px 0; }
+    .returns-arrow-line { width: 40px; height: 1px; }
+    .returns-pills { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 600px) {
+    .returns-pills { grid-template-columns: 1fr; }
   }
 </style>
 </head>
 <body>
 
-<header>
-	<!-- Header logo — replace the logo div -->
-<div class="logo">
-  <img src="/assets/QryNt.png" style="height:22px; width:auto; margin-right:4px;">
-  <div class="logo-dot"></div>
-  DEVELOPER CONSOLE
-</div>
-  <div class="header-right">
-    <input
-      type="text"
-      class="api-key-input"
-      id="api-key"
-      placeholder="X-API-Key"
-      value="test-key"
-    />
-    <span class="badge">v1.0</span>
+<!-- NAV -->
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    <span class="nav-logo-text">Qrynt</span>
+  </a>
+  <div class="nav-links">
+    <a href="/help" class="nav-link">Help</a>
+    <a href="/pricing" class="nav-link">Pricing</a>
+    <a href="/console" class="nav-link">Try Qrynt</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="mailto:qrynttech@gmail.com" class="nav-link">Contact</a>
+    <a href="/signup" class="nav-cta">Get started →</a>
   </div>
-</header>
+</nav>
 
-<main>
-  <!-- LEFT PANEL -->
-  <div class="panel-left">
-    <div class="panel-header">
-      <span class="panel-title">INPUT</span>
-      <div class="panel-actions">
-        <div class="toggle-group">
-          <button class="toggle-btn active" id="toggle-raw" onclick="setInputMode('raw')">RAW</button>
-          <button class="toggle-btn" id="toggle-preview" onclick="setInputMode('preview')">PREVIEW</button>
-        </div>
-        <button class="btn" onclick="clearInput()">CLEAR</button>
-      </div>
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-label">
+      <div class="hero-label-dot"></div>
+      Early Access — API v1.0
     </div>
-
-    <textarea
-      id="input-text"
-      placeholder="Paste logs, configs, messy data, any text...
-
-user_id: usr_123
-status: active
-region: eu-west-1
-
-| ID | Name  | Score |
-|----|-------|-------|
-| 1  | Alice | 99    |
-| 2  | Bob   | 87    |"
-    ></textarea>
-
-    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
-      <span class="drop-zone-text label">⬆ DROP FILE OR CLICK TO UPLOAD</span>
-      <span class="drop-zone-text" id="file-name">txt, csv, pdf, docx, xlsx, html</span>
-    </div>
-    <input type="file" id="file-input" accept=".txt,.log,.csv,.json,.yaml,.yml,.md,.pdf,.docx,.xlsx,.html,.htm">
-
-    <div class="process-bar">
-      <button class="btn btn-primary" id="process-btn" onclick="processText()">
-        PROCESS →
-      </button>
-      <div class="stat">
-        <span>LINES</span>
-        <span class="stat-value" id="line-count">0</span>
-      </div>
-      <div class="stat">
-        <span>CHARS</span>
-        <span class="stat-value" id="char-count">0</span>
-      </div>
+    <h1>Reliable structured data from <em>messy</em> text.</h1>
+    <p class="hero-sub">
+      Paste any log, config, or document.<br>Get validated structured output instantly.
+    </p>
+    <div class="hero-actions">
+      <a href="/console" class="btn-primary">
+        Try Qrynt
+        <span>→</span>
+      </a>
+      <a href="/help" class="btn-secondary">
+        Read the docs
+        <span style="font-size:12px">↗</span>
+      </a>
     </div>
   </div>
+  <div class="hero-right">
+    <video autoplay loop muted playsinline class="hero-video">
+      <source src="/assets/Qrynt_steps.webm" type="video/webm">
+    </video>
+  </div>
+</section>
 
-  <!-- SPLITTER -->
-  <div class="splitter" id="splitter"></div>
+<!-- WHAT QRYNT RETURNS -->
+<section class="returns-section">
+  <div class="returns-inner">
 
-  <!-- RIGHT PANEL -->
-  <div class="panel-right">
-    <div class="tabs">
-      <button class="tab active" onclick="switchTab('human')">HUMAN <span class="help-icon" data-term="human" title="What is HumanAdapter?">?</span></button>
-      <button class="tab" onclick="switchTab('machine')">MACHINE <span class="help-icon" data-term="machine" title="What is MachineAdapter?">?</span></button>
-      <button class="tab" onclick="switchTab('ai')">AI / LDM <span class="help-icon" data-term="ai" title="What is AIAdapter / LDM?">?</span></button>
+    <div class="returns-header">
+      <span class="returns-eyebrow">// What Qrynt returns</span>
+      <h2 class="returns-title">Messy text in. Typed structure out.</h2>
+      <p class="returns-sub">
+        Qrynt reads your input, detects its structure, and returns
+        typed segments you can connect directly to a database, an AI pipeline,
+        or a review interface — without writing a parser.
+      </p>
     </div>
 
-    <!-- Human tab -->
-    <div class="tab-content active" id="tab-human">
-      <div class="empty-state" id="human-empty">
-        <div class="empty-icon">◈</div>
-        <div class="empty-text">AWAITING INPUT</div>
-      </div>
-      <div class="output-area" id="human-output" style="display:none"></div>
-    </div>
+    <!-- BEFORE / AFTER -->
+    <div class="returns-panels">
 
-    <!-- Machine tab -->
-    <div class="tab-content" id="tab-machine">
-      <div class="empty-state" id="machine-empty">
-        <div class="empty-icon">◈</div>
-        <div class="empty-text">AWAITING INPUT</div>
-      </div>
-      <div class="output-area json" id="machine-output" style="display:none"></div>
-      <div class="panel-header" id="machine-schema-bar" style="display:none; border-top: 1px solid var(--border);">
-        <span class="panel-title">SCHEMA</span>
-        <button class="copy-schema-btn" onclick="copySchema()">COPY JSON SCHEMA</button>
-      </div>
-    </div>
-
-    <!-- AI tab -->
-    <div class="tab-content" id="tab-ai">
-      <div class="empty-state" id="ai-empty">
-        <div class="empty-icon">◈</div>
-        <div class="empty-text">AWAITING INPUT</div>
-      </div>
-      <div class="output-area json" id="ai-output" style="display:none"></div>
-    </div>
-
-    <!-- Output footer -->
-    <div class="output-footer" id="output-footer" style="display:none">
-      <div class="stats-row">
-        <div class="stat">
-          <span>SEGMENTS <span class="help-icon" data-term="segment" title="What is a segment?">?</span></span>
-          <span class="stat-value" id="seg-count">—</span>
+      <div class="returns-panel">
+        <div class="returns-panel-head">
+          <span class="returns-panel-label input">// Input — raw text</span>
+          <div class="proof-dots">
+            <div class="proof-dot"></div>
+            <div class="proof-dot"></div>
+            <div class="proof-dot"></div>
+          </div>
         </div>
-        <div class="stat">
-          <span>QUALITY <span class="help-icon" data-term="confidence" title="What is confidence?">?</span></span>
-          <span class="stat-value" id="quality-score">—</span>
-        </div>
-        <span class="validation-badge" id="validation-badge">—</span>
-      </div>
-      <div class="footer-actions">
-        <button class="btn" onclick="copyOutput()" title="Copy output to clipboard">COPY</button>
-        <button class="btn btn-download" onclick="downloadHuman()" id="download-btn" title="Download as .txt file">⬇ DOWNLOAD .TXT</button>
-      </div>
-    </div>
-
-    <!-- curl snippet -->
-    <div class="curl-section">
-      <div class="curl-header" onclick="toggleCurl()">
-        <span class="panel-title">CURL SNIPPET</span>
-        <span class="panel-title" id="curl-toggle">▶ SHOW</span>
-      </div>
-      <div class="curl-body" id="curl-body">
-        <div class="curl-code" id="curl-code">
-<span class="comment"># Stage 1 — ingest</span>
-<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">https://api.yourdomain.com/ingest</span> <span class="flag">\</span>
-  <span class="flag">-H</span> <span class="string">"X-API-Key: &lt;your-key&gt;"</span> <span class="flag">\</span>
-  <span class="flag">-H</span> <span class="string">"Content-Type: text/plain"</span> <span class="flag">\</span>
-  <span class="flag">--data-binary</span> <span class="string">@your-file.txt</span>
-
-<span class="comment"># Stage 2 — resolve</span>
-<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">https://api.yourdomain.com/resolve</span> <span class="flag">\</span>
-  <span class="flag">-H</span> <span class="string">"X-API-Key: &lt;your-key&gt;"</span> <span class="flag">\</span>
-  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\</span>
-  <span class="flag">-d</span> <span class="string">'{"session_id": "&lt;from-ingest&gt;"}'</span>
-
-<span class="comment"># Stage 3 — export</span>
-<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">https://api.yourdomain.com/export</span> <span class="flag">\</span>
-  <span class="flag">-H</span> <span class="string">"X-API-Key: &lt;your-key&gt;"</span> <span class="flag">\</span>
-  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\</span>
-  <span class="flag">-d</span> <span class="string">'{"session_id": "&lt;from-ingest&gt;", "format": "machine"}'</span>
+        <div class="returns-panel-body">
+          <span class="returns-comment"># mixed content — chat export + explanation</span>
+          <br><br>
+          Matrix row explanation<br>
+          You said: In this matrix or 2D array<br>
+          the first row is data of one object...<br>
+          <br>
+          ChatGPT said: I see what you're describing<br>
+          Let's clarify:<br>
+          <br>
+          You have a 2D array (matrix).<br>
+          Each row corresponds to one object.
         </div>
       </div>
+
+      <div class="returns-arrow">
+        <div class="returns-arrow-line"></div>
+        <span class="returns-arrow-label">Qrynt</span>
+        <div class="returns-arrow-line"></div>
+      </div>
+
+      <div class="returns-panel">
+        <div class="returns-panel-head">
+          <span class="returns-panel-label output">// Output — typed segments</span>
+          <div class="proof-dots">
+            <div class="proof-dot" style="background:rgba(0,201,110,0.3)"></div>
+            <div class="proof-dot" style="background:rgba(0,201,110,0.3)"></div>
+            <div class="proof-dot" style="background:rgba(0,201,110,0.3)"></div>
+          </div>
+        </div>
+        <div class="returns-panel-body">
+          {<br>
+          &nbsp;&nbsp;<span class="returns-key">"segment_id"</span>: <span class="returns-str">"fc6cfd28..."</span>,<br>
+          &nbsp;&nbsp;<span class="returns-key">"type"</span>: <span class="returns-str">"prose"</span>,<br>
+          &nbsp;&nbsp;<span class="returns-key">"content"</span>: {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="returns-key">"text"</span>: <span class="returns-str">"Each row corresponds<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;to one object."</span><br>
+          &nbsp;&nbsp;},<br>
+          &nbsp;&nbsp;<span class="returns-key">"confidence"</span>: <span class="returns-num">1</span>,<br>
+          &nbsp;&nbsp;<span class="returns-key">"flags"</span>: []<br>
+          }
+        </div>
+      </div>
+
     </div>
+
+    <!-- TERM PILLS -->
+    <div class="returns-terms">
+      <span class="returns-terms-label">What each field means</span>
+      <div class="returns-pills">
+        <a href="/help#segment" class="returns-pill">
+          <span class="pill-term">segment</span>
+          <span class="pill-def">A coherent chunk of your input, classified independently</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#confidence" class="returns-pill">
+          <span class="pill-term">confidence</span>
+          <span class="pill-def">How certain the engine is about the classification (0–1)</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#prose" class="returns-pill">
+          <span class="pill-term">type: prose</span>
+          <span class="pill-def">Natural language — sentences, paragraphs, chat messages</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#kv_block" class="returns-pill">
+          <span class="pill-term">type: kv_block</span>
+          <span class="pill-def">Key-value pairs — config files, forms, metadata</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#machine-adapter" class="returns-pill">
+          <span class="pill-term">MachineAdapter</span>
+          <span class="pill-def">Flat JSON records — connect directly to your database</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+        <a href="/help#ai-adapter" class="returns-pill">
+          <span class="pill-term">AIAdapter / LDM</span>
+          <span class="pill-def">Logical Document Model — structured input for LLMs</span>
+          <span class="pill-link">Learn more →</span>
+        </a>
+      </div>
+      <a href="/help" class="returns-docs-link">Read the full documentation →</a>
+    </div>
+
   </div>
-</main>
+</section>
 
-<!-- Status bar -->
-<div class="status-bar">
-  <div class="status-item">
-    <div class="status-dot idle" id="status-dot"></div>
-    <span id="status-text">IDLE</span>
-  </div>
-  <div class="status-item" id="session-display" style="display:none">
-    SESSION <span style="color: var(--primary)" id="session-id-display">—</span>
-  </div>
-  <div class="status-item" id="time-display" style="display:none">
-    <span id="proc-time">—</span>ms
-  </div>
-</div>
+<!-- ADAPTERS -->
+<section class="section">
+  <div class="section-label">// OUTPUT FORMATS</div>
+  <h2 class="section-title fade-up">One input.<br>Three outputs.</h2>
+  <p class="section-sub fade-up stagger-1">
+    Every processed document is immediately available in the format
+    your system actually needs.
+  </p>
 
-<script>
-const API_BASE = '';
-let currentSessionId = null;
-let currentResult    = null;
-let currentHuman     = null;
-let currentMachine   = null;
-let currentAI        = null;
-let activeTab        = 'human';
-let curlOpen         = false;
+  <div class="adapters-grid">
+    <div class="adapter-card human fade-up stagger-2">
+      <div class="adapter-icon human">◧</div>
+      <div class="adapter-name">Human</div>
+      <div class="adapter-desc">
+        Formatted, readable output for operators, analysts,
+        and CLI tools. Downloadable as plain text.
+      </div>
+      <div class="adapter-example">TXN_ID      AMOUNT   STATUS
+──────────  ───────  ──────────
+txn_9k2m4p  1249.50  AUTHORIZED
+txn_7h4j9p  450.00   PENDING
 
-// Input stats
-const inputText = document.getElementById('input-text');
-inputText.addEventListener('input', updateInputStats);
+banking.core: enabled
+swift: v2024
+fraud.ml: v3.1</div>
+    </div>
 
-function updateInputStats() {
-  const text = inputText.value;
-  document.getElementById('line-count').textContent =
-    text ? text.split('\n').length : 0;
-  document.getElementById('char-count').textContent = text.length;
-}
-
-function clearInput() {
-  inputText.value = '';
-  updateInputStats();
-}
-
-function setInputMode(mode) {
-  document.getElementById('toggle-raw').classList.toggle('active', mode === 'raw');
-  document.getElementById('toggle-preview').classList.toggle('active', mode === 'preview');
-}
-
-// Binary formats — sent to /ingest/file, not read as text
-const BINARY_EXTENSIONS = new Set(['.pdf', '.docx', '.xlsx']);
-
-function getExtension(filename) {
-  const m = filename.toLowerCase().match(/\.[^.]+$/);
-  return m ? m[0] : '';
-}
-
-// File upload
-const fileInput = document.getElementById('file-input');
-const dropZone  = document.getElementById('drop-zone');
-
-// Holds binary file for upload path
-let pendingBinaryFile = null;
-
-fileInput.addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  handleFileSelection(file);
-});
-
-dropZone.addEventListener('dragover', e => {
-  e.preventDefault();
-  dropZone.classList.add('drag-over');
-});
-
-dropZone.addEventListener('dragleave', () => {
-  dropZone.classList.remove('drag-over');
-});
-
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (file) handleFileSelection(file);
-});
-
-// ── Draggable splitter: resize input vs output columns ──
-(function initSplitter() {
-  const splitter = document.getElementById('splitter');
-  const mainEl   = document.querySelector('main');
-  if (!splitter || !mainEl) return;
-
-  const MIN_PX = 260;   // neither panel may collapse below this
-  let dragging = false;
-
-  function onMove(clientX) {
-    const rect  = mainEl.getBoundingClientRect();
-    let leftPx  = clientX - rect.left;
-    const maxPx = rect.width - MIN_PX - 6;   // 6px = splitter track
-    leftPx = Math.max(MIN_PX, Math.min(leftPx, maxPx));
-    mainEl.style.setProperty('--split', leftPx + 'px');
-  }
-
-  splitter.addEventListener('mousedown', e => {
-    e.preventDefault();
-    dragging = true;
-    splitter.classList.add('dragging');
-    document.body.classList.add('col-resizing');
-  });
-  window.addEventListener('mousemove', e => { if (dragging) onMove(e.clientX); });
-  window.addEventListener('mouseup', () => {
-    if (!dragging) return;
-    dragging = false;
-    splitter.classList.remove('dragging');
-    document.body.classList.remove('col-resizing');
-  });
-  // Double-click resets to an even split
-  splitter.addEventListener('dblclick', () => {
-    mainEl.style.removeProperty('--split');
-  });
-})();
-
-function handleFileSelection(file) {
-  document.getElementById('file-name').textContent = file.name;
-  const ext = getExtension(file.name);
-  if (BINARY_EXTENSIONS.has(ext)) {
-    // Binary — hold the file for processing, and fetch a PREVIEW of the
-    // extracted text so the user can verify the right file before consuming
-    // a processing request. Preview uses the same extractor as processing
-    // and does NOT consume a request.
-    pendingBinaryFile = file;
-    inputText.value   = '';
-    document.getElementById('line-count').textContent = '—';
-    document.getElementById('char-count').textContent = file.size;
-    setStatus('idle', `FILE: ${file.name}`);
-    previewBinaryFile(file);
-  } else {
-    // Text — read into textarea as before
-    pendingBinaryFile = null;
-    const reader = new FileReader();
-    reader.onload = e => {
-      inputText.value = e.target.result;
-      updateInputStats();
-    };
-    reader.readAsText(file);
-  }
-}
-
-async function previewBinaryFile(file) {
-  const apiKey = document.getElementById('api-key').value.trim();
-  inputText.value = `Extracting preview of ${file.name}...`;
-  inputText.setAttribute('readonly', 'readonly');
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await fetch(`${API_BASE}/ingest/file/preview`, {
-      method:  'POST',
-      headers: { 'X-API-Key': apiKey },
-      body:    formData,
-    });
-    // The file the user is verifying may have changed while we awaited;
-    // only apply the preview if this is still the pending file.
-    if (pendingBinaryFile !== file) return;
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      inputText.value =
-        `[Preview unavailable]\n${err.detail?.message || err.detail || 'Could not extract preview.'}`;
-      return;
-    }
-
-    const data = await res.json();
-    if (data.has_text) {
-      inputText.value = data.text;
-      document.getElementById('line-count').textContent = data.line_count;
-      document.getElementById('char-count').textContent = data.char_count;
-    } else {
-      const reason = (data.warnings && data.warnings.length)
-        ? data.warnings.join('\n')
-        : 'No extractable text found in this file.';
-      inputText.value =
-        `[No extractable text — ${(data.source_format || 'file').toUpperCase()}]\n${reason}`;
-    }
-  } catch (e) {
-    if (pendingBinaryFile !== file) return;
-    inputText.value = `[Preview failed]\n${e.message || e}`;
-  } finally {
-    if (pendingBinaryFile === file) {
-      inputText.removeAttribute('readonly');
-    }
-  }
-}
-
-// Tabs
-function switchTab(tab) {
-  activeTab = tab;
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['human','machine','ai'][i] === tab);
-  });
-  document.querySelectorAll('.tab-content').forEach((c, i) => {
-    c.classList.toggle('active', ['human','machine','ai'][i] === tab);
-  });
-}
-
-// Process
-async function processText() {
-  const apiKey = document.getElementById('api-key').value.trim();
-  const hasBinary = !!pendingBinaryFile;
-  const text = inputText.value.trim();
-
-  if (!hasBinary && !text) return;
-
-  setStatus('processing', 'PROCESSING');
-  document.getElementById('process-btn').disabled = true;
-  showLoading();
-
-  const startTime = Date.now();
-
-  try {
-    let envelope;
-
-    if (hasBinary) {
-      // ── Binary file path: /ingest/file → /export ──
-      const formData = new FormData();
-      formData.append('file', pendingBinaryFile);
-
-      const fileRes = await fetch(`${API_BASE}/ingest/file`, {
-        method:  'POST',
-        headers: { 'X-API-Key': apiKey },
-        body:    formData,
-      });
-
-      if (!fileRes.ok) {
-        const err = await fileRes.json();
-        throw new Error(
-          (err.detail?.message || err.detail || 'File ingestion failed')
-        );
-      }
-
-      envelope         = await fileRes.json();
-      currentSessionId = envelope.source_id;
-      currentResult    = envelope;
-
-      // Show ingestion warnings if any
-      const warnings = envelope.ingestion_warnings || [];
-      if (warnings.length) {
-        console.warn('[ingest/file] warnings:', warnings);
-      }
-
-      // Show source format in status bar
-      const fmt = envelope.ingestion_metadata?.source_format;
-      if (fmt) {
-        document.getElementById('status-text').textContent =
-          `PROCESSING [${fmt.toUpperCase()}]`;
-      }
-
-      // Export all three formats from resolved session
-      await Promise.all([
-        exportFormat('human'),
-        exportFormat('machine'),
-        exportFormat('ai'),
-      ]);
-
-    } else {
-      // ── Text path: /ingest → /resolve → /export ──
-      const ingestRes = await fetch(`${API_BASE}/ingest`, {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key':    apiKey,
-        },
-        body: JSON.stringify({ payload: text }),
-      });
-
-      if (!ingestRes.ok) {
-        const err = await ingestRes.json();
-        throw new Error(err.detail || 'Ingest failed');
-      }
-
-      const ingest = await ingestRes.json();
-      currentSessionId = ingest.session_id;
-
-      const resolveRes = await fetch(`${API_BASE}/resolve`, {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key':    apiKey,
-        },
-        body: JSON.stringify({ session_id: currentSessionId }),
-      });
-
-      if (!resolveRes.ok) {
-        const err = await resolveRes.json();
-        throw new Error(err.detail || 'Resolve failed');
-      }
-
-      const resolved = await resolveRes.json();
-      currentResult  = resolved.envelope;
-      envelope       = currentResult;
-
-      await Promise.all([
-        exportFormat('human'),
-        exportFormat('machine'),
-        exportFormat('ai'),
-      ]);
-    }
-
-    const elapsed = Date.now() - startTime;
-    document.getElementById('session-id-display').textContent =
-      currentSessionId.substring(0, 8) + '...';
-    document.getElementById('session-display').style.display = 'flex';
-    document.getElementById('proc-time').textContent = elapsed;
-    document.getElementById('time-display').style.display = 'flex';
-
-    updateStats(currentResult);
-    updateCurlSnippet(currentSessionId, apiKey);
-    setStatus('ready', 'READY');
-
-  } catch (err) {
-    showError(err.message);
-    setStatus('error', 'ERROR');
-  } finally {
-    document.getElementById('process-btn').disabled = false;
-  }
-}
-
-async function exportFormat(format) {
-  const apiKey = document.getElementById('api-key').value.trim();
-
-  const res = await fetch(`${API_BASE}/export`, {
-    method:  'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key':    apiKey,
+    <div class="adapter-card machine fade-up stagger-3">
+      <div class="adapter-icon machine">◨</div>
+      <div class="adapter-name">Machine</div>
+      <div class="adapter-desc">
+        Typed structured records for database ingestion,
+        analytics pipelines, and ETL workflows.
+      </div>
+      <div class="adapter-example">[
+  {
+    "type": "table",
+    "content": {
+      "headers": ["TXN_ID","AMOUNT"],
+      "rows": [["txn_9k2m4p", 1249.50]]
     },
-    body: JSON.stringify({
-      session_id: currentSessionId,
-      format:     format,
-      include_confidence: true,
-    }),
-  });
-
-  if (!res.ok) return;
-
-  if (format === 'human') {
-    currentHuman = await res.text();
-    renderHuman(currentHuman);
-  } else if (format === 'machine') {
-    const data   = await res.json();
-    currentMachine = data.content;
-    renderMachine(currentMachine);
-  } else if (format === 'ai') {
-    const data = await res.json();
-    currentAI  = data.content;
-    renderAI(currentAI);
+    "confidence": 1.0
   }
-}
+]</div>
+    </div>
 
-function renderHuman(text) {
-  document.getElementById('human-empty').style.display  = 'none';
-  const el = document.getElementById('human-output');
-  el.style.display = 'block';
-  el.textContent   = text;
-  document.getElementById('output-footer').style.display = 'flex';
-  document.getElementById('download-btn').style.display  = 'inline-block';
-}
-
-function renderMachine(data) {
-  document.getElementById('machine-empty').style.display = 'none';
-  const el = document.getElementById('machine-output');
-  el.style.display  = 'block';
-  el.innerHTML      = syntaxHighlight(JSON.stringify(data, null, 2));
-  document.getElementById('machine-schema-bar').style.display = 'flex';
-}
-
-function renderAI(data) {
-  document.getElementById('ai-empty').style.display = 'none';
-  const el = document.getElementById('ai-output');
-  el.style.display = 'block';
-  el.innerHTML     = syntaxHighlight(JSON.stringify(data, null, 2));
-}
-
-function showLoading() {
-  ['human','machine','ai'].forEach(t => {
-    document.getElementById(`${t}-empty`).innerHTML =
-      `<div class="loading"><div class="spinner"></div>PROCESSING...</div>`;
-    document.getElementById(`${t}-empty`).style.display = 'flex';
-    document.getElementById(`${t}-output`).style.display = 'none';
-  });
-  document.getElementById('output-footer').style.display = 'none';
-  document.getElementById('machine-schema-bar').style.display = 'none';
-}
-
-function showError(msg) {
-  ['human','machine','ai'].forEach(t => {
-    document.getElementById(`${t}-empty`).innerHTML =
-      `<div class="error-state">ERROR: ${msg}</div>`;
-    document.getElementById(`${t}-empty`).style.display = 'flex';
-  });
-}
-
-function updateStats(envelope) {
-  const validation = envelope?.payload?.validation;
-  const segments   = envelope?.payload?.machine_readable?.segments || [];
-
-  document.getElementById('seg-count').textContent = segments.length;
-
-  if (validation) {
-    const score = validation.quality_score;
-    document.getElementById('quality-score').textContent =
-      score !== undefined ? (score * 100).toFixed(0) + '%' : '—';
-
-    const badge = document.getElementById('validation-badge');
-    if (validation.is_valid) {
-      badge.textContent = '✓ VALID';
-      badge.className   = 'validation-badge valid';
-    } else {
-      badge.textContent = '✗ INVALID';
-      badge.className   = 'validation-badge invalid';
+    <div class="adapter-card ai fade-up stagger-4">
+      <div class="adapter-icon ai">◩</div>
+      <div class="adapter-name">AI / LDM</div>
+      <div class="adapter-desc">
+        Token-efficient Logical Document Model for LLM
+        context windows, RAG pipelines, and fine-tuning.
+      </div>
+      <div class="adapter-example">{
+  "blocks": [
+    {
+      "type": "kv_block",
+      "tags": ["KV", "STRUCTURED"],
+      "label": "Config",
+      "confidence": 0.98
     }
-  }
-}
-
-function updateCurlSnippet(sessionId, apiKey) {
-  document.getElementById('curl-code').innerHTML = `
-<span class="comment"># Stage 1 — ingest</span>
-<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">http://localhost:8000/ingest</span> <span class="flag">\\</span>
-  <span class="flag">-H</span> <span class="string">"X-API-Key: ${apiKey}"</span> <span class="flag">\\</span>
-  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\\</span>
-  <span class="flag">-d</span> <span class="string">'{"payload": "your text here"}'</span>
-
-<span class="comment"># → returns session_id: "${sessionId}"</span>
-
-<span class="comment"># Stage 2 — resolve</span>
-<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">http://localhost:8000/resolve</span> <span class="flag">\\</span>
-  <span class="flag">-H</span> <span class="string">"X-API-Key: ${apiKey}"</span> <span class="flag">\\</span>
-  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\\</span>
-  <span class="flag">-d</span> <span class="string">'{"session_id": "${sessionId}"}'</span>
-
-<span class="comment"># Stage 3 — export</span>
-<span class="keyword">curl</span> <span class="flag">-X POST</span> <span class="string">http://localhost:8000/export</span> <span class="flag">\\</span>
-  <span class="flag">-H</span> <span class="string">"X-API-Key: ${apiKey}"</span> <span class="flag">\\</span>
-  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> <span class="flag">\\</span>
-  <span class="flag">-d</span> <span class="string">'{"session_id": "${sessionId}", "format": "machine"}'</span>
-  `.trim();
-}
-
-// JSON syntax highlight
-function syntaxHighlight(json) {
-  return json
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(
-      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
-      match => {
-        let cls = 'json-number';
-        if (/^"/.test(match)) {
-          cls = /:$/.test(match) ? 'json-key' : 'json-string';
-        } else if (/true|false/.test(match)) {
-          cls = 'json-bool';
-        } else if (/null/.test(match)) {
-          cls = 'json-null';
-        }
-        return `<span class="${cls}">${match}</span>`;
-      }
-    );
-}
-
-// Actions
-function copyOutput() {
-  let text = '';
-  if (activeTab === 'human' && currentHuman) text = currentHuman;
-  else if (activeTab === 'machine' && currentMachine)
-    text = JSON.stringify(currentMachine, null, 2);
-  else if (activeTab === 'ai' && currentAI)
-    text = JSON.stringify(currentAI, null, 2);
-  if (text) navigator.clipboard.writeText(text);
-}
-
-function copySchema() {
-  if (!currentMachine) return;
-  const schema = currentMachine.map(seg => ({
-    segment_id:    'string',
-    type:          seg.type,
-    content:       Object.fromEntries(
-      Object.entries(seg.content || {}).map(([k, v]) => [k, typeof v])
-    ),
-    confidence:    'number',
-    flags:         'string[]',
-    section_label: 'string|null',
-    source_span:   'object|null',
-  }));
-  navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
-}
-
-function downloadHuman() {
-  if (!currentHuman) return;
-  const blob = new Blob([currentHuman], { type: 'text/plain' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `session_${currentSessionId || 'output'}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function toggleCurl() {
-  curlOpen = !curlOpen;
-  document.getElementById('curl-body').classList.toggle('open', curlOpen);
-  document.getElementById('curl-toggle').textContent =
-    curlOpen ? '▼ HIDE' : '▶ SHOW';
-}
-
-// Status
-function setStatus(state, text) {
-  const dot  = document.getElementById('status-dot');
-  const label = document.getElementById('status-text');
-  dot.className  = `status-dot ${state === 'processing' ? '' : state === 'error' ? 'error' : 'idle'}`;
-  label.textContent = text;
-  if (state === 'ready') {
-    dot.style.background = 'var(--primary)';
-    dot.className = 'status-dot';
-  }
-}
-
-// Init
-updateInputStats();
-</script>
-
-<!-- ─── HELP DRAWER ─── -->
-<div class="help-overlay" id="help-overlay" onclick="closeHelp()"></div>
-<div class="help-drawer" id="help-drawer">
-  <div class="help-drawer-head">
-    <span class="help-drawer-term" id="help-drawer-term"></span>
-    <button class="help-drawer-close" onclick="closeHelp()">×</button>
+  ],
+  "is_valid": true
+}</div>
+    </div>
   </div>
-  <div class="help-drawer-body" id="help-drawer-body"></div>
-  <div class="help-drawer-foot">
-    <a class="help-drawer-link" id="help-drawer-link" href="/help" target="_blank">
-      Open full documentation ↗
-    </a>
+</section>
+
+<!-- VALIDATION -->
+<section class="validation-section">
+  <div class="validation-inner">
+    <div>
+      <div class="section-label">// TRUST LAYER</div>
+      <h2 class="section-title fade-up">
+        Every output<br>is validated.
+      </h2>
+      <p class="section-sub fade-up stagger-1">
+        Qrynt exposes structural trust metrics most tools hide.
+        Know exactly how reliable your output is before using it.
+      </p>
+      <div class="validation-checks fade-up stagger-2">
+        <div class="check-item">
+          <div class="check-mark">✓</div>
+          Schema Compliance — structure matches declared type
+        </div>
+        <div class="check-item">
+          <div class="check-mark">✓</div>
+          Line Conservation — zero data loss guaranteed
+        </div>
+        <div class="check-item">
+          <div class="check-mark">✓</div>
+          Matrix Uniformity — table column integrity verified
+        </div>
+        <div class="check-item">
+          <div class="check-mark">✓</div>
+          Conflict Rate — classifier agreement measured
+        </div>
+      </div>
+    </div>
+
+    <div class="score-card fade-up stagger-3">
+      <div class="score-number">1.00</div>
+      <div class="score-label">Quality Score</div>
+      <div class="score-breakdown">
+        <div class="score-row">
+          <span class="score-row-label">schema_compliance</span>
+          <span class="score-row-val">PASS</span>
+        </div>
+        <div class="score-row">
+          <span class="score-row-label">matrix_uniformity</span>
+          <span class="score-row-val">PASS</span>
+        </div>
+        <div class="score-row">
+          <span class="score-row-label">line_conservation</span>
+          <span class="score-row-val">PASS</span>
+        </div>
+        <div class="score-row">
+          <span class="score-row-label">anomalies_detected</span>
+          <span class="score-row-val">0</span>
+        </div>
+        <div class="score-row">
+          <span class="score-row-label">conflict_rate</span>
+          <span class="score-row-val">0.00</span>
+        </div>
+      </div>
+    </div>
   </div>
-</div>
+</section>
 
-<style>
-/* ─── HELP ICON ─── */
-.help-icon {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 16px; height: 16px; border-radius: 50%;
-  background: rgba(0,201,110,0.15);
-  border: 1px solid rgba(0,201,110,0.5);
-  font-size: 10px; font-family: var(--mono); font-weight: 600;
-  color: #00c96e;
-  cursor: pointer; margin-left: 5px;
-  vertical-align: middle;
-  transition: all 0.15s;
-  position: relative; top: -1px;
-  user-select: none;
-}
+<!-- WHO USES IT -->
+<section class="section">
+  <div class="section-label">// USE CASES</div>
+  <h2 class="section-title fade-up">Built for teams<br>that work with real data.</h2>
+  <p class="section-sub fade-up stagger-1">
+    Same pipeline. Different language for each team.
+  </p>
 
-.help-icon:hover {
-  background: rgba(0,201,110,0.3);
-  border-color: #00c96e;
-  color: #fff;
-  transform: scale(1.1);
-}
+  <div class="users-grid">
+    <div class="user-card fade-up stagger-2">
+      <div class="user-type">
+        <div class="user-dot" style="background:var(--c-table)"></div>
+        <span style="color:var(--c-table)">Developers</span>
+      </div>
+      <div class="user-title">API-first integration</div>
+      <div class="user-desc">
+        Three-stage pipeline. Idempotent sessions.
+        SSE streaming. Webhook push. Clean JSON output.
+        Integrate in minutes.
+      </div>
+      <div class="user-tags">
+        <span class="user-tag">REST API</span>
+        <span class="user-tag">SSE</span>
+        <span class="user-tag">Webhooks</span>
+        <span class="user-tag">JSON</span>
+      </div>
+    </div>
 
-/* ─── DRAWER ─── */
-.help-overlay {
-  display: none; position: fixed; inset: 0; z-index: 200;
-  background: rgba(0,0,0,0.3);
-}
+    <div class="user-card fade-up stagger-3">
+      <div class="user-type">
+        <div class="user-dot" style="background:var(--c-kv)"></div>
+        <span style="color:var(--c-kv)">Data Teams</span>
+      </div>
+      <div class="user-title">Clean data, fast</div>
+      <div class="user-desc">
+        Stop cleaning logs and config files manually.
+        Qrynt extracts KV pairs, tables, and structure
+        from any messy operational data.
+      </div>
+      <div class="user-tags">
+        <span class="user-tag">Log processing</span>
+        <span class="user-tag">ETL</span>
+        <span class="user-tag">Analytics</span>
+        <span class="user-tag">Reports</span>
+      </div>
+    </div>
 
-.help-overlay.open { display: block; }
+    <div class="user-card fade-up stagger-4">
+      <div class="user-type">
+        <div class="user-dot" style="background:var(--c-hierarchy)"></div>
+        <span style="color:var(--c-hierarchy)">AI Teams</span>
+      </div>
+      <div class="user-title">Better context windows</div>
+      <div class="user-desc">
+        Pre-process documents before they reach your LLM.
+        Validated, typed, token-efficient LDM output
+        designed for RAG pipelines.
+      </div>
+      <div class="user-tags">
+        <span class="user-tag">RAG</span>
+        <span class="user-tag">Context prep</span>
+        <span class="user-tag">Fine-tuning</span>
+        <span class="user-tag">LLM pipelines</span>
+      </div>
+    </div>
+  </div>
+</section>
 
-.help-drawer {
-  position: fixed; top: 0; right: -400px; bottom: 0;
-  width: 380px; z-index: 201;
-  background: #1e1c18;
-  border-left: 1px solid rgba(255,255,255,0.08);
-  display: flex; flex-direction: column;
-  transition: right 0.25s cubic-bezier(0.4,0,0.2,1);
-}
+<!-- ARCHITECTURE -->
+<section class="arch-section">
+  <div class="arch-inner">
+    <div>
+      <div class="proof-label">// PIPELINE</div>
+      <h2 class="proof-title" style="font-family:var(--serif);font-weight:400;font-size:clamp(28px,3.5vw,42px);">
+        Three stages.<br>One clean output.
+      </h2>
+      <p style="color:rgba(255,255,255,0.4);font-size:15px;font-weight:300;line-height:1.7;margin-top:16px;max-width:400px">
+        Ingest stores your raw input immutably.
+        Resolve runs the full classification pipeline.
+        Export delivers the format you need.
+      </p>
+    </div>
 
-.help-drawer.open { right: 0; }
+    <div>
+      <div class="arch-diagram">
+        <div class="arch-step">
+          <div class="arch-step-num">1</div>
+          <div class="arch-step-info">
+            <div class="arch-step-name">POST /ingest</div>
+            <div class="arch-step-desc">Accepts raw text → returns session_id</div>
+          </div>
+          <span class="arch-step-tag">idempotent</span>
+        </div>
+        <div class="arch-connector"></div>
+        <div class="arch-step">
+          <div class="arch-step-num">2</div>
+          <div class="arch-step-info">
+            <div class="arch-step-name">POST /resolve</div>
+            <div class="arch-step-desc">Classifies, detects, validates structure</div>
+          </div>
+          <span class="arch-step-tag">sync / async</span>
+        </div>
+        <div class="arch-connector"></div>
+        <div class="arch-step">
+          <div class="arch-step-num">3</div>
+          <div class="arch-step-info">
+            <div class="arch-step-name">POST /export</div>
+            <div class="arch-step-desc">Returns output in your format</div>
+          </div>
+          <span class="arch-step-tag">3 formats</span>
+        </div>
+      </div>
 
-.help-drawer-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  flex-shrink: 0;
-}
+      <div class="arch-outputs" style="margin-top:16px">
+        <div class="arch-output">Human<br><span style="color:rgba(255,255,255,0.2)">text/plain</span></div>
+        <div class="arch-output">Machine<br><span style="color:rgba(255,255,255,0.2)">application/json</span></div>
+        <div class="arch-output">AI / LDM<br><span style="color:rgba(255,255,255,0.2)">application/json</span></div>
+      </div>
+    </div>
+  </div>
+</section>
 
-.help-drawer-term {
-  font-family: var(--mono); font-size: 13px; font-weight: 500;
-  color: #00c96e;
-}
+<!-- FINAL CTA -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <h2 class="cta-title fade-up">
+      Start processing<br>data today.
+    </h2>
+    <p class="cta-sub fade-up stagger-1">
+      Paste any messy text. See structured output in seconds.
+      No signup required to try.
+    </p>
+    <div class="cta-actions fade-up stagger-2">
+      <a href="/console" class="btn-primary">
+        Try Qrynt
+        <span>→</span>
+      </a>
+      <a href="/signup" class="btn-secondary">Get started free</a>
+      <a href="/pricing" class="btn-secondary">See pricing</a>
+    </div>
+  </div>
+</section>
 
-.help-drawer-close {
-  width: 28px; height: 28px; border-radius: 6px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: #00c96e; font-size: 16px;
-  cursor: pointer; transition: all 0.15s;
-  display: flex; align-items: center; justify-content: center;
-}
-
-.help-drawer-close:hover {
-  background: rgba(255,255,255,0.1); color: #fff;
-}
-
-.help-drawer-body {
-  flex: 1; overflow-y: auto; padding: 24px 20px;
-  font-size: 13px; line-height: 1.7;
-  color: rgba(255,255,255,0.6);
-}
-
-.help-drawer-body h4 {
-  font-family: var(--mono); font-size: 11px; font-weight: 500;
-  color: rgba(255,255,255,0.3); letter-spacing: 0.1em;
-  text-transform: uppercase; margin: 20px 0 8px;
-}
-
-.help-drawer-body h4:first-child { margin-top: 0; }
-
-.help-drawer-body p { margin-bottom: 12px; }
-
-.help-drawer-body code {
-  font-family: var(--mono); font-size: 11px;
-  background: rgba(255,255,255,0.07);
-  padding: 1px 6px; border-radius: 3px;
-  color: #7dd3fc;
-}
-
-.help-drawer-body .drawer-example {
-  background: rgba(0,0,0,0.3);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 6px; padding: 12px 14px;
-  font-family: var(--mono); font-size: 11px;
-  color: rgba(255,255,255,0.45); line-height: 1.8;
-  margin: 12px 0;
-}
-
-.help-drawer-body .drawer-key  { color: #7dd3fc; }
-.help-drawer-body .drawer-str  { color: #86efac; }
-.help-drawer-body .drawer-num  { color: #fbbf24; }
-
-.help-drawer-body .type-row {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-
-.help-drawer-body .type-row:last-child { border-bottom: none; }
-
-.help-drawer-body .type-badge {
-  font-family: var(--mono); font-size: 10px; font-weight: 500;
-  padding: 2px 8px; border-radius: 10px; flex-shrink: 0; margin-top: 2px;
-}
-
-.badge-prose   { background: #1e3a5f; color: #7dd3fc; }
-.badge-kv      { background: #3b2a0a; color: #fbbf24; }
-.badge-table   { background: #0a2e1a; color: #86efac; }
-.badge-tree    { background: #2d1b4e; color: #c084fc; }
-.badge-mixed   { background: #3b1a0a; color: #fb923c; }
-
-.help-drawer-foot {
-  padding: 16px 20px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  flex-shrink: 0;
-}
-
-.help-drawer-link {
-  font-family: var(--mono); font-size: 12px;
-  color: #00c96e; text-decoration: none;
-  border-bottom: 1px solid rgba(0,201,110,0.3);
-  padding-bottom: 1px; transition: border-color 0.15s;
-}
-
-.help-drawer-link:hover { border-color: #00c96e; }
-</style>
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    Qrynt
+  </div>
+  <div class="footer-links">
+    <a href="/help" class="footer-link">Help</a>
+    <a href="/pricing" class="footer-link">Pricing</a>
+    <a href="/console" class="footer-link">Try Qrynt</a>
+    <a href="/terms" class="footer-link">Terms</a>
+    <a href="/privacy" class="footer-link">Privacy</a>
+    <a href="mailto:qrynttech@gmail.com" class="footer-link">Contact</a>
+  </div>
+  <div class="footer-copy">© 2026 Qrynt</div>
+</footer>
 
 <script>
-// ─── HELP DRAWER DATA ───
-const HELP_TERMS = {
-  segment: {
-    term: 'segment',
-    anchor: 'segment',
-    content: `
-      <p>A <strong style="color:#fff">segment</strong> is a coherent, self-contained chunk
-      of your input text — a paragraph, a block of key-value pairs, a table, or a heading.</p>
-      <p>Qrynt splits your input into segments before classifying each one independently.
-      One document becomes an ordered list of segments.</p>
-      <h4>Example</h4>
-      <div class="drawer-example">
-<span class="drawer-key">"segment_id"</span>: <span class="drawer-str">"fc6cfd283de599e3"</span>,
-<span class="drawer-key">"type"</span>: <span class="drawer-str">"prose"</span>,
-<span class="drawer-key">"confidence"</span>: <span class="drawer-num">1</span>
-      </div>
-      <p>The <code>segment_id</code> is a stable hex ID — the same text always
-      produces the same ID, making it safe to use as a database primary key.</p>
-    `
+// Scroll-triggered fade-up animations
+const observer = new IntersectionObserver(
+  entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
   },
-  confidence: {
-    term: 'confidence',
-    anchor: 'confidence',
-    content: `
-      <p><strong style="color:#fff">Confidence</strong> is a score from
-      <code>0.0</code> to <code>1.0</code> indicating how certain the engine
-      is about the structural classification of this segment.</p>
-      <h4>How to use it</h4>
-      <div class="drawer-example">
-<span class="drawer-num">1.0</span>   → certain, process automatically
-<span class="drawer-num">0.8</span>+  → high confidence, safe to trust
-<span class="drawer-num">0.6</span>–<span class="drawer-num">0.8</span> → moderate, consider reviewing
-below <span class="drawer-num">0.6</span> → ambiguous, route to human review
-      </div>
-      <p>Low confidence often appears on <code>mixed</code> segments where
-      more than one structural pattern was detected.</p>
-    `
-  },
-  human: {
-    term: 'HumanAdapter',
-    anchor: 'human-adapter',
-    content: `
-      <p><strong style="color:#fff">HumanAdapter</strong> returns a clean,
-      formatted plain-text version of your document — readable by a person,
-      not structured for a machine.</p>
-      <p>Use this when you want to display the processed document, export it
-      as a <code>.txt</code> file, or show it in a review interface.</p>
-      <h4>When to use</h4>
-      <div class="drawer-example">
-✓ Displaying cleaned content to a user
-✓ Downloading a readable version of a document
-✓ Building a preview or diff view
-✗ Storing in a database → use Machine
-✗ Feeding to an LLM → use AI / LDM
-      </div>
-    `
-  },
-  machine: {
-    term: 'MachineAdapter',
-    anchor: 'machine-adapter',
-    content: `
-      <p><strong style="color:#fff">MachineAdapter</strong> returns a flat
-      JSON array — one record per segment — ready to insert into a database,
-      pass through a pipeline, or process programmatically.</p>
-      <h4>Example record</h4>
-      <div class="drawer-example">
-{
-  <span class="drawer-key">"segment_id"</span>: <span class="drawer-str">"fc6cfd28..."</span>,
-  <span class="drawer-key">"type"</span>: <span class="drawer-str">"prose"</span>,
-  <span class="drawer-key">"content"</span>: { <span class="drawer-key">"text"</span>: <span class="drawer-str">"..."</span> },
-  <span class="drawer-key">"confidence"</span>: <span class="drawer-num">1</span>,
-  <span class="drawer-key">"flags"</span>: []
-}
-      </div>
-      <p>Use <code>segment_id</code> as your primary key.
-      Use <code>type</code> as a column for filtering by structure.</p>
-    `
-  },
-  ai: {
-    term: 'AIAdapter / LDM',
-    anchor: 'ai-adapter',
-    content: `
-      <p><strong style="color:#fff">AIAdapter</strong> returns a
-      <strong style="color:#fff">Logical Document Model (LDM)</strong> —
-      a structured representation designed for LLM consumption and RAG pipelines.</p>
-      <p>Instead of segments, the LDM uses <strong style="color:#fff">blocks</strong>
-      with <strong style="color:#fff">tags</strong> — semantic labels that describe
-      both structure and content type.</p>
-      <h4>Example block</h4>
-      <div class="drawer-example">
-{
-  <span class="drawer-key">"type"</span>: <span class="drawer-str">"prose"</span>,
-  <span class="drawer-key">"tags"</span>: [<span class="drawer-str">"PROSE"</span>, <span class="drawer-str">"UNSTRUCTURED"</span>],
-  <span class="drawer-key">"confidence"</span>: <span class="drawer-num">1</span>,
-  <span class="drawer-key">"content"</span>: { <span class="drawer-key">"text"</span>: <span class="drawer-str">"..."</span> }
-}
-      </div>
-      <p>Filter by <code>confidence >= 0.8</code> before injecting into a prompt.
-      Use <code>tags</code> to route blocks to different prompt templates.</p>
-    `
-  },
-  types: {
-    term: 'Structure types',
-    anchor: 'types',
-    content: `
-      <p>Every segment is classified into one of five structural types based on
-      the patterns detected in its content.</p>
-      <div class="type-row">
-        <span class="type-badge badge-prose">prose</span>
-        <span>Natural language — sentences, paragraphs, chat messages. Pass directly to an LLM.</span>
-      </div>
-      <div class="type-row">
-        <span class="type-badge badge-kv">kv_block</span>
-        <span>Key-value pairs — config files, forms, metadata. Map to database columns.</span>
-      </div>
-      <div class="type-row">
-        <span class="type-badge badge-table">table</span>
-        <span>Columnar data — rows and columns. Map to a DB table or DataFrame.</span>
-      </div>
-      <div class="type-row">
-        <span class="type-badge badge-tree">tree</span>
-        <span>Hierarchical structure — file trees, nested lists. Map to recursive JSON.</span>
-      </div>
-      <div class="type-row">
-        <span class="type-badge badge-mixed">mixed</span>
-        <span>Multiple structure types in one segment. Check confidence and block_count.</span>
-      </div>
-    `
-  }
-};
+  { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+);
 
-function openHelp(term) {
-  const data = HELP_TERMS[term];
-  if (!data) return;
-  document.getElementById('help-drawer-term').textContent = data.term;
-  document.getElementById('help-drawer-body').innerHTML = data.content;
-  document.getElementById('help-drawer-link').href = `/help#${data.anchor}`;
-  document.getElementById('help-drawer').classList.add('open');
-  document.getElementById('help-overlay').classList.add('open');
-}
-
-function closeHelp() {
-  document.getElementById('help-drawer').classList.remove('open');
-  document.getElementById('help-overlay').classList.remove('open');
-}
-
-// Wire up all [?] icons
-document.querySelectorAll('.help-icon').forEach(icon => {
-  // Hover tooltip — native title attribute handles this
-  // Click → open drawer
-  icon.addEventListener('click', (e) => {
-    e.stopPropagation();
-    openHelp(icon.dataset.term);
-  });
+document.querySelectorAll('.fade-up').forEach(el => {
+  observer.observe(el);
 });
 
-// Keyboard close
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeHelp();
+// Hero elements visible immediately
+document.querySelectorAll('.hero .fade-up').forEach(el => {
+  el.classList.add('visible');
 });
 </script>
 </body>
