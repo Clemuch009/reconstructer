@@ -15,6 +15,7 @@ from api.middleware.auth import require_auth, consume_request, RequestContext
 from api.dependencies import get_engine, validate_input_text, compute_request_units
 from api.streaming import broadcast_to_sse_clients, publish_webhook
 from api.routes.document import store_coc
+from api.auth.firestore import store_session
 
 
 router = APIRouter()
@@ -291,6 +292,10 @@ async def _run_pipeline(
     _session_store[session_id]["envelope"] = envelope
 
     store_coc(envelope)
+
+    # Persist to Firestore for authenticated users with storage enabled
+    if ctx.uid:
+        store_session(uid=ctx.uid, session=envelope)
 
     asyncio.create_task(broadcast_to_sse_clients(envelope))
     asyncio.create_task(publish_webhook(envelope))
