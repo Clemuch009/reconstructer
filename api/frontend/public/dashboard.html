@@ -435,8 +435,17 @@
           id_token: idToken, enabled, retention_days: retention, auto_delete: autoDel
         }),
       });
-      if (res.ok) showToast('Storage settings saved.');
-      else showToast('Failed to save settings.', 'error');
+      if (res.ok) {
+        // Update local profileData so toggle persists without re-fetch
+        if (window._profileData) {
+          window._profileData.storage_settings = {
+            enabled, retention_days: retention, auto_delete: autoDel
+          };
+        }
+        showToast('Storage settings saved.');
+      } else {
+        showToast('Failed to save settings.', 'error');
+      }
     } catch {
       showToast('Error saving settings.', 'error');
     }

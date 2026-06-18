@@ -20,6 +20,8 @@ from api.auth.firestore import (
     TIER_LIMITS,
     _get_db,
     USERS_COL,
+    SESSIONS_COL,
+    KEY_INDEX_COL,
 )
 from api.auth.workspace import (
     create_workspace,
@@ -442,13 +444,31 @@ async def delete_account(id_token: str) -> dict:
     decoded = _verify_firebase_token(id_token)
     uid     = decoded["uid"]
 
-    delete_all_sessions(uid)
-    _get_db().collection(USERS_COL).document(uid).delete()
+    db = _get_db()
 
+    # Delete sessions subcollection (Firestore doesn't cascade)
+    sessions_ref = db.collection(USERS_COL).document(uid).collection(SESSIONS_COL)
+    for doc in sessions_ref.stream():
+        doc.reference.delete()
+
+    # Delete orphaned api_key_index entries for this user's keys
+    user_doc = db.collection(USERS_COL).document(uid).get()
+    if user_doc.exists:
+        user = user_doc.to_dict()
+        for key in user.get("api_keys", []):
+            key_hash = key.get("key_hash")
+            if key_hash:
+                try:
+                    db.collection(KEY_INDEX_COL).document(key_hash).delete()
+                except Exception:
+                    pass
+
+    # Delete user document
+    db.collection(USERS_COL).document(uid).delete()
+
+    # Revoke Firebase tokens + delete Auth account
     try:
         from firebase_admin import auth
-        # Revoke all refresh tokens first — prevents silent re-auth
-        # from cached Google/browser credentials
         auth.revoke_refresh_tokens(uid)
         auth.delete_user(uid)
     except Exception:

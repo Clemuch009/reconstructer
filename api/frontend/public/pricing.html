@@ -1108,41 +1108,64 @@
 const API_BASE   = '';
 let isAnnual     = false;
 let idToken      = null;
-let paddleReady  = false;
+let paddleReady       = false;
+let paddleInitPromise = null;
 
-// Check if user is logged in
+// Check if user is logged in, then pre-initialize Paddle
 async function checkAuth() {
   const token = localStorage.getItem('qrynt_id_token');
-  if (token) idToken = token;
+  if (token) {
+    idToken = token;
+    // Pre-initialize Paddle as soon as we know the user is logged in
+    // This prevents the race condition where checkout() opens before
+    // Paddle.Initialize() has completed
+    _preinitPaddle();
+  }
 }
 
-// Initialize Paddle.js — environment + token set per checkout config,
-// but Paddle requires Environment + Initialize before Checkout.open.
-// We use the sandbox environment and the client token returned by the
-// backend (kept in sync with PADDLE_CLIENT_TOKEN env var).
+async function _preinitPaddle() {
+  if (paddleReady || paddleInitPromise || !idToken) return;
+  paddleInitPromise = fetch(
+    `${API_BASE}/billing/checkout-config?id_token=${encodeURIComponent(idToken)}&tier=pro`
+  ).then(r => r.ok ? r.json() : null)
+   .then(config => {
+    if (!config) return;
+    Paddle.Environment.set(config.environment);
+    Paddle.Initialize({
+      token: config.client_token,
+      eventCallback: function(event) {
+        if (event.name === 'checkout.loaded') {
+          document.getElementById('checkout-modal-loading')?.classList.add('hidden');
+          document.getElementById('checkout-container')?.classList.add('has-frame');
+        }
+        if (event.name === 'checkout.completed') {
+          showToast('Payment received — activating your plan...');
+          setTimeout(() => { window.location.href = '/dashboard?upgraded=true'; }, 1500);
+        }
+        if (event.name === 'checkout.closed') {
+          closeCheckoutModal();
+        }
+      },
+    });
+    paddleReady = true;
+  }).catch(() => {});
+}
+
+// Initialize Paddle — called from checkout() if pre-init didn't complete
 function initPaddle(clientToken, environment) {
   if (paddleReady) return;
-  // Environment comes from backend — derived from PADDLE_API_BASE.
-  // Single source of truth: switching PADDLE_API_BASE on the server
-  // automatically switches the frontend too, no manual edits here.
   Paddle.Environment.set(environment);
   Paddle.Initialize({
     token: clientToken,
-    eventCallback: function (event) {
-      // Inline checkout fires 'checkout.loaded' once the iframe is ready —
-      // hide our spinner and reveal the form.
+    eventCallback: function(event) {
       if (event.name === 'checkout.loaded') {
-        document.getElementById('checkout-modal-loading').classList.add('hidden');
-        document.getElementById('checkout-container').classList.add('has-frame');
+        document.getElementById('checkout-modal-loading')?.classList.add('hidden');
+        document.getElementById('checkout-container')?.classList.add('has-frame');
       }
-
       if (event.name === 'checkout.completed') {
         showToast('Payment received — activating your plan...');
-        setTimeout(() => {
-          window.location.href = '/dashboard?upgraded=true';
-        }, 1500);
+        setTimeout(() => { window.location.href = '/dashboard?upgraded=true'; }, 1500);
       }
-
       if (event.name === 'checkout.closed') {
         closeCheckoutModal();
       }
@@ -1237,6 +1260,9 @@ async function checkout(tier) {
 
     const config = await res.json();
 
+    // Wait for pre-init to complete if it's in progress,
+    // then fall back to initializing with this config
+    if (paddleInitPromise) await paddleInitPromise;
     initPaddle(config.client_token, config.environment);
 
     Paddle.Checkout.open({
