@@ -128,8 +128,19 @@
     try {
       let cred;
       if (mode === 'signup') {
-        cred = await createUserWithEmailAndPassword(auth, email, pass);
-        await registerWithBackend(cred.user);
+        try {
+          cred = await createUserWithEmailAndPassword(auth, email, pass);
+          await registerWithBackend(cred.user);
+        } catch (err) {
+          if (err.code === 'auth/email-already-in-use') {
+            // Account exists in Firebase Auth (possibly recreated after deletion)
+            // Try signing in — registerWithBackend handles 409 gracefully
+            cred = await signInWithEmailAndPassword(auth, email, pass);
+            await registerWithBackend(cred.user);
+          } else {
+            throw err;
+          }
+        }
       } else {
         cred = await signInWithEmailAndPassword(auth, email, pass);
         const idToken = await cred.user.getIdToken();
@@ -139,12 +150,12 @@
       }
     } catch (err) {
       const messages = {
-        'auth/email-already-in-use':  'An account with this email already exists. Sign in instead.',
-        'auth/invalid-email':         'Invalid email address.',
-        'auth/weak-password':         'Password must be at least 8 characters.',
-        'auth/user-not-found':        'No account found with this email.',
-        'auth/wrong-password':        'Incorrect password.',
-        'auth/too-many-requests':     'Too many attempts. Try again in a few minutes.',
+        'auth/invalid-email':     'Invalid email address.',
+        'auth/weak-password':     'Password must be at least 8 characters.',
+        'auth/user-not-found':    'No account found with this email.',
+        'auth/wrong-password':    'Incorrect password.',
+        'auth/invalid-credential':'Incorrect email or password.',
+        'auth/too-many-requests': 'Too many attempts. Try again in a few minutes.',
       };
       setError(messages[err.code] || err.message || 'Something went wrong.');
     } finally {

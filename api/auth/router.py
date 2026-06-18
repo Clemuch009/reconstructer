@@ -447,6 +447,9 @@ async def delete_account(id_token: str) -> dict:
 
     try:
         from firebase_admin import auth
+        # Revoke all refresh tokens first — prevents silent re-auth
+        # from cached Google/browser credentials
+        auth.revoke_refresh_tokens(uid)
         auth.delete_user(uid)
     except Exception:
         pass
