@@ -235,6 +235,16 @@ async def paddle_webhook(request: Request) -> dict:
     event_type = event.get("event_type", "")
     data       = event.get("data", {})
 
+    # Temporary diagnostic logging — remove after confirming webhook flow
+    import sys
+    print(
+        f"[webhook] event_type={event_type} "
+        f"custom_data={data.get('custom_data')} "
+        f"customer_id={data.get('customer_id')} "
+        f"subscription_id={data.get('id') or data.get('subscription_id')}",
+        file=sys.stderr,
+    )
+
     # ─── transaction.completed ───
     if event_type == "transaction.completed":
         custom_data = data.get("custom_data") or {}
