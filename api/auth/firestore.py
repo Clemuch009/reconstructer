@@ -157,25 +157,38 @@ def get_user(uid: str) -> Optional[UserRecord]:
 def get_user_by_key_hash(key_hash: str) -> Optional[UserRecord]:
     """
     Find user by API key hash.
-    Used during request authentication.
-
-    Uses a dedicated key_hash → uid index collection rather than
-    querying inside the api_keys array. Firestore array-of-maps
-    queries (array_contains_any) require an exact match of the
-    entire map, which breaks as soon as fields like last_used
-    or active change — so a separate index is the reliable approach.
+    Primary: KEY_INDEX_COL (fast, O(1) lookup).
+    Fallback: scan users collection (for keys created before index existed).
+    On fallback hit, backfills the index automatically.
     """
     db        = _get_db()
     index_doc = db.collection(KEY_INDEX_COL).document(key_hash).get()
 
-    if not index_doc.exists:
-        return None
+    if index_doc.exists:
+        uid = index_doc.to_dict().get("uid")
+        if uid:
+            return get_user(uid)
 
-    uid = index_doc.to_dict().get("uid")
-    if not uid:
-        return None
+    # Fallback — scan users collection for matching key hash
+    # Runs for keys created before KEY_INDEX_COL existed
+    docs = (
+        db.collection(USERS_COL)
+        .stream()
+    )
+    for doc in docs:
+        user = doc.to_dict()
+        for key in user.get("api_keys", []):
+            if key.get("key_hash") == key_hash and key.get("active", False):
+                # Backfill the index so next lookup is fast
+                try:
+                    db.collection(KEY_INDEX_COL).document(key_hash).set({
+                        "uid": doc.id
+                    })
+                except Exception:
+                    pass
+                return user
 
-    return get_user(uid)
+    return None
 
 
 def add_api_key(uid: str, stored_key: StoredAPIKey) -> bool:
