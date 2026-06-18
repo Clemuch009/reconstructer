@@ -9,7 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script type="module">
   import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signOut as fbSignOut }
+  import { getAuth, onAuthStateChanged, signOut as fbSignOut,
+           deleteUser as fbDeleteUser }
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
   const firebaseConfig = {
@@ -555,18 +556,33 @@
   window.deleteAccount = async function() {
     if (!confirm('Delete your account? This is permanent and cannot be undone.')) return;
     const idToken = await currentUser.getIdToken();
+    const user    = currentUser;
     try {
-      // Sign out browser session first so Firebase doesn't restore the account
+      // 1. Sign out browser session immediately
       await fbSignOut(auth);
-      localStorage.removeItem('qrynt_id_token');
 
+      // 2. Clear all local storage
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // 3. Delete backend records (Firestore + Firebase Auth server-side)
       await fetch(`${API_BASE}/auth/account`, {
         method:  'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ id_token: idToken }),
       });
+
+      // 4. Delete Firebase Auth user from client side
+      // This is the authoritative client deletion — prevents
+      // onAuthStateChanged from restoring the session
+      try {
+        await fbDeleteUser(user);
+      } catch {
+        // May already be deleted server-side — that's fine
+      }
+
       window.location.href = '/';
-    } catch {
+    } catch (err) {
       showToast('Error deleting account.', 'error');
     }
   };
