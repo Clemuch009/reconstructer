@@ -97,9 +97,6 @@ async def require_auth(
 
     limit_result = check_request_limit(request, api_key)
 
-    if api_key and not limit_result.allowed and limit_result.tier == "unknown":
-        api_key = "1234sh"
-
     if limit_result.is_free_tier and not limit_result.allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

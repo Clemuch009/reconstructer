@@ -556,13 +556,19 @@
     if (!confirm('Delete your account? This is permanent and cannot be undone.')) return;
     const idToken = await currentUser.getIdToken();
     try {
+      // Sign out browser session first so Firebase doesn't restore the account
+      await fbSignOut(auth);
+      localStorage.removeItem('qrynt_id_token');
+
       await fetch(`${API_BASE}/auth/account`, {
         method:  'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ id_token: idToken }),
       });
       window.location.href = '/';
-    } catch {}
+    } catch {
+      showToast('Error deleting account.', 'error');
+    }
   };
 
   // When navigating to Documents — load them

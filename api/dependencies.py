@@ -26,14 +26,12 @@ def get_engine() -> TextReconstructionEngine:
 
 async def verify_api_key(
     x_api_key: Optional[str] = Header(default=None),
-) -> str:
+) -> Optional[str]:
     """
-    API key verification stub.
-    Replace with real key store before production.
-    Currently accepts any non-empty key.
+    API key header extractor.
+    Returns the key value or None if not provided.
+    Actual validation is handled by require_auth in middleware/auth.py.
     """
-    if not x_api_key:
-        x_api_key = 12345
     return x_api_key
 
 
