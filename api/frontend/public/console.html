@@ -997,7 +997,9 @@ window.onAuthReady = function() {
 function handleFreeTierWall(detail) {
   try { localStorage.setItem('qrynt_pending_input', inputText.value || ''); } catch (e) {}
   const signup = (detail && detail.signup) || '/signup';
-  showWallModal(signup);
+  const url = signup + (signup.includes('?') ? '&' : '?') +
+              'return=' + encodeURIComponent(window.location.pathname);
+  showWallModal(url);
 }
 
 function showWallModal(signupUrl) {

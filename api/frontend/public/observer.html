@@ -147,6 +147,44 @@
   .api-input:focus { border-color: var(--primary); }
   .api-input::placeholder { color: var(--text-muted); }
 
+  .auth-status {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--text-dim); letter-spacing: 0.04em; margin-right: 4px;
+  }
+  .auth-status.signed-in { color: var(--primary); }
+  .dev-key-toggle {
+    background: transparent; border: 1px solid var(--border2);
+    color: var(--text-dim); font-family: var(--mono);
+    font-size: 10px; letter-spacing: 0.06em; padding: 4px 9px;
+    border-radius: 3px; cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .dev-key-toggle:hover { color: var(--text); border-color: var(--primary); }
+  .dev-key-toggle.active { color: var(--primary); border-color: var(--primary); }
+
+  .btn-primary {
+    background: var(--primary); border-color: var(--primary); color: #000;
+  }
+  .btn-primary:hover { background: #00cc6e; border-color: #00cc6e; }
+
+  .wall-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.78); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .wall-card {
+    background: var(--surface); border: 1px solid var(--primary);
+    border-radius: 12px; padding: 28px; width: 420px; max-width: 92vw;
+  }
+  .wall-title {
+    font-family: var(--mono); font-size: 15px; font-weight: 600;
+    color: var(--text); margin-bottom: 10px;
+  }
+  .wall-body {
+    font-size: 13px; color: var(--text-dim); line-height: 1.6; margin-bottom: 20px;
+  }
+  .wall-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
   /* Layout */
   .layout {
     position: relative;
@@ -213,25 +251,43 @@
 
   .upload-area {
     margin-top: 10px;
-    border: 1px dashed var(--border2);
-    border-radius: 3px;
-    padding: 8px 12px;
+    border: 1.5px dashed var(--primary);
+    border-radius: 5px;
+    padding: 12px 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     cursor: pointer;
     transition: all 0.2s;
+    background: var(--primary-dim);
   }
 
   .upload-area:hover {
     border-color: var(--primary);
-    background: var(--primary-dim);
+    background: var(--surface2);
   }
 
   .upload-text {
     font-family: var(--mono);
     font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .upload-text.label {
+    color: var(--primary);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  /* When a file is loaded: prompt steps back, filename leads */
+  .upload-area.has-file .upload-text.label {
     color: var(--text-muted);
+    font-weight: 400;
+    opacity: 0.7;
+  }
+  .upload-area.has-file #obs-file-name {
+    color: var(--primary);
+    font-weight: 600;
   }
 
   #obs-file-input { display: none; }
@@ -289,6 +345,17 @@
   .btn:hover {
     border-color: var(--primary);
     color: var(--primary);
+  }
+
+  .btn-download {
+    border-color: var(--primary);
+    color: var(--text);
+    font-weight: 600;
+  }
+  .btn-download:hover {
+    background: var(--primary);
+    color: #000;
+    border-color: var(--primary);
   }
 
   .btn-run {
@@ -489,7 +556,8 @@
   .download-label {
     font-family: var(--mono);
     font-size: 10px;
-    color: var(--text-muted);
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
     margin-right: 4px;
   }
 
@@ -770,9 +838,10 @@
     </div>
   </div>
   <div class="header-right">
-    <a href="/dashboard" style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;transition:all 0.15s" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border)'">← Workspace</a>
+    <span class="auth-status" id="auth-status" title="Authentication status">● anonymous</span>
+    <button class="dev-key-toggle" id="dev-key-toggle" title="Developer: use an API key instead of your session" onclick="toggleDevKey()">⚙ DEV KEY</button>
     <input type="text" class="api-input" id="obs-api-key"
-      placeholder="X-API-Key" value="test-key">
+      placeholder="X-API-Key (developer)" value="" style="display:none;">
   </div>
 </header>
 
@@ -789,8 +858,8 @@
       <textarea class="input-textarea" id="obs-input"
         placeholder="Paste logs, configs, mixed data..."></textarea>
 
-      <div class="upload-area" onclick="document.getElementById('obs-file-input').click()">
-        <span class="upload-text">↑ UPLOAD FILE</span>
+      <div class="upload-area" id="obs-upload-area" onclick="document.getElementById('obs-file-input').click()">
+        <span class="upload-text label" id="obs-upload-prompt">⬆ UPLOAD FILE</span>
         <span class="upload-text" id="obs-file-name">txt, csv, pdf, docx, xlsx</span>
       </div>
       <input type="file" id="obs-file-input" accept=".txt,.log,.csv,.json,.yaml,.yml,.md,.pdf,.docx,.xlsx,.html,.htm">
@@ -875,10 +944,10 @@
     </div>
 
     <div class="download-bar">
-      <span class="download-label">EXPORT</span>
-      <button class="btn" onclick="downloadExport('human')">↓ HUMAN</button>
-      <button class="btn" onclick="downloadExport('machine')">↓ MACHINE</button>
-      <button class="btn" onclick="downloadExport('ai')">↓ AI LDM</button>
+      <span class="download-label">DOWNLOAD</span>
+      <button class="btn btn-download" onclick="downloadExport('human')" title="Download human-readable .txt">⬇ HUMAN</button>
+      <button class="btn btn-download" onclick="downloadExport('machine')" title="Download machine JSON">⬇ MACHINE</button>
+      <button class="btn btn-download" onclick="downloadExport('ai')" title="Download AI LDM JSON">⬇ AI LDM</button>
     </div>
   </div>
 
@@ -992,6 +1061,50 @@
   </div>
 </div>
 
+<script type="module">
+  // ─── Firebase session auth (progressive: anonymous → wall → signed-in) ───
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey:            "AIzaSyA_HSkrnTmul10Vwa0ryWCGegbdx1IL9R8",
+    authDomain:        "moonlit-grail-386316.firebaseapp.com",
+    projectId:         "moonlit-grail-386316",
+    storageBucket:     "moonlit-grail-386316.firebasestorage.app",
+    messagingSenderId: "560904434756",
+    appId:             "1:560904434756:web:b5f5a2b09174ef5c2df811",
+    measurementId:     "G-4S749T4863",
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  window.__qryntAuth = {
+    user:    null,
+    idToken: null,
+    ready:   false,
+    getToken: async () => {
+      if (!auth.currentUser) return null;
+      try { return await auth.currentUser.getIdToken(); }
+      catch { return null; }
+    },
+  };
+
+  onAuthStateChanged(auth, async user => {
+    window.__qryntAuth.ready = true;
+    if (user) {
+      window.__qryntAuth.user    = user;
+      window.__qryntAuth.idToken = await user.getIdToken();
+      localStorage.setItem('qrynt_id_token', window.__qryntAuth.idToken);
+    } else {
+      window.__qryntAuth.user    = null;
+      window.__qryntAuth.idToken = null;
+    }
+    if (typeof window.onAuthReady === 'function') window.onAuthReady();
+  });
+</script>
+
 <script>
 const API_BASE    = '';
 let lastSessionId = null;
@@ -1019,6 +1132,79 @@ function obsGetExt(filename) {
 }
 
 let obsPendingFile = null;
+let devKeyMode     = false;
+
+// ─── Progressive auth ───────────────────────────────────────────────
+async function authHeaders(base = {}) {
+  const headers = { ...base };
+  if (devKeyMode) {
+    const k = document.getElementById('obs-api-key').value.trim();
+    if (k) headers['X-API-Key'] = k;
+    return headers;
+  }
+  const token = window.__qryntAuth ? await window.__qryntAuth.getToken() : null;
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return headers;
+}
+
+function toggleDevKey() {
+  devKeyMode = !devKeyMode;
+  document.getElementById('dev-key-toggle').classList.toggle('active', devKeyMode);
+  document.getElementById('obs-api-key').style.display = devKeyMode ? 'inline-block' : 'none';
+  updateAuthStatus();
+}
+
+function updateAuthStatus() {
+  const el = document.getElementById('auth-status');
+  if (!el) return;
+  if (devKeyMode) {
+    el.textContent = '● dev key'; el.classList.remove('signed-in');
+  } else if (window.__qryntAuth && window.__qryntAuth.user) {
+    el.textContent = '● ' + (window.__qryntAuth.user.email || 'signed in');
+    el.classList.add('signed-in');
+  } else {
+    el.textContent = '● anonymous'; el.classList.remove('signed-in');
+  }
+}
+
+window.onAuthReady = function() {
+  updateAuthStatus();
+  const stashed = localStorage.getItem('qrynt_pending_input');
+  if (stashed && window.__qryntAuth && window.__qryntAuth.user) {
+    if (!obsInput.value) obsInput.value = stashed;
+    localStorage.removeItem('qrynt_pending_input');
+    if (typeof updateInputMeta === 'function') updateInputMeta();
+  }
+};
+
+function handleFreeTierWall(detail) {
+  try { localStorage.setItem('qrynt_pending_input', obsInput.value || ''); } catch (e) {}
+  const signup = (detail && detail.signup) || '/signup';
+  // Return to the observer after signing in.
+  const url = signup + (signup.includes('?') ? '&' : '?') +
+              'return=' + encodeURIComponent(window.location.pathname);
+  showWallModal(url);
+}
+
+function showWallModal(signupUrl) {
+  let modal = document.getElementById('wall-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'wall-modal';
+    modal.className = 'wall-overlay';
+    modal.innerHTML =
+      '<div class="wall-card">' +
+      '<div class="wall-title">Free limit reached</div>' +
+      '<div class="wall-body">You\'ve used your 10 free requests. Sign in — free, Pro, or higher — to keep going. Your current input is saved.</div>' +
+      '<div class="wall-actions">' +
+      '<button class="btn" onclick="document.getElementById(\'wall-modal\').style.display=\'none\'">Not now</button>' +
+      '<button class="btn btn-primary" id="wall-signin">Sign in to continue</button>' +
+      '</div></div>';
+    document.body.appendChild(modal);
+  }
+  modal.querySelector('#wall-signin').onclick = () => { window.location.href = signupUrl; };
+  modal.style.display = 'flex';
+}
 
 // File upload
 document.getElementById('obs-file-input').addEventListener('change', e => {
@@ -1029,6 +1215,8 @@ document.getElementById('obs-file-input').addEventListener('change', e => {
 
 function obsHandleFile(file) {
   document.getElementById('obs-file-name').textContent = file.name;
+  document.getElementById('obs-upload-area').classList.add('has-file');
+  document.getElementById('obs-upload-prompt').textContent = '⬆ REPLACE';
   const ext = obsGetExt(file.name);
   if (OBS_BINARY_EXT.has(ext)) {
     obsPendingFile = file;
@@ -1037,6 +1225,7 @@ function obsHandleFile(file) {
     document.getElementById('obs-chars').textContent = file.size;
     document.getElementById('obs-pipeline-status').textContent =
       ext.toUpperCase().replace('.', '');
+    obsPreviewBinary(file);
   } else {
     obsPendingFile = null;
     const r = new FileReader();
@@ -1048,10 +1237,56 @@ function obsHandleFile(file) {
   }
 }
 
+async function obsPreviewBinary(file) {
+  obsInput.value = `Extracting preview of ${file.name}...`;
+  obsInput.setAttribute('readonly', 'readonly');
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/ingest/file/preview`, {
+      method:  'POST',
+      headers: await authHeaders(),
+      body:    formData,
+    });
+    if (obsPendingFile !== file) return;   // a newer file superseded this one
+
+    if (res.status === 429) {
+      const err = await res.json().catch(() => ({}));
+      obsInput.value = '[Sign in required]\nYou\'ve used your free requests.';
+      obsInput.removeAttribute('readonly');
+      handleFreeTierWall(err.detail);
+      return;
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      obsInput.value =
+        `[Preview unavailable]\n${err.detail?.message || err.detail || 'Could not extract preview.'}`;
+      return;
+    }
+    const data = await res.json();
+    if (data.has_text) {
+      obsInput.value = data.text;
+      document.getElementById('obs-lines').textContent = data.line_count;
+      document.getElementById('obs-chars').textContent = data.char_count;
+    } else {
+      const reason = (data.warnings && data.warnings.length)
+        ? data.warnings.join('\n')
+        : 'No extractable text found in this file.';
+      obsInput.value =
+        `[No extractable text — ${(data.source_format || 'file').toUpperCase()}]\n${reason}`;
+    }
+  } catch (e) {
+    if (obsPendingFile !== file) return;
+    obsInput.value = `[Preview failed]\n${e.message || e}`;
+  } finally {
+    if (obsPendingFile === file) obsInput.removeAttribute('readonly');
+  }
+}
+
 // Run pipeline
 async function runPipeline() {
   const text     = obsInput.value.trim();
-  const apiKey   = document.getElementById('obs-api-key').value.trim();
   const hasBinary = !!obsPendingFile;
 
   if (!hasBinary && !text) return;
@@ -1069,9 +1304,15 @@ async function runPipeline() {
 
       const fileRes = await fetch(`${API_BASE}/ingest/file`, {
         method:  'POST',
-        headers: { 'X-API-Key': apiKey },
+        headers: await authHeaders(),
         body:    formData,
       });
+
+      if (fileRes.status === 429) {
+        const err = await fileRes.json().catch(() => ({}));
+        handleFreeTierWall(err.detail);
+        throw new Error('Free tier limit reached — sign in to continue.');
+      }
 
       if (!fileRes.ok) {
         const err = await fileRes.json();
@@ -1098,12 +1339,15 @@ async function runPipeline() {
       // ── Text path: /ingest → /resolve ──
       const ingestRes = await fetch(`${API_BASE}/ingest`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key':    apiKey,
-        },
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ payload: text }),
       });
+
+      if (ingestRes.status === 429) {
+        const err = await ingestRes.json().catch(() => ({}));
+        handleFreeTierWall(err.detail);
+        throw new Error('Free tier limit reached — sign in to continue.');
+      }
 
       if (!ingestRes.ok) throw new Error('Ingest failed');
       const ingest  = await ingestRes.json();
@@ -1111,12 +1355,15 @@ async function runPipeline() {
 
       const resolveRes = await fetch(`${API_BASE}/resolve`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key':    apiKey,
-        },
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ session_id: lastSessionId }),
       });
+
+      if (resolveRes.status === 429) {
+        const err = await resolveRes.json().catch(() => ({}));
+        handleFreeTierWall(err.detail);
+        throw new Error('Free tier limit reached — sign in to continue.');
+      }
 
       if (!resolveRes.ok) throw new Error('Resolve failed');
       const resolved = await resolveRes.json();
@@ -1405,14 +1652,10 @@ function renderStats(envelope, elapsed) {
 // Downloads
 async function downloadExport(format) {
   if (!lastSessionId) return;
-  const apiKey = document.getElementById('obs-api-key').value.trim();
 
   const res = await fetch(`${API_BASE}/export`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key':    apiKey,
-    },
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       session_id:         lastSessionId,
       format:             format,

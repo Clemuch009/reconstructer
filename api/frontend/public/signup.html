@@ -32,10 +32,30 @@
   const provider = new GoogleAuthProvider();
   const API_BASE = '';
 
+  // ─── Safe return-destination resolver ───
+  // Progressive auth: console/observer send users here with ?return=/console
+  // (or /observer) when they hit the free-tier wall. After auth we send them
+  // back there instead of always landing on /dashboard. Only same-origin
+  // relative paths are honored — never an absolute/external URL (open-redirect
+  // guard).
+  function resolveReturnDest() {
+    const params  = new URLSearchParams(window.location.search);
+    const ret     = params.get('return');
+    const upgrade = params.get('upgrade');
+
+    if (ret && /^\/[A-Za-z0-9/_-]*$/.test(ret) && !ret.startsWith('//')) {
+      return ret;
+    }
+    if (upgrade) {
+      return `/pricing?upgrade=${encodeURIComponent(upgrade)}`;
+    }
+    return '/dashboard';
+  }
+
   // ─── Check if already logged in ───
   onAuthStateChanged(auth, user => {
     if (user) {
-      window.location.href = '/dashboard';
+      window.location.href = resolveReturnDest();
     }
   });
 
@@ -79,13 +99,7 @@
   }
 
   function redirectAfterAuth() {
-    const params  = new URLSearchParams(window.location.search);
-    const upgrade = params.get('upgrade');
-    if (upgrade) {
-      window.location.href = `/pricing?upgrade=${upgrade}`;
-    } else {
-      window.location.href = '/dashboard';
-    }
+    window.location.href = resolveReturnDest();
   }
 
   function showApiKey(key, tier) {
@@ -93,6 +107,13 @@
     document.getElementById('key-reveal').style.display   = 'block';
     document.getElementById('revealed-key').textContent   = key;
     document.getElementById('revealed-tier').textContent  = tier;
+
+    // Make the post-reveal button land on the right destination and reflect it.
+    const dest = resolveReturnDest();
+    const btn  = document.getElementById('dash-btn');
+    if (dest !== '/dashboard') {
+      btn.textContent = 'Continue →';
+    }
   }
 
   function setError(msg) {
@@ -216,7 +237,7 @@
   };
 
   window.goToDashboard = function() {
-    window.location.href = '/dashboard';
+    window.location.href = resolveReturnDest();
   };
 </script>
 

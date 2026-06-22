@@ -446,35 +446,76 @@ async def delete_account(id_token: str) -> dict:
 
     db = _get_db()
 
-    # Delete sessions subcollection (Firestore doesn't cascade)
-    sessions_ref = db.collection(USERS_COL).document(uid).collection(SESSIONS_COL)
-    for doc in sessions_ref.stream():
-        doc.reference.delete()
-
-    # Delete orphaned api_key_index entries for this user's keys
-    user_doc = db.collection(USERS_COL).document(uid).get()
-    if user_doc.exists:
-        user = user_doc.to_dict()
-        for key in user.get("api_keys", []):
-            key_hash = key.get("key_hash")
-            if key_hash:
-                try:
-                    db.collection(KEY_INDEX_COL).document(key_hash).delete()
-                except Exception:
-                    pass
-
-    # Delete user document
-    db.collection(USERS_COL).document(uid).delete()
-
-    # Revoke Firebase tokens + delete Auth account
+    # ── Step 1: delete the Firebase Auth identity FIRST ──
+    # The Auth user is what "resurrects" an account: if it survives, signing
+    # up again with the same email returns the SAME uid and (if any Firestore
+    # data also survived) restores the old account. So we must remove the Auth
+    # identity before touching Firestore data — and if we CANNOT, we abort the
+    # whole deletion loudly rather than half-deleting. A swallowed failure here
+    # was the original bug (deleted account "came back" on re-signup).
     try:
         from firebase_admin import auth
         auth.revoke_refresh_tokens(uid)
         auth.delete_user(uid)
-    except Exception:
-        pass
+    except Exception as e:
+        # Most common cause: the Cloud Run service account lacks the
+        # 'firebaseauth.users.delete' permission (grant the Firebase
+        # Authentication Admin role). Surface it instead of silently
+        # leaving the account intact.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "Could not delete the authentication account, so no data was "
+                "removed. Please retry; if this persists, contact support. "
+                f"({type(e).__name__})"
+            ),
+        )
 
-    return {"status": "deleted", "message": "Account permanently deleted."}
+    # ── Step 2: Auth identity is gone — now remove Firestore data ──
+    # From here the account can no longer be signed into, so partial failures
+    # cannot resurrect it. We still attempt every piece and report if cleanup
+    # was incomplete (orphaned data is harmless but worth surfacing).
+    cleanup_errors: list[str] = []
+
+    # Delete sessions subcollection (Firestore doesn't cascade)
+    try:
+        sessions_ref = (
+            db.collection(USERS_COL).document(uid).collection(SESSIONS_COL)
+        )
+        for doc in sessions_ref.stream():
+            doc.reference.delete()
+    except Exception as e:
+        cleanup_errors.append(f"sessions:{type(e).__name__}")
+
+    # Delete api_key_index entries for this user's keys
+    try:
+        user_doc = db.collection(USERS_COL).document(uid).get()
+        if user_doc.exists:
+            user = user_doc.to_dict()
+            for key in user.get("api_keys", []):
+                key_hash = key.get("key_hash")
+                if key_hash:
+                    try:
+                        db.collection(KEY_INDEX_COL).document(key_hash).delete()
+                    except Exception:
+                        cleanup_errors.append("key_index_entry")
+    except Exception as e:
+        cleanup_errors.append(f"key_index:{type(e).__name__}")
+
+    # Delete user document
+    try:
+        db.collection(USERS_COL).document(uid).delete()
+    except Exception as e:
+        cleanup_errors.append(f"user_doc:{type(e).__name__}")
+
+    result = {"status": "deleted", "message": "Account permanently deleted."}
+    if cleanup_errors:
+        # Auth is gone (account is unusable), but some data cleanup failed.
+        result["warning"] = (
+            "Account access removed, but some data cleanup was incomplete: "
+            + ", ".join(cleanup_errors)
+        )
+    return result
 
 
 # ---------------------------------
