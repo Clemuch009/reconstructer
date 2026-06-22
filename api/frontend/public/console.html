@@ -112,6 +112,29 @@
     gap: 16px;
   }
 
+  .auth-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    margin-right: 4px;
+  }
+  .auth-status.signed-in { color: var(--primary); }
+  .dev-key-toggle {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .dev-key-toggle:hover { color: var(--text); border-color: var(--primary); }
+  .dev-key-toggle.active { color: var(--primary); border-color: var(--primary); }
+
   .api-key-input {
     background: var(--surface);
     border: 1px solid var(--border2);
@@ -245,6 +268,30 @@
     color: #000;
   }
 
+  .wall-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .wall-card {
+    background: var(--surface);
+    border: 1px solid var(--primary);
+    border-radius: 12px;
+    padding: 28px;
+    width: 420px; max-width: 92vw;
+  }
+  .wall-title {
+    font-family: var(--mono); font-size: 15px; font-weight: 600;
+    color: var(--text); margin-bottom: 10px;
+  }
+  .wall-body {
+    font-size: 13px; color: var(--text-dim); line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  .wall-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
   .btn-primary:disabled {
     opacity: 0.4;
     cursor: not-allowed;
@@ -372,8 +419,6 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    min-height: 0;
-    overflow: hidden;
   }
 
   /* Tabs */
@@ -408,8 +453,7 @@
   .tab-content {
     display: none;
     flex: 1;
-    min-height: 0;        /* critical — lets flex child shrink below content size */
-    overflow: hidden;     /* clip, not scroll — output-area scrolls internally */
+    overflow-y: auto;
     position: relative;
   }
 
@@ -421,7 +465,6 @@
   /* Output area */
   .output-area {
     flex: 1;
-    min-height: 0;        /* critical — allows scroll within bounded flex child */
     padding: 20px;
     font-family: var(--mono);
     font-size: 12px;
@@ -669,13 +712,15 @@
   DEVELOPER CONSOLE
 </div>
   <div class="header-right">
-    <a href="/dashboard" style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-decoration:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;transition:all 0.15s" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border)'">← Workspace</a>
+    <span class="auth-status" id="auth-status" title="Authentication status">● anonymous</span>
+    <button class="dev-key-toggle" id="dev-key-toggle" title="Developer: use an API key instead of your session" onclick="toggleDevKey()">⚙ DEV KEY</button>
     <input
       type="text"
       class="api-key-input"
       id="api-key"
-      placeholder="X-API-Key"
-      value="test-key"
+      placeholder="X-API-Key (developer)"
+      value=""
+      style="display:none;"
     />
     <span class="badge">v1.0</span>
   </div>
@@ -838,6 +883,53 @@ region: eu-west-1
   </div>
 </div>
 
+<script type="module">
+  // ─── Firebase session auth (progressive: anonymous → wall → signed-in) ───
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey:            "AIzaSyA_HSkrnTmul10Vwa0ryWCGegbdx1IL9R8",
+    authDomain:        "moonlit-grail-386316.firebaseapp.com",
+    projectId:         "moonlit-grail-386316",
+    storageBucket:     "moonlit-grail-386316.firebasestorage.app",
+    messagingSenderId: "560904434756",
+    appId:             "1:560904434756:web:b5f5a2b09174ef5c2df811",
+    measurementId:     "G-4S749T4863",
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // Exposed to the main (non-module) script.
+  window.__qryntAuth = {
+    user:    null,
+    idToken: null,
+    ready:   false,
+    // Always fetch a fresh (auto-refreshed) token at request time.
+    getToken: async () => {
+      if (!auth.currentUser) return null;
+      try { return await auth.currentUser.getIdToken(); }
+      catch { return null; }
+    },
+  };
+
+  onAuthStateChanged(auth, async user => {
+    window.__qryntAuth.ready = true;
+    if (user) {
+      window.__qryntAuth.user    = user;
+      window.__qryntAuth.idToken = await user.getIdToken();
+      localStorage.setItem('qrynt_id_token', window.__qryntAuth.idToken);
+    } else {
+      window.__qryntAuth.user    = null;
+      window.__qryntAuth.idToken = null;
+    }
+    // Let the main script update the UI (status pill, restore stashed input).
+    if (typeof window.onAuthReady === 'function') window.onAuthReady();
+  });
+</script>
+
 <script>
 const API_BASE = '';
 let currentSessionId = null;
@@ -847,6 +939,86 @@ let currentMachine   = null;
 let currentAI        = null;
 let activeTab        = 'human';
 let curlOpen         = false;
+let devKeyMode       = false;
+
+// ─── Progressive auth ───────────────────────────────────────────────
+// Anonymous visitor: no header → backend free-tier (10 requests).
+// Signed-in: Authorization: Bearer <id_token> → user's tier.
+// Developer mode: X-API-Key (manual key) overrides session.
+async function authHeaders(base = {}) {
+  const headers = { ...base };
+  if (devKeyMode) {
+    const k = document.getElementById('api-key').value.trim();
+    if (k) headers['X-API-Key'] = k;
+    return headers;
+  }
+  const token = window.__qryntAuth ? await window.__qryntAuth.getToken() : null;
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return headers;             // no token + no dev key → anonymous (free tier)
+}
+
+function toggleDevKey() {
+  devKeyMode = !devKeyMode;
+  document.getElementById('dev-key-toggle').classList.toggle('active', devKeyMode);
+  document.getElementById('api-key').style.display = devKeyMode ? 'inline-block' : 'none';
+  updateAuthStatus();
+}
+
+function updateAuthStatus() {
+  const el = document.getElementById('auth-status');
+  if (!el) return;
+  if (devKeyMode) {
+    el.textContent = '● dev key';
+    el.classList.remove('signed-in');
+  } else if (window.__qryntAuth && window.__qryntAuth.user) {
+    const email = window.__qryntAuth.user.email || 'signed in';
+    el.textContent = '● ' + email;
+    el.classList.add('signed-in');
+  } else {
+    el.textContent = '● anonymous';
+    el.classList.remove('signed-in');
+  }
+}
+
+// Called by the Firebase module when auth state resolves.
+window.onAuthReady = function() {
+  updateAuthStatus();
+  // Restore input the visitor was working on before being sent to sign in.
+  const stashed = localStorage.getItem('qrynt_pending_input');
+  if (stashed && window.__qryntAuth && window.__qryntAuth.user) {
+    if (!inputText.value) inputText.value = stashed;
+    localStorage.removeItem('qrynt_pending_input');
+    updateInputStats();
+  }
+};
+
+// Detect the free-tier wall (HTTP 429) and send the visitor to sign in,
+// preserving their current input so nothing is lost across the redirect.
+function handleFreeTierWall(detail) {
+  try { localStorage.setItem('qrynt_pending_input', inputText.value || ''); } catch (e) {}
+  const signup = (detail && detail.signup) || '/signup';
+  showWallModal(signup);
+}
+
+function showWallModal(signupUrl) {
+  let modal = document.getElementById('wall-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'wall-modal';
+    modal.className = 'wall-overlay';
+    modal.innerHTML =
+      '<div class="wall-card">' +
+      '<div class="wall-title">Free limit reached</div>' +
+      '<div class="wall-body">You\'ve used your 10 free requests. Sign in — free, Pro, or higher — to keep going. Your current input is saved.</div>' +
+      '<div class="wall-actions">' +
+      '<button class="btn" onclick="document.getElementById(\'wall-modal\').style.display=\'none\'">Not now</button>' +
+      '<button class="btn btn-primary" id="wall-signin">Sign in to continue</button>' +
+      '</div></div>';
+    document.body.appendChild(modal);
+  }
+  modal.querySelector('#wall-signin').onclick = () => { window.location.href = signupUrl; };
+  modal.style.display = 'flex';
+}
 
 // Input stats
 const inputText = document.getElementById('input-text');
@@ -975,7 +1147,6 @@ function handleFileSelection(file) {
 }
 
 async function previewBinaryFile(file) {
-  const apiKey = document.getElementById('api-key').value.trim();
   inputText.value = `Extracting preview of ${file.name}...`;
   inputText.setAttribute('readonly', 'readonly');
   try {
@@ -983,12 +1154,20 @@ async function previewBinaryFile(file) {
     formData.append('file', file);
     const res = await fetch(`${API_BASE}/ingest/file/preview`, {
       method:  'POST',
-      headers: { 'X-API-Key': apiKey },
+      headers: await authHeaders(),
       body:    formData,
     });
     // The file the user is verifying may have changed while we awaited;
     // only apply the preview if this is still the pending file.
     if (pendingBinaryFile !== file) return;
+
+    if (res.status === 429) {
+      const err = await res.json().catch(() => ({}));
+      inputText.value = '[Sign in required]\nYou\'ve used your free requests.';
+      inputText.removeAttribute('readonly');
+      handleFreeTierWall(err.detail);
+      return;
+    }
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1032,7 +1211,6 @@ function switchTab(tab) {
 
 // Process
 async function processText() {
-  const apiKey = document.getElementById('api-key').value.trim();
   const hasBinary = !!pendingBinaryFile;
   const text = inputText.value.trim();
 
@@ -1054,9 +1232,15 @@ async function processText() {
 
       const fileRes = await fetch(`${API_BASE}/ingest/file`, {
         method:  'POST',
-        headers: { 'X-API-Key': apiKey },
+        headers: await authHeaders(),
         body:    formData,
       });
+
+      if (fileRes.status === 429) {
+        const err = await fileRes.json().catch(() => ({}));
+        handleFreeTierWall(err.detail);
+        throw new Error('Free tier limit reached — sign in to continue.');
+      }
 
       if (!fileRes.ok) {
         const err = await fileRes.json();
@@ -1093,12 +1277,15 @@ async function processText() {
       // ── Text path: /ingest → /resolve → /export ──
       const ingestRes = await fetch(`${API_BASE}/ingest`, {
         method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key':    apiKey,
-        },
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ payload: text }),
       });
+
+      if (ingestRes.status === 429) {
+        const err = await ingestRes.json().catch(() => ({}));
+        handleFreeTierWall(err.detail);
+        throw new Error('Free tier limit reached — sign in to continue.');
+      }
 
       if (!ingestRes.ok) {
         const err = await ingestRes.json();
@@ -1110,12 +1297,15 @@ async function processText() {
 
       const resolveRes = await fetch(`${API_BASE}/resolve`, {
         method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key':    apiKey,
-        },
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ session_id: currentSessionId }),
       });
+
+      if (resolveRes.status === 429) {
+        const err = await resolveRes.json().catch(() => ({}));
+        handleFreeTierWall(err.detail);
+        throw new Error('Free tier limit reached — sign in to continue.');
+      }
 
       if (!resolveRes.ok) {
         const err = await resolveRes.json();
@@ -1141,7 +1331,7 @@ async function processText() {
     document.getElementById('time-display').style.display = 'flex';
 
     updateStats(currentResult);
-    updateCurlSnippet(currentSessionId, apiKey);
+    updateCurlSnippet(currentSessionId, document.getElementById('api-key').value.trim() || '<your-key>');
     setStatus('ready', 'READY');
 
   } catch (err) {
@@ -1153,14 +1343,9 @@ async function processText() {
 }
 
 async function exportFormat(format) {
-  const apiKey = document.getElementById('api-key').value.trim();
-
   const res = await fetch(`${API_BASE}/export`, {
     method:  'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key':    apiKey,
-    },
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       session_id: currentSessionId,
       format:     format,

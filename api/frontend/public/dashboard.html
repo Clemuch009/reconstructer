@@ -320,17 +320,22 @@
       hasStorage ? 'block' : 'none';
 
     if (hasStorage) {
-      document.getElementById('storage-toggle').checked = settings.enabled || false;
-      document.querySelector(
-        `input[name="retention"][value="${settings.retention_days || 7}"]`
-      ).checked = true;
+      // Use window._profileData.storage_settings if available
+      // (updated locally after save, prevents overwrite from stale re-fetch)
+      const live = window._profileData?.storage_settings || settings;
+      document.getElementById('storage-toggle').checked = live.enabled || false;
+      const retVal = live.retention_days || 7;
+      const retInput = document.querySelector(
+        `input[name="retention"][value="${retVal}"]`
+      );
+      if (retInput) retInput.checked = true;
       document.getElementById('storage-autodelete').checked =
-        settings.auto_delete !== false;
+        live.auto_delete !== false;
     }
   }
 
   // Load stored documents
-  async function loadDocuments() {
+  window.loadDocuments = async function loadDocuments() {
     const hasStorage = profileData?.limits?.storage || false;
     document.getElementById('docs-locked').style.display   = hasStorage ? 'none' : 'block';
     document.getElementById('docs-content').style.display  = hasStorage ? 'block' : 'none';
@@ -348,7 +353,10 @@
     }
   }
 
+  let _storedSessions = [];
+
   function renderDocuments(sessions) {
+    _storedSessions = sessions;
     const list = document.getElementById('docs-list');
     if (!sessions.length) {
       list.innerHTML = `<div class="empty-state">No stored documents yet. Enable storage in Settings, then process a document.</div>`;
@@ -358,19 +366,20 @@
       <table class="docs-table">
         <thead>
           <tr>
-            <th>Session ID</th>
+            <th>Document</th>
             <th>Created</th>
             <th>Status</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          ${sessions.map(s => `
+          ${sessions.map((s, i) => `
             <tr>
-              <td class="doc-id">${s.session_id?.substring(0, 12)}...</td>
+              <td class="doc-name">${escapeHtml(s.title || s.filename || (s.session_id?.substring(0, 12) + '...'))}</td>
               <td>${formatDate(s.stored_at)}</td>
               <td><span class="badge badge-active">Stored</span></td>
               <td>
+                <button class="btn-ghost" onclick="openDoc(${i})">Open</button>
                 <button class="btn-ghost" onclick="deleteDoc('${s.session_id}')">Delete</button>
               </td>
             </tr>
@@ -379,6 +388,35 @@
       </table>
     `;
   }
+
+  function escapeHtml(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  window.openDoc = function(index) {
+    const s = _storedSessions[index];
+    if (!s) return;
+    const title = s.title || s.filename || s.session_id || 'Document';
+    // Render the human-readable view from the stored payload (already fetched,
+    // so this works even after a server restart — Firestore is the source).
+    let body = '';
+    try {
+      const payload = s.payload || {};
+      body = payload.human_readable
+          || JSON.stringify(payload.machine_readable || payload, null, 2);
+    } catch (e) {
+      body = 'Unable to render this document.';
+    }
+    document.getElementById('doc-view-title').textContent = title;
+    document.getElementById('doc-view-body').textContent  = body;
+    document.getElementById('doc-view-modal').style.display = 'flex';
+  };
+
+  window.closeDocView = function() {
+    document.getElementById('doc-view-modal').style.display = 'none';
+  };
 
   // ─── ACTIONS ───
   window.generateKey = async function() {
@@ -391,7 +429,7 @@
       });
       const data = await res.json();
       if (res.ok) {
-        showNewKey(data.api_key);
+        showNewKey(data.api_key.key);
         await loadDashboard(idToken);
       } else {
         showToast(data.detail?.message || 'Failed to generate key.', 'error');
@@ -420,34 +458,43 @@
   };
 
   window.saveStorage = async function() {
-    const idToken  = await currentUser.getIdToken();
-    const enabled  = document.getElementById('storage-toggle').checked;
+    const idToken   = await currentUser.getIdToken();
+    const enabled   = document.getElementById('storage-toggle').checked;
     const retention = parseInt(
       document.querySelector('input[name="retention"]:checked')?.value || 7
     );
-    const autoDel  = document.getElementById('storage-autodelete').checked;
+    const autoDel = document.getElementById('storage-autodelete').checked;
 
     try {
       const res = await fetch(`${API_BASE}/auth/storage/settings`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          id_token: idToken, enabled, retention_days: retention, auto_delete: autoDel
+          id_token:       idToken,
+          enabled:        enabled,
+          retention_days: retention,
+          auto_delete:    autoDel,
         }),
       });
+
       if (res.ok) {
-        // Update local profileData so toggle persists without re-fetch
+        // Update local cache so renderSettings() reads correct value
         if (window._profileData) {
           window._profileData.storage_settings = {
-            enabled, retention_days: retention, auto_delete: autoDel
+            enabled:        enabled,
+            retention_days: retention,
+            auto_delete:    autoDel,
           };
+          // Re-render settings from updated local data
+          renderSettings(window._profileData);
         }
         showToast('Storage settings saved.');
       } else {
-        showToast('Failed to save settings.', 'error');
+        const err = await res.json();
+        showToast(err.detail || 'Failed to save settings.', 'error');
       }
-    } catch {
-      showToast('Error saving settings.', 'error');
+    } catch (e) {
+      showToast('Error saving settings: ' + e.message, 'error');
     }
   };
 
@@ -617,6 +664,10 @@
   }
 
   function showNewKey(key) {
+    if (typeof key !== 'string') {
+      console.error('showNewKey expected a string, got:', key);
+      key = (key && key.key) ? key.key : String(key);
+    }
     document.getElementById('new-key-val').textContent = key;
     document.getElementById('new-key-modal').style.display = 'flex';
   }
@@ -1188,6 +1239,24 @@
   .modal {
     background: var(--surface); border: 1px solid var(--border2);
     border-radius: 12px; padding: 28px; width: 480px; max-width: 95vw;
+  }
+
+  .modal.modal-wide { width: 860px; }
+
+  .doc-view-body {
+    margin: 14px 0;
+    max-height: 70vh;
+    overflow: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .modal-title {
@@ -1775,6 +1844,17 @@
     <div class="modal-actions">
       <button class="btn" onclick="copyNewKey()">Copy key</button>
       <button class="btn btn-primary" onclick="closeNewKey()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- DOCUMENT VIEWER -->
+<div class="modal-overlay" id="doc-view-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title" id="doc-view-title">Document</div>
+    <pre class="doc-view-body" id="doc-view-body"></pre>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeDocView()">Close</button>
     </div>
   </div>
 </div>

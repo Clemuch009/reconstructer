@@ -672,9 +672,21 @@ def store_session(
     now            = datetime.now(timezone.utc)
     expires_at     = (now + timedelta(days=retention_days)).isoformat()
 
+    # Original filename (file uploads set ingestion_metadata.filename;
+    # text/paste sessions have none). title is a human-friendly label for
+    # the dashboard list — the filename when available, else a short id.
+    ingestion_meta = session.get("ingestion_metadata") or {}
+    filename       = ingestion_meta.get("filename")
+    fallback_id    = (
+        session.get("session_id") or session.get("source_id") or "untitled"
+    )
+    title = filename or f"Pasted text · {str(fallback_id)[:8]}"
+
     session_doc = {
         **session,
         "uid":        uid,
+        "filename":   filename,
+        "title":      title,
         "stored_at":  now.isoformat(),
         "expires_at": expires_at,
     }

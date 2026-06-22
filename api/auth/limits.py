@@ -190,6 +190,43 @@ class LimitCheckResult:
         self.request       = request
 
 
+def _build_user_limit_result(user: dict, request: Request) -> LimitCheckResult:
+    """
+    Build a LimitCheckResult for an authenticated user record.
+    Shared by the id_token (session) path and reused logic — applies the same
+    tier/workspace limit routing as an API-key request so behaviour is identical
+    regardless of how the user authenticated.
+    """
+    from api.auth.firestore import TIER_LIMITS
+
+    uid          = user.get("uid", "")
+    tier         = user.get("tier", "starter")
+    workspace_id = user.get("workspace_id")
+
+    if tier in ("team", "enterprise") and workspace_id:
+        allowed, usage_dict = check_authenticated_limit(
+            uid=uid, tier=tier, workspace_id=workspace_id
+        )
+    else:
+        allowed, usage_dict = check_authenticated_limit(uid=uid, tier=tier)
+
+    limit       = TIER_LIMITS.get(tier, {}).get("requests_per_day", 0)
+    today_count = usage_dict.get("requests_today", 0)
+    headers     = build_limit_headers(tier, today_count, limit)
+
+    return LimitCheckResult(
+        allowed=allowed,
+        tier=tier,
+        uid=uid,
+        workspace_id=workspace_id,
+        current_count=today_count,
+        limit=limit,
+        is_free_tier=False,
+        headers=headers,
+        request=request,
+    )
+
+
 # ---------------------------------
 # Unified limit check
 # ---------------------------------
@@ -197,13 +234,32 @@ class LimitCheckResult:
 def check_request_limit(
     request:  Request,
     api_key:  Optional[str] = None,
+    id_token: Optional[str] = None,
 ) -> LimitCheckResult:
     from api.auth.firestore import (
         TIER_LIMITS,
         get_user_by_key_hash,
+        get_user,
         is_ip_within_limit,
     )
     from api.auth.keys import hash_key, verify_key_format
+
+    # ─── Session auth (web UI) — Firebase id_token takes precedence ───
+    # The console/observer authenticate logged-in users with their Firebase
+    # id_token (Authorization: Bearer ...). This resolves to the SAME uid/tier
+    # as an API key, so storage, usage metering, and limits behave identically.
+    if id_token:
+        from api.auth.router import _verify_firebase_token
+        try:
+            decoded = _verify_firebase_token(id_token)
+            uid     = decoded.get("uid")
+        except Exception:
+            uid = None
+
+        user = get_user(uid) if uid else None
+        if user:
+            return _build_user_limit_result(user, request)
+        # invalid/unknown token → fall through to API key / free tier
 
     # Free tier — no API key
     if not api_key:

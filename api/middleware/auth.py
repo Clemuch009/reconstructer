@@ -95,7 +95,13 @@ async def require_auth(
 ) -> RequestContext:
     api_key = request.headers.get("X-API-Key")
 
-    limit_result = check_request_limit(request, api_key)
+    # Web UI session auth: Authorization: Bearer <firebase_id_token>
+    id_token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        id_token = auth_header[len("Bearer "):].strip() or None
+
+    limit_result = check_request_limit(request, api_key, id_token=id_token)
 
     if limit_result.is_free_tier and not limit_result.allowed:
         raise HTTPException(
