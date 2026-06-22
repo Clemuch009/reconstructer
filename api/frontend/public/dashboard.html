@@ -614,28 +614,33 @@
     const idToken = await currentUser.getIdToken();
     const user    = currentUser;
     try {
-      // 1. Sign out browser session immediately
-      await fbSignOut(auth);
-
-      // 2. Clear all local storage
-      localStorage.clear();
-      sessionStorage.clear();
-
-      // 3. Delete backend records (Firestore + Firebase Auth server-side)
-      await fetch(`${API_BASE}/auth/account`, {
+      // 1. Delete backend records FIRST (Firestore + Firebase Auth server-side).
+      //    Only proceed to local cleanup if this succeeds — otherwise a failed
+      //    backend delete would leave the user logged-out-but-not-deleted, and
+      //    the account would "come back" on next sign-in.
+      const res = await fetch(`${API_BASE}/auth/account`, {
         method:  'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ id_token: idToken }),
       });
 
-      // 4. Delete Firebase Auth user from client side
-      // This is the authoritative client deletion — prevents
-      // onAuthStateChanged from restoring the session
-      try {
-        await fbDeleteUser(user);
-      } catch {
-        // May already be deleted server-side — that's fine
+      if (!res.ok) {
+        let msg = 'Error deleting account.';
+        try {
+          const err = await res.json();
+          if (err.detail) msg = typeof err.detail === 'string' ? err.detail : msg;
+        } catch {}
+        showToast(msg, 'error');
+        return;   // keep the session intact so the user can retry
       }
+
+      // 2. Backend confirmed deletion — now tear down the client session.
+      try { await fbDeleteUser(user); } catch {
+        // Server already deleted the Auth user; client delete may 404 — fine.
+      }
+      try { await fbSignOut(auth); } catch {}
+      localStorage.clear();
+      sessionStorage.clear();
 
       window.location.href = '/';
     } catch (err) {

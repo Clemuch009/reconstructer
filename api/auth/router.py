@@ -134,6 +134,10 @@ class UpdateRoleRequest(BaseModel):
     new_role:   str
 
 
+class DeleteAccountRequest(BaseModel):
+    id_token: str
+
+
 # ---------------------------------
 # Auth flow
 # ---------------------------------
@@ -440,8 +444,8 @@ async def delete_all_user_sessions(id_token: str) -> dict:
 # ---------------------------------
 
 @router.delete("/account")
-async def delete_account(id_token: str) -> dict:
-    decoded = _verify_firebase_token(id_token)
+async def delete_account(request: DeleteAccountRequest) -> dict:
+    decoded = _verify_firebase_token(request.id_token)
     uid     = decoded["uid"]
 
     db = _get_db()
