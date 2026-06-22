@@ -6,6 +6,7 @@ import spacy
 try:
     nlp = spacy.load("en_core_web_sm", disable=["ner", "tagger", "lemmatizer", "parser"])
     nlp.add_pipe("sentencizer")
+    nlp.max_length = 100_000_000
 except OSError:
     raise RuntimeError(
             "spaCy model 'en_core_web_sm' not found. "
