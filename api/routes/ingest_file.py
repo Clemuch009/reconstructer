@@ -16,7 +16,6 @@ from api.streaming import broadcast_to_sse_clients, publish_webhook
 from api.routes.document import store_coc
 from api.routes.ingest import _session_store, _evict_if_needed
 from api.dependencies import compute_request_units
-from api.auth.firestore import store_session
 from ingestion.router import ingest, IngestionResult
 
 
@@ -42,6 +41,10 @@ SUPPORTED_MIME_TYPES: dict[str, str] = {
 }
 
 MAX_FILE_BYTES = 50 * 1024 * 1024
+
+# Preview returns at most this many characters of extracted text — enough to
+# verify the right file without shipping a whole large document back twice.
+PREVIEW_MAX_CHARS = 100 * 1024
 
 
 # ---------------------------------
@@ -134,10 +137,6 @@ async def _process_file(
         "envelope": envelope,
     }
 
-    # Persist to Firestore for authenticated users with storage enabled
-    if ctx.uid:
-        store_session(uid=ctx.uid, session=envelope)
-
     asyncio.create_task(broadcast_to_sse_clients(envelope))
     asyncio.create_task(publish_webhook(envelope))
     await consume_request(ctx, count=compute_request_units(normalized_text))
@@ -165,6 +164,58 @@ async def ingest_file(
         ctx=ctx,
     )
     return envelope
+
+
+@router.post("/ingest/file/preview")
+async def ingest_file_preview(
+    file: UploadFile = File(...),
+    ctx:  RequestContext = Depends(require_auth),
+) -> dict:
+    """
+    Lightweight EXTRACTION-ONLY preview of an uploaded file.
+
+    Runs the SAME ingestion path as processing (detect → extract → normalize)
+    so the preview text matches exactly what processing would receive — but
+    stops there. It deliberately does NOT:
+        - run the engine
+        - build or store a COC envelope / session
+        - broadcast or publish webhooks
+        - consume_request  ← preview must not cost the client a request
+
+    Purpose: let the client verify the right file (and see why a file is
+    unreadable, e.g. a scanned PDF) before spending a processing request.
+
+    Non-throwing for "no extractable text": returns 200 with has_text=False
+    plus warnings, so the UI can show the reason in-panel rather than catching
+    an error. (The real /ingest/file still 422s — unchanged.) Empty/oversize
+    files are still rejected by _guard_file.
+    """
+    raw_bytes = await file.read()
+    _guard_file(raw_bytes)
+
+    # Extraction only — same code path as processing, no engine, no metering.
+    ingestion_result = ingest(raw_bytes, filename=file.filename)
+
+    text       = ingestion_result["text"]
+    has_text   = bool(text.strip())
+    metadata   = ingestion_result["extraction_result"]["metadata"]
+    truncated  = len(text) > PREVIEW_MAX_CHARS
+    preview    = text[:PREVIEW_MAX_CHARS] if truncated else text
+
+    return {
+        "filename":      file.filename,
+        "source_format": ingestion_result["source_format"],
+        "pipeline":      ingestion_result["pipeline"],
+        "has_text":      has_text,
+        "truncated":     truncated,
+        "text":          preview,
+        "char_count":    metadata["char_count"],
+        "line_count":    metadata["line_count"],
+        "word_count":    metadata["word_count"],
+        "page_count":    metadata["page_count"],
+        "sheet_count":   metadata["sheet_count"],
+        "warnings":      ingestion_result["all_warnings"],
+    }
 
 
 @router.post("/ingest/file/human")
