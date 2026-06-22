@@ -16,6 +16,7 @@ from api.streaming import broadcast_to_sse_clients, publish_webhook
 from api.routes.document import store_coc
 from api.routes.ingest import _session_store, _evict_if_needed
 from api.dependencies import compute_request_units
+from api.auth.firestore import store_session
 from ingestion.router import ingest, IngestionResult
 
 
@@ -136,6 +137,10 @@ async def _process_file(
         "status":   "resolved",
         "envelope": envelope,
     }
+
+    # Persist to Firestore for authenticated users with storage enabled
+    if ctx.uid:
+        store_session(uid=ctx.uid, session=envelope)
 
     asyncio.create_task(broadcast_to_sse_clients(envelope))
     asyncio.create_task(publish_webhook(envelope))
