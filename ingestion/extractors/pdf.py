@@ -5,11 +5,30 @@ from typing import Optional
 from ingestion.result import ExtractionResult, ExtractionMetadata
 
 
-# ---------------------------------
-# PDF extractor
-# Requires: pdfplumber
-# pip install pdfplumber
-# ---------------------------------
+def _get_image_caption(page, img_bbox: tuple, page_text: str) -> str:
+    """
+    Attempt to find a caption for an image by looking for text
+    immediately below the image bounding box.
+    Returns caption text or empty string if none found.
+
+    Strategy: extract words within a 50pt vertical band below
+    the image bottom edge, within the same horizontal span.
+    """
+    try:
+        x0, top, x1, bottom = img_bbox
+        caption_band = page.within_bbox((
+            max(0, x0 - 20),
+            bottom,
+            min(page.width, x1 + 20),
+            bottom + 60,   # 60pt band below image
+        ))
+        caption_text = caption_band.extract_text()
+        if caption_text and caption_text.strip():
+            return caption_text.strip()[:200]  # cap caption length
+    except Exception:
+        pass
+    return ""
+
 
 def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
     """
@@ -19,16 +38,22 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
     1. Open PDF from bytes
     2. Extract text page by page
     3. Extract tables per page — render as CSV text
-    4. Interleave text and tables in document order
-    5. Return single text block — engine sees one document
+    4. Detect images per page — insert [IMAGE_N: caption] markers
+    5. Interleave text, tables, and image markers in document order
+    6. Return single text block — engine sees one document
 
     Page format:
         [PAGE: 1]
         <extracted text>
         <extracted tables as CSV>
+        [IMAGE_1: Figure 1. Revenue chart]
+        [IMAGE_2: no description]
 
-        [PAGE: 2]
-        ...
+    Image markers:
+    - Inserted at end of each page's content block
+    - Caption extracted from text immediately below image bbox
+    - If no caption found: [IMAGE_N: no description]
+    - Image count tracked across all pages (globally incrementing)
 
     Rules:
     - Never raises — returns extraction_success: False on failure
@@ -39,7 +64,6 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
     """
     warnings: list[str] = []
 
-    # Guard — pdfplumber optional dependency
     try:
         import pdfplumber
     except ImportError:
@@ -61,19 +85,14 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
             extraction_success=False,
         )
 
-    page_blocks: list[str] = []
-    page_count:  int = 0
+    page_blocks:  list[str] = []
+    page_count:   int = 0
+    image_counter: int = 0  # global across all pages
 
     try:
         with pdfplumber.open(io.BytesIO(raw_bytes)) as pdf:
             page_count = len(pdf.pages)
 
-            # Encrypted PDF check.
-            # pdfminer's PDFDocument exposes encryption via the `encryption`
-            # attribute (set when an /Encrypt entry is present), NOT via an
-            # `is_encrypted` boolean — which does not exist and previously
-            # raised AttributeError on every PDF. getattr() keeps this check
-            # safe across pdfminer versions: a missing attribute reads as None.
             is_encrypted = getattr(pdf.doc, "encryption", None) is not None
             if is_encrypted:
                 return ExtractionResult(
@@ -125,6 +144,31 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                     if table_lines:
                         page_parts.append("\n".join(table_lines))
 
+                # Detect images — insert markers with captions
+                try:
+                    images = page.images
+                    if images:
+                        image_markers: list[str] = []
+                        for img in images:
+                            image_counter += 1
+                            bbox = (
+                                img.get("x0", 0),
+                                img.get("top", 0),
+                                img.get("x1", 0),
+                                img.get("bottom", 0),
+                            )
+                            caption = _get_image_caption(
+                                page, bbox, page_text or ""
+                            )
+                            label = caption if caption else "no description"
+                            image_markers.append(
+                                f"[IMAGE_{image_counter}: {label}]"
+                            )
+                        if image_markers:
+                            page_parts.append("\n".join(image_markers))
+                except Exception:
+                    pass  # image detection never blocks text extraction
+
                 if page_parts:
                     block = f"[PAGE: {page_num}]\n" + "\n\n".join(page_parts)
                     page_blocks.append(block)
@@ -155,6 +199,13 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
             "PDF may be entirely image-based"
         )
 
+    if image_counter > 0:
+        warnings.append(
+            f"{image_counter} image(s) detected — "
+            "inserted as [IMAGE_N: caption] markers. "
+            "Image content not extracted (OCR not enabled)."
+        )
+
     return ExtractionResult(
         text=text,
         metadata=ExtractionMetadata(
@@ -164,7 +215,7 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
             char_count=len(text),
             line_count=len(lines),
             word_count=len(words),
-            encoding_used=None,   # binary format — no text encoding
+            encoding_used=None,
         ),
         extraction_warnings=warnings,
         extraction_success=bool(text.strip()),

@@ -165,7 +165,7 @@ def _confirm_patterns(
     if "numeric_value" in available and value and re.search(r"\b\d[\d,\.]*\b", value):
         confirmed.append("numeric_value")
 
-    print(f"[DEBUG] available={available}, key={repr(key)}, value={repr(value)}")
+    #print(f"[DEBUG] available={available}, key={repr(key)}, value={repr(value)}")
 
     return confirmed
 

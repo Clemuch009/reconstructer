@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Equation Detector — Playground</title>
+<style>
+  :root {
+    --bg:        #0a0a0a;
+    --surface:   #111111;
+    --surface2:  #161616;
+    --border:    #1d1d1d;
+    --border2:   #262626;
+    --text:      #e8e8e8;
+    --text-dim:  #888;
+    --text-muted:#555;
+    --primary:   #00ff88;
+    --primary-dim:#0c2c1e;
+    --amber:     #ffb020;
+    --blue:      #4aa8ff;
+    --mono: 'SF Mono','Cascadia Code','JetBrains Mono',Menlo,Consolas,monospace;
+    --sans: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 14px;
+    display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
+  }
+  header {
+    flex-shrink: 0; height: 52px; padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg);
+  }
+  .logo { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--primary); letter-spacing: 0.04em; }
+  .logo span { color: var(--text-dim); font-weight: 400; }
+  .tagline { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+
+  main {
+    flex: 1 1 0; min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr 280px;
+  }
+  .panel { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--border); }
+  .panel:last-child { border-right: none; }
+  .panel-head {
+    flex-shrink: 0; height: 38px; padding: 0 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .panel-title { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); }
+  .panel-body { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+
+  /* INPUT */
+  textarea {
+    width: 100%; height: 100%; resize: none; border: none; outline: none;
+    background: var(--bg); color: var(--text);
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+    padding: 14px 16px;
+  }
+  textarea::placeholder { color: var(--text-muted); }
+
+  .btn {
+    background: transparent; border: 1px solid var(--border2);
+    color: var(--text-dim); font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.06em; padding: 5px 11px; border-radius: 4px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn:hover { color: var(--text); border-color: var(--primary); }
+  .btn-primary { color: var(--primary); border-color: var(--primary); }
+  .btn-primary:hover { background: var(--primary); color: #000; }
+  .head-actions { display: flex; gap: 7px; align-items: center; }
+
+  /* RESULT — annotated lines */
+  .result-lines { font-family: var(--mono); font-size: 12.5px; line-height: 1.7; padding: 8px 0; }
+  .rline {
+    display: grid; grid-template-columns: 38px 52px 1fr; gap: 0;
+    padding: 1px 16px 1px 0; align-items: baseline;
+  }
+  .rline:hover { background: var(--surface); }
+  .rline.is-eq { background: rgba(0,255,136,0.06); }
+  .rline.is-eq:hover { background: rgba(0,255,136,0.10); }
+  .rline-num { color: var(--text-muted); text-align: right; padding-right: 12px; font-size: 11px; user-select: none; }
+  .rline-score { font-size: 11px; text-align: right; padding-right: 14px; }
+  .rline-score.zero { color: var(--text-muted); }
+  .rline-score.low  { color: var(--text-dim); }
+  .rline-score.hit  { color: var(--primary); font-weight: 600; }
+  .rline-text { color: var(--text); white-space: pre-wrap; word-break: break-word; }
+  .rline.is-eq .rline-text { color: var(--text); }
+  .rline.blank .rline-text { color: var(--text-muted); }
+
+  /* equation block bracket */
+  .block-tag {
+    font-family: var(--mono); font-size: 10px; color: var(--primary);
+    background: var(--primary-dim); border: 1px solid rgba(0,255,136,0.25);
+    border-radius: 3px; padding: 1px 6px; margin: 6px 16px 2px 90px; display: inline-block;
+    letter-spacing: 0.04em;
+  }
+
+  /* per-line signal popover (inline, expandable) */
+  .rline-signals {
+    grid-column: 3 / 4; font-size: 10.5px; color: var(--text-dim);
+    padding: 2px 0 4px 0; display: none;
+  }
+  .rline.show-signals .rline-signals { display: block; }
+  .sig-chip {
+    display: inline-block; background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 3px; padding: 1px 6px; margin: 2px 4px 2px 0; font-family: var(--mono);
+    color: var(--text-dim);
+  }
+  .sig-chip b { color: var(--primary); font-weight: 600; }
+
+  /* JSON output */
+  .json-out { font-family: var(--mono); font-size: 11.5px; line-height: 1.55; padding: 12px 16px; color: var(--text-dim); white-space: pre-wrap; word-break: break-word; }
+  .json-out .k { color: var(--blue); }
+  .json-out .s { color: var(--primary); }
+  .json-out .n { color: var(--amber); }
+
+  /* CONTROLS panel */
+  .controls { padding: 14px 16px; }
+  .control-group { margin-bottom: 20px; }
+  .control-group h3 {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 12px; font-weight: 500;
+  }
+  .ctrl { margin-bottom: 13px; }
+  .ctrl-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .ctrl-label { font-size: 11.5px; color: var(--text); }
+  .ctrl-val { font-family: var(--mono); font-size: 12px; color: var(--primary); font-weight: 600; min-width: 22px; text-align: right; }
+  input[type=range] {
+    width: 100%; -webkit-appearance: none; appearance: none; height: 3px;
+    background: var(--border2); border-radius: 2px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
+    background: var(--primary); border-radius: 50%; cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 13px; height: 13px; background: var(--primary); border-radius: 50%; cursor: pointer; border: none;
+  }
+  .ctrl-desc { font-size: 10px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+  .stat-row { display: flex; justify-content: space-between; font-size: 11.5px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .label { color: var(--text-dim); }
+  .stat-row .val { font-family: var(--mono); color: var(--text); font-weight: 600; }
+  .stat-row .val.eq { color: var(--primary); }
+  .reset-link { font-family: var(--mono); font-size: 10px; color: var(--text-muted); cursor: pointer; text-decoration: underline; }
+  .reset-link:hover { color: var(--text-dim); }
+
+  .empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 12.5px; line-height: 1.6; }
+  .hint-row { font-family: var(--mono); font-size: 10px; color: var(--text-muted); padding: 8px 16px; border-top: 1px solid var(--border); flex-shrink: 0; }
+
+  .file-drop {
+    position: absolute; inset: 0; background: rgba(0,255,136,0.08);
+    border: 2px dashed var(--primary); display: none;
+    align-items: center; justify-content: center; z-index: 10;
+    font-family: var(--mono); color: var(--primary); font-size: 14px;
+  }
+  .file-drop.active { display: flex; }
+  .input-wrap { position: relative; flex: 1 1 0; min-height: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">EQUATION DETECTOR <span>· scoring playground</span></div>
+  <div class="tagline">text-stream scorer · tune before you integrate</div>
+</header>
+
+<main>
+  <!-- INPUT -->
+  <section class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Input · extracted text</span>
+      <div class="head-actions">
+        <input type="file" id="file-input" accept=".txt,text/plain" style="display:none;">
+        <button class="btn" onclick="document.getElementById('file-input').click()">⬆ .TXT</button>
+        <button class="btn" onclick="loadSample()">SAMPLE</button>
+        <button class="btn" onclick="clearInput()">CLEAR</button>
+      </div>
+    </div>
+    <div class="input-wrap">
+      <textarea id="input" placeholder="Paste PDF-extracted text here, or drop a .txt file.
+
+Tip: for a real PDF test, run your PDF through your extractor, save the text to .txt, and drop it in — that's exactly what the scorer sees in the pipeline."></textarea>
+      <div class="file-drop" id="file-drop">Drop .txt to load</div>
+    </div>
+    <div class="hint-row" id="input-hint">0 lines</div>
+  </section>
+
+  <!-- RESULT -->
+  <section class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Detected · per-line score</span>
+      <div class="head-actions">
+        <button class="btn" id="toggle-sig-btn" onclick="toggleAllSignals()">SHOW SIGNALS</button>
+        <button class="btn" id="view-toggle" onclick="toggleView()">JSON</button>
+      </div>
+    </div>
+    <div class="panel-body" id="result-body">
+      <div class="empty">Paste or drop text to see detection.</div>
+    </div>
+  </section>
+
+  <!-- CONTROLS -->
+  <section class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Tuning</span>
+      <span class="reset-link" onclick="resetWeights()">reset</span>
+    </div>
+    <div class="panel-body controls">
+
+      <div class="control-group">
+        <h3>Summary</h3>
+        <div class="stat-row"><span class="label">Total lines</span><span class="val" id="stat-lines">0</span></div>
+        <div class="stat-row"><span class="label">Equation blocks</span><span class="val eq" id="stat-blocks">0</span></div>
+        <div class="stat-row"><span class="label">Lines claimed</span><span class="val eq" id="stat-claimed">0</span></div>
+        <div class="stat-row"><span class="label">Mean confidence</span><span class="val" id="stat-conf">—</span></div>
+      </div>
+
+      <div class="control-group">
+        <h3>Threshold</h3>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Equation threshold</span><span class="ctrl-val" id="v-threshold">4</span></div>
+          <input type="range" id="threshold" min="1" max="12" step="1" value="4">
+          <div class="ctrl-desc">A line scoring ≥ this is a math line. Lower = higher recall (more catches, more false positives).</div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>Signal weights</h3>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Math Unicode (∑∫√∞∂∇)</span><span class="ctrl-val" id="v-w_symbol">3</span></div>
+          <input type="range" id="w_symbol" min="0" max="6" step="1" value="3">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Greek letters (αβγ ΔΣΠ)</span><span class="ctrl-val" id="v-w_greek">3</span></div>
+          <input type="range" id="w_greek" min="0" max="6" step="1" value="3">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Sub/superscript (x², xᵢ, x_i)</span><span class="ctrl-val" id="v-w_script">2</span></div>
+          <input type="range" id="w_script" min="0" max="6" step="1" value="2">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Math function (sin sqrt lim)</span><span class="ctrl-val" id="v-w_func">2</span></div>
+          <input type="range" id="w_func" min="0" max="6" step="1" value="2">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Function call f(x)</span><span class="ctrl-val" id="v-w_call">2</span></div>
+          <input type="range" id="w_call" min="0" max="6" step="1" value="2">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Subscript var R_total</span><span class="ctrl-val" id="v-w_subvar">2</span></div>
+          <input type="range" id="w_subvar" min="0" max="6" step="1" value="2">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">'=' in expression</span><span class="ctrl-val" id="v-w_equals">2</span></div>
+          <input type="range" id="w_equals" min="0" max="6" step="1" value="2">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Operators + - * / ^</span><span class="ctrl-val" id="v-w_ops">1</span></div>
+          <input type="range" id="w_ops" min="0" max="6" step="1" value="1">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Symbol density bonus</span><span class="ctrl-val" id="v-w_density">2</span></div>
+          <input type="range" id="w_density" min="0" max="6" step="1" value="2">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span class="ctrl-label">Eq. marker (1), [Eq. 3]</span><span class="ctrl-val" id="v-w_marker">2</span></div>
+          <input type="range" id="w_marker" min="0" max="6" step="1" value="2">
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+// ────────────────────────────────────────────────────────────────────────
+//  EQUATION SCORING DETECTOR  (text-stream)
+//  This JS is the reference implementation. Once tuned, it ports directly
+//  to the Python equation.py. Output matches the locked EquationSegment.
+// ────────────────────────────────────────────────────────────────────────
+
+const DEFAULTS = {
+  threshold: 4,
+  w_symbol: 3, w_greek: 3, w_script: 2, w_func: 2, w_call: 2,
+  w_subvar: 2, w_equals: 2, w_ops: 1, w_density: 2, w_marker: 2,
+};
+let W = { ...DEFAULTS };
+
+// Signal character sets / patterns
+const GREEK = /[\u0391-\u03A9\u03B1-\u03C9]/;          // Greek block
+const MATH_UNICODE = /[\u2200-\u22FF\u2A00-\u2AFF\u2100-\u214F]/; // operators, supplemental, letterlike
+const MATH_ALNUM   = /[\u{1D400}-\u{1D7FF}]/u;         // mathematical alphanumeric symbols
+const COMMON_MATH  = /[∑∫√∞∂∇±×÷≈≠≤≥∝∈∉⊂⊆→↔⇒∀∃·]/;
+const SUPERSCRIPT  = /[\u00B2\u00B3\u00B9\u2070-\u209F]/; // ², ³, subscripts/superscripts block
+const SCRIPT_PAT   = /[A-Za-z0-9]\s*[_^]\s*[A-Za-z0-9{(]/; // x_i, x^2
+const MATH_FUNC    = /\b(sin|cos|tan|cot|sec|csc|log|ln|exp|lim|sqrt|min|max|sum|prod|int|abs|sinh|cosh|tanh|arg|det|dim|mod)\b/i;
+const FUNC_CALL    = /\b[A-Za-z][A-Za-z0-9]*\s*\([^)]*\)/;  // f(x), Score(x)
+const SUBSCRIPT_VAR= /\b[A-Za-z]+_[A-Za-z0-9]+\b/;          // R_total, x_i
+const OPERATORS    = /[+\-*/^]/;
+const EQ_MARKER    = /(^\s*\(\d+\)\s*$)|(\[\s*eq\.?\s*\d+\s*\])|(\bequation\s+\d+\s*[:.]?)/i;
+const EXPANSION_TOKENS = /[=+\-*/^()[\]{}Σ∫√Δαβγ∑∂∇]|[\u0391-\u03A9\u03B1-\u03C9]/;
+
+// Count distinct single-char variables (heuristic for "many variables")
+function manyVariables(s) {
+  const letters = s.match(/\b[a-zA-Z]\b/g) || [];
+  return new Set(letters).size >= 2;
+}
+
+function symbolDensity(s) {
+  const t = s.replace(/\s/g, '');
+  if (!t.length) return 0;
+  const mathChars = (t.match(/[+\-*/^=()<>[\]{}∑∫√∞∂∇±×÷≈≠≤≥∝∈∉_\u0391-\u03A9\u03B1-\u03C9\u2200-\u22FF]/g) || []).length;
+  return mathChars / t.length;
+}
+
+// Score a single line. Returns { score, signals: [{label, pts}] }
+function scoreLine(raw) {
+  const s = raw.trim();
+  const signals = [];
+  let score = 0;
+  if (!s) return { score: 0, signals };
+
+  const add = (cond, pts, label) => { if (cond && pts > 0) { score += pts; signals.push({ label, pts }); } };
+
+  add(MATH_UNICODE.test(s) || COMMON_MATH.test(s) || MATH_ALNUM.test(s), W.w_symbol, 'math-unicode');
+  add(GREEK.test(s), W.w_greek, 'greek');
+  add(SUPERSCRIPT.test(s) || SCRIPT_PAT.test(s), W.w_script, 'sub/superscript');
+  add(MATH_FUNC.test(s), W.w_func, 'math-function');
+  add(FUNC_CALL.test(s), W.w_call, 'function-call');
+  add(SUBSCRIPT_VAR.test(s), W.w_subvar, 'subscript-var');
+  // '=' only counts as math if there's an operator or symbol nearby (not prose "name = john")
+  const hasEqMath = s.includes('=') && (OPERATORS.test(s.replace('=','')) || COMMON_MATH.test(s) || GREEK.test(s) || /\d/.test(s) || manyVariables(s));
+  add(hasEqMath, W.w_equals, "'='-expression");
+  // operators between operands
+  add(/[A-Za-z0-9)\]]\s*[+\-*/^]\s*[A-Za-z0-9(\[]/.test(s), W.w_ops, 'operator');
+  // density
+  const dens = symbolDensity(s);
+  add(dens >= 0.30, W.w_density, 'symbol-density≥30%');
+  // equation environment marker
+  add(EQ_MARKER.test(s), W.w_marker, 'eq-marker');
+
+  return { score, signals };
+}
+
+// Is this line a plausible expansion continuation (even if its own score is low)?
+function isContinuation(raw) {
+  const s = raw.trim();
+  if (!s) return false;
+  // ends with an operator or '=' → next line continues the equation
+  if (/[=+\-*/^(]$/.test(s)) return true;
+  // is mostly an expansion token line (a lone /, a fraction bar, a bracket)
+  if (/^[=+\-*/^()[\]{}|│─—_]+$/.test(s)) return true;
+  if (EXPANSION_TOKENS.test(s) && s.length <= 30) return true;
+  return false;
+}
+
+// Map an aggregate block score → confidence in the scoring band 0.40–0.90
+function scoringConfidence(maxLineScore, threshold) {
+  // threshold → 0.40 floor; scales up to 0.90 ceiling
+  const span = Math.max(1, 12 - threshold);
+  const over = Math.max(0, maxLineScore - threshold);
+  const conf = 0.40 + (over / span) * 0.50;
+  return Math.min(0.90, Math.round(conf * 100) / 100);
+}
+
+// Main: detect equation blocks across the text
+function detectEquations(text) {
+  const rawLines = text.split('\n');
+  const lineScores = rawLines.map(scoreLine);
+  const isMath = lineScores.map(ls => ls.score >= W.threshold);
+
+  const blocks = [];
+  const claimed = new Set();
+  const n = rawLines.length;
+  let i = 0;
+  while (i < n) {
+    if (!isMath[i]) { i++; continue; }
+    // start a block at i; expand up (rare) and down through continuation/math lines
+    let start = i;
+    let end = i;
+    // expand downward
+    let j = i + 1;
+    while (j < n) {
+      const prevContinues = isContinuation(rawLines[j - 1]);
+      const thisMath = isMath[j];
+      const thisCont = isContinuation(rawLines[j]);
+      const thisBlank = rawLines[j].trim() === '';
+      if (thisBlank) break;                 // blank line ends a block
+      if (thisMath || thisCont || prevContinues) { end = j; j++; }
+      else break;
+    }
+    // also pull a leading continuation line above (e.g. "Score(x) =" then symbols)
+    // (start stays; handled by the line itself being math)
+
+    const content = rawLines.slice(start, end + 1).map(l => l.trim()).filter(Boolean).join(' ');
+    const maxScore = Math.max(...lineScores.slice(start, end + 1).map(ls => ls.score));
+    for (let k = start; k <= end; k++) claimed.add(k);
+    blocks.push({
+      type: 'equation',
+      content,
+      start_line: start,
+      end_line: end,
+      confidence: scoringConfidence(maxScore, W.threshold),
+      source: 'scoring',
+      raw_markup: null,
+    });
+    i = end + 1;
+  }
+  return { rawLines, lineScores, isMath, blocks, claimed };
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  UI
+// ────────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+let showSignals = false;
+let showJson = false;
+let lastResult = null;
+
+const WEIGHT_IDS = ['threshold','w_symbol','w_greek','w_script','w_func','w_call','w_subvar','w_equals','w_ops','w_density','w_marker'];
+
+function syncW() {
+  WEIGHT_IDS.forEach(id => {
+    const v = parseInt($(id).value, 10);
+    W[id] = v;
+    $('v-' + id).textContent = v;
+  });
+}
+
+function render() {
+  const text = $('input').value;
+  $('input-hint').textContent = text ? (text.split('\n').length + ' lines') : '0 lines';
+  if (!text.trim()) {
+    $('result-body').innerHTML = '<div class="empty">Paste or drop text to see detection.</div>';
+    $('stat-lines').textContent = '0'; $('stat-blocks').textContent = '0';
+    $('stat-claimed').textContent = '0'; $('stat-conf').textContent = '—';
+    lastResult = null;
+    return;
+  }
+  const res = detectEquations(text);
+  lastResult = res;
+
+  // stats
+  $('stat-lines').textContent = res.rawLines.length;
+  $('stat-blocks').textContent = res.blocks.length;
+  $('stat-claimed').textContent = res.claimed.size;
+  $('stat-conf').textContent = res.blocks.length
+    ? (res.blocks.reduce((a, b) => a + b.confidence, 0) / res.blocks.length).toFixed(2)
+    : '—';
+
+  if (showJson) { renderJson(res); return; }
+  renderLines(res);
+}
+
+function renderLines(res) {
+  const blockStart = {}, blockEnd = {};
+  res.blocks.forEach((b, idx) => { blockStart[b.start_line] = { b, idx }; blockEnd[b.end_line] = true; });
+
+  let html = '<div class="result-lines">';
+  res.rawLines.forEach((raw, i) => {
+    if (blockStart[i]) {
+      const { b, idx } = blockStart[i];
+      html += `<div class="block-tag">▼ EQUATION #${idx + 1} · lines ${b.start_line}–${b.end_line} · conf ${b.confidence}</div>`;
+    }
+    const ls = res.lineScores[i];
+    const isEq = res.claimed.has(i);
+    const blank = raw.trim() === '';
+    const scoreCls = ls.score === 0 ? 'zero' : (ls.score >= W.threshold ? 'hit' : 'low');
+    const sigHtml = ls.signals.length
+      ? ls.signals.map(s => `<span class="sig-chip">${s.label} <b>+${s.pts}</b></span>`).join('')
+      : '<span style="color:var(--text-muted)">no signals</span>';
+    html += `
+      <div class="rline ${isEq ? 'is-eq' : ''} ${blank ? 'blank' : ''} ${showSignals ? 'show-signals' : ''}" onclick="this.classList.toggle('show-signals')">
+        <span class="rline-num">${i}</span>
+        <span class="rline-score ${scoreCls}">${ls.score || ''}</span>
+        <span class="rline-text">${escapeHtml(raw) || '·'}</span>
+        <span class="rline-signals">${sigHtml}</span>
+      </div>`;
+  });
+  html += '</div>';
+  $('result-body').innerHTML = html;
+}
+
+function renderJson(res) {
+  if (!res.blocks.length) {
+    $('result-body').innerHTML = '<div class="empty">No equation blocks detected at threshold ' + W.threshold + '.</div>';
+    return;
+  }
+  const json = JSON.stringify(res.blocks, null, 2);
+  const colored = escapeHtml(json)
+    .replace(/&quot;(\w+)&quot;:/g, '<span class="k">&quot;$1&quot;</span>:')
+    .replace(/: &quot;([^&]*)&quot;/g, ': <span class="s">&quot;$1&quot;</span>')
+    .replace(/: (\d+\.?\d*)/g, ': <span class="n">$1</span>');
+  $('result-body').innerHTML = '<div class="json-out">' + colored + '</div>';
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function toggleAllSignals() {
+  showSignals = !showSignals;
+  $('toggle-sig-btn').textContent = showSignals ? 'HIDE SIGNALS' : 'SHOW SIGNALS';
+  $('toggle-sig-btn').classList.toggle('btn-primary', showSignals);
+  if (!showJson) render();
+}
+function toggleView() {
+  showJson = !showJson;
+  $('view-toggle').textContent = showJson ? 'LINES' : 'JSON';
+  $('view-toggle').classList.toggle('btn-primary', showJson);
+  render();
+}
+function resetWeights() {
+  W = { ...DEFAULTS };
+  WEIGHT_IDS.forEach(id => { $(id).value = DEFAULTS[id]; $('v-' + id).textContent = DEFAULTS[id]; });
+  render();
+}
+function clearInput() { $('input').value = ''; render(); }
+
+const SAMPLE = `The score is computed as
+
+Score(x) = Σ (αᵢxᵢ / √(1+Δγ))
+
+where α is a weight.
+
+Some obvious math:
+x = y + z
+E = mc²
+F = ma
+
+Engineering formulas:
+V = IR
+P = VI
+R_total = R1 + R2
+
+A multiline equation:
+Score(x) =
+Σ(i=1,n)
+(
+α_i x_i
+/
+√(1+Δγ)
+)
+
+Programming-like:
+score = weight * confidence
+latency_ms = total_time / count
+
+These are NOT equations:
+hello world
+This system computes values.
+The database contains records.`;
+
+function loadSample() { $('input').value = SAMPLE; render(); }
+
+// File upload + drag-drop
+$('file-input').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (f) readFile(f);
+});
+function readFile(f) {
+  const reader = new FileReader();
+  reader.onload = ev => { $('input').value = ev.target.result; render(); };
+  reader.readAsText(f);
+}
+const drop = $('file-drop');
+const wrap = document.querySelector('.input-wrap');
+['dragenter','dragover'].forEach(ev => wrap.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('active'); }));
+['dragleave','drop'].forEach(ev => wrap.addEventListener(ev, e => { e.preventDefault(); if (ev==='drop' || !wrap.contains(e.relatedTarget)) drop.classList.remove('active'); }));
+wrap.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('active');
+  const f = e.dataTransfer.files[0];
+  if (f && /\.txt$|text\/plain/.test(f.name + f.type)) readFile(f);
+});
+
+// Wire controls
+WEIGHT_IDS.forEach(id => $(id).addEventListener('input', () => { syncW(); render(); }));
+$('input').addEventListener('input', render);
+
+// init
+syncW();
+render();
+</script>
+</body>
+</html>

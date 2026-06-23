@@ -22,6 +22,29 @@ def _table_to_csv(table) -> str:
     return "\n".join(lines)
 
 
+def _get_image_alt(shape) -> str:
+    """
+    Extract alt-text description from an inline image shape.
+    python-docx exposes this via the docPr XML element's 'descr' attribute.
+    Falls back to 'name' attribute (usually "Picture 1" etc.) if no description.
+    Returns empty string if neither is available.
+    """
+    try:
+        from docx.oxml.ns import qn
+        # Inline images: shape._inline.docPr
+        doc_pr = shape._inline.find(qn("wp:docPr"))
+        if doc_pr is not None:
+            descr = doc_pr.get("descr", "").strip()
+            if descr:
+                return descr[:200]
+            name = doc_pr.get("name", "").strip()
+            if name:
+                return name
+    except Exception:
+        pass
+    return ""
+
+
 def extract_docx(raw_bytes: bytes) -> ExtractionResult:
     """
     DOCX extractor using python-docx.
@@ -32,11 +55,19 @@ def extract_docx(raw_bytes: bytes) -> ExtractionResult:
        using iter_block_items — stable public API
     3. Headings preserved as text — engine detects hierarchy
     4. Tables rendered as CSV text
-    5. Return single text block
+    5. Inline images detected — [IMAGE_N: alt-text] markers inserted
+       at the position where the image appears in the document flow
+    6. Return single text block
+
+    Image markers:
+    - Inserted inline at image position in document flow
+    - Alt-text extracted from wp:docPr descr attribute
+    - Falls back to shape name (e.g. "Picture 1") if no alt-text
+    - [IMAGE_N: no description] if neither available
 
     Rules:
     - Never raises
-    - Uses stable python-docx API only — no lxml traversal
+    - Uses stable python-docx API only — no lxml traversal beyond docPr
     - Tables rendered as CSV — no pipe conversion
     - Page count not available in DOCX — None
     """
@@ -82,22 +113,13 @@ def extract_docx(raw_bytes: bytes) -> ExtractionResult:
         )
 
     parts: list[str] = []
+    image_counter: int = 0
 
-    # ---------------------------------
-    # iter_block_items — stable API
-    # Yields paragraphs and tables in document order
-    # Source: python-docx official recipe
-    # ---------------------------------
     from docx.oxml.ns import qn
     from docx.table import Table
     from docx.text.paragraph import Paragraph
 
     def iter_block_items(document):
-        """
-        Yield Paragraph and Table objects in document order.
-        Uses parent.iterchildren() on document body — stable,
-        version-safe approach from python-docx documentation.
-        """
         parent_elm = document.element.body
         for child in parent_elm.iterchildren():
             if child.tag == qn("w:p"):
@@ -107,6 +129,33 @@ def extract_docx(raw_bytes: bytes) -> ExtractionResult:
 
     for block in iter_block_items(doc):
         if isinstance(block, Paragraph):
+            # Check for inline images in this paragraph
+            # Inline images are in runs as drawing elements
+            try:
+                from docx.oxml.ns import qn as _qn
+                for run in block.runs:
+                    drawings = run._element.findall(
+                        f".//{_qn('w:drawing')}"
+                    )
+                    for drawing in drawings:
+                        # Find inline shape
+                        inline = drawing.find(_qn("wp:inline"))
+                        if inline is not None:
+                            image_counter += 1
+                            # Extract alt text from docPr
+                            doc_pr = inline.find(_qn("wp:docPr"))
+                            alt = ""
+                            if doc_pr is not None:
+                                alt = doc_pr.get("descr", "").strip()
+                                if not alt:
+                                    alt = doc_pr.get("name", "").strip()
+                            label = alt[:200] if alt else "no description"
+                            parts.append(
+                                f"[IMAGE_{image_counter}: {label}]"
+                            )
+            except Exception:
+                pass  # image detection never blocks text extraction
+
             text = block.text.strip()
             if not text:
                 continue
@@ -125,6 +174,13 @@ def extract_docx(raw_bytes: bytes) -> ExtractionResult:
 
     if not text.strip():
         warnings.append("No text extracted from DOCX")
+
+    if image_counter > 0:
+        warnings.append(
+            f"{image_counter} image(s) detected — "
+            "inserted as [IMAGE_N: alt-text] markers. "
+            "Image content not extracted (OCR not enabled)."
+        )
 
     return ExtractionResult(
         text=text,

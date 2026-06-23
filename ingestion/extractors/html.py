@@ -1,6 +1,7 @@
 # ingestion/extractors/html.py
 
 import re
+import os
 from ingestion.result import ExtractionResult, ExtractionMetadata
 
 _STRIP_TAGS = {
@@ -8,36 +9,15 @@ _STRIP_TAGS = {
     "head", "iframe", "object", "embed", "svg", "canvas",
 }
 
-# Matches residual HTML tags that survive get_text() via JS string data.
-# Covers: <tag>, </tag>, <tag attr="...">, <tag attr='...'>, self-closing.
-# Compiled once — applied after extraction on the plain text output.
 _RESIDUAL_TAG_RE = re.compile(
     r"</?[a-zA-Z][a-zA-Z0-9]*(?:\s[^>]*)?>",
     re.DOTALL,
 )
 
-# Matches JSON-escaped HTML sequences left behind after JS blob extraction:
-# &lt;div&gt; &amp;nbsp; etc. — only strip when dense (>3 per line).
-_HTML_ENTITY_RE = re.compile(r"&(?:lt|gt|amp|nbsp|quot|apos);")
+_HTML_ENTITY_RE = re.compile(r"&(?:lt|gt|amp|nbsp;|quot|apos);")
 
 
 def _strip_residual_html(text: str) -> tuple[str, list[str]]:
-    """
-    Post-extraction cleanup for HTML tags and entities that survive
-    BeautifulSoup's get_text() via JS string data / JSON blobs embedded
-    in browser-saved pages (__NEXT_DATA__, __INITIAL_STATE__, etc.).
-
-    Strategy:
-    1. Remove residual <tag> / </tag> patterns from plain text lines
-    2. Remove lines that are clearly JSON/JS data remnants:
-       - lines where >40% of characters are JSON structural chars
-         ({ } [ ] " : , \\ \n \t)
-       - lines starting with JSON keys ("key": or \"key\":)
-    3. Collapse newly-empty runs of blank lines
-
-    Never removes lines that have real sentence content even if they
-    contain some special characters — threshold-based, not binary.
-    """
     warnings: list[str] = []
     lines = text.splitlines()
     cleaned: list[str] = []
@@ -46,33 +26,32 @@ def _strip_residual_html(text: str) -> tuple[str, list[str]]:
     for line in lines:
         stripped = line.strip()
 
-        # Remove residual HTML tags from the line
+        for prefix in ("HTMLCopy", "CSSCopy", "JSCopy", "JavaScriptCopy",
+                        "PythonCopy", "BashCopy", "TextCopy"):
+            if stripped.startswith(prefix):
+                stripped = stripped[len(prefix):].strip()
+                break
+
         detagged = _RESIDUAL_TAG_RE.sub("", stripped).strip()
 
-        # If the line WAS a tag and nothing remains — skip it
         if stripped and not detagged:
             residual_count += 1
             continue
 
-        # Detect JSON data lines — JS blob remnants
-        # Heuristic: >40% JSON structural characters
+        if re.match(r'^<(?:div|section|article|header|footer|main|nav|aside|p|h[1-6]|ul|ol|li|table|tr|td|th|form|figure|blockquote)\b', stripped, re.IGNORECASE):
+            residual_count += 1
+            continue
+
         if detagged:
-            json_chars = sum(
-                1 for c in detagged
-                if c in '{}[]":\\,\t'
-            )
+            json_chars = sum(1 for c in detagged if c in '{}[]":\\,\t')
             ratio = json_chars / max(len(detagged), 1)
             if ratio > 0.40 and len(detagged) > 20:
                 residual_count += 1
                 continue
-
-            # Lines that are pure JSON key-value remnants
-            # e.g.  "socialStorm": "<div class=..." or \":\"<div
             if re.match(r'^["\\\s]*\w+["\\]*\s*:\s*["\[{<\\]', detagged):
                 residual_count += 1
                 continue
 
-        # Line survived — use detagged version
         cleaned.append(detagged if detagged != stripped else stripped)
 
     if residual_count > 0:
@@ -81,7 +60,6 @@ def _strip_residual_html(text: str) -> tuple[str, list[str]]:
             f"(browser-saved page JS blob leakage)"
         )
 
-    # Re-collapse blank lines that opened up after removals
     final: list[str] = []
     prev_blank = False
     for line in cleaned:
@@ -94,6 +72,33 @@ def _strip_residual_html(text: str) -> tuple[str, list[str]]:
             prev_blank = False
 
     return "\n".join(final), warnings
+
+
+def _get_image_label(img_tag) -> str:
+    """
+    Extract best available label for an HTML image:
+    1. alt attribute (most informative)
+    2. title attribute
+    3. filename from src (strip path and extension)
+    4. "no description" fallback
+    """
+    alt = (img_tag.get("alt", "") or "").strip()
+    if alt and alt.lower() not in ("", "image", "img", "photo", "picture"):
+        return alt[:200]
+
+    title = (img_tag.get("title", "") or "").strip()
+    if title:
+        return title[:200]
+
+    src = (img_tag.get("src", "") or "").strip()
+    if src and not src.startswith("data:"):
+        # Extract filename without extension from src URL
+        filename = os.path.basename(src.split("?")[0])
+        name = os.path.splitext(filename)[0]
+        if name and len(name) > 1:
+            return name[:200]
+
+    return "no description"
 
 
 def _table_to_csv(tag) -> str:
@@ -115,21 +120,22 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
 
     Pipeline:
     1. Decode bytes — UTF-8, meta charset, latin-1, utf-8-recovered
-    2. Strip script/style/noise tags
-    3. Replace tables with deterministic placeholders
-    4. Extract text with block structure preserved
-    5. Substitute placeholders with CSV text
-    6. Strip residual HTML/JS data from browser-saved pages
-    7. Collapse whitespace — return clean text block
+    2. Pre-parse: remove __NEXT_DATA__ / JS hydration blobs
+    3. Strip script/style/noise tags
+    4. Replace images with [IMAGE_N: label] placeholders
+       — label from alt, title, or src filename
+    5. Replace tables with deterministic placeholders
+    6. Extract text with block structure preserved
+    7. Substitute placeholders with CSV / image markers
+    8. Strip residual HTML/JS data from browser-saved pages
+    9. Collapse whitespace — return clean text block
 
-    Rules:
-    - Never raises
-    - Script/style/head stripped entirely
-    - Tables extracted as CSV — consistent with other extractors
-    - Table placeholders use deterministic counters — not id()
-    - Residual <tag> patterns from JS blobs removed in post-pass
-    - Dead traversal loops removed
-    - BeautifulSoup import failure returns actionable warning
+    Image markers:
+    - data: URIs skipped (base64 inline images, no useful label)
+    - alt text used when meaningful (not generic "image"/"img")
+    - title attribute as fallback
+    - src filename (without extension) as last resort
+    - [IMAGE_N: no description] if nothing available
     """
     warnings: list[str] = []
 
@@ -154,9 +160,7 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
             extraction_success=False,
         )
 
-    # ---------------------------------
-    # Step 1 — decode bytes
-    # ---------------------------------
+    # Step 1 — decode
     encoding_used = "utf-8"
     try:
         text_raw = raw_bytes.decode("utf-8")
@@ -175,50 +179,29 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
             else:
                 text_raw = raw_bytes.decode("latin-1")
                 encoding_used = "latin-1"
-                warnings.append(
-                    "UTF-8 decode failed — fell back to latin-1"
-                )
+                warnings.append("UTF-8 decode failed — fell back to latin-1")
         except Exception:
             text_raw = raw_bytes.decode("utf-8", errors="replace")
             encoding_used = "utf-8-recovered"
-            warnings.append(
-                "Encoding detection failed — decoded as utf-8-recovered"
-            )
+            warnings.append("Encoding detection failed — decoded as utf-8-recovered")
 
-    # ---------------------------------
-    # Step 1b — pre-parse: remove __NEXT_DATA__ / __INITIAL_STATE__ blobs
-    # These are large <script> tags with type="application/json" or
-    # id="__NEXT_DATA__" that contain the full React/Redux state as JSON.
-    # BeautifulSoup strips the <script> tag but the JSON string content
-    # (which itself contains raw HTML) leaks through get_text().
-    # Removing these before parsing eliminates the source of leakage.
-    # ---------------------------------
+    # Step 1b — remove JS hydration blobs
     text_raw = re.sub(
         r'<script[^>]*(?:id="__NEXT_DATA__"|type="application/json")[^>]*>.*?</script>',
-        "",
-        text_raw,
-        flags=re.DOTALL | re.IGNORECASE,
+        "", text_raw, flags=re.DOTALL | re.IGNORECASE,
     )
-    # Also strip any <script> tag whose content starts with window.__
-    # (common pattern for hydration state blobs)
     text_raw = re.sub(
         r'<script[^>]*>\s*window\.__[A-Z_]+\s*=.*?</script>',
-        "",
-        text_raw,
-        flags=re.DOTALL | re.IGNORECASE,
+        "", text_raw, flags=re.DOTALL | re.IGNORECASE,
     )
 
-    # ---------------------------------
     # Step 2 — parse
-    # ---------------------------------
     try:
         soup = BeautifulSoup(text_raw, "lxml")
     except Exception:
         try:
             soup = BeautifulSoup(text_raw, "html.parser")
-            warnings.append(
-                "lxml parser unavailable — fell back to html.parser"
-            )
+            warnings.append("lxml parser unavailable — fell back to html.parser")
         except Exception as e:
             return ExtractionResult(
                 text="",
@@ -231,19 +214,40 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
                     word_count=0,
                     encoding_used=encoding_used,
                 ),
-                extraction_warnings=[
-                    f"HTML parse failed: {str(e)[:200]}"
-                ],
+                extraction_warnings=[f"HTML parse failed: {str(e)[:200]}"],
                 extraction_success=False,
             )
 
-    # Strip noise tags
-    for tag in soup.find_all(_STRIP_TAGS):
+    # Strip noise tags + nav/aside/header/footer
+    _STRIP_STRUCTURAL = _STRIP_TAGS | {"nav", "aside", "header", "footer"}
+    for tag in soup.find_all(_STRIP_STRUCTURAL):
         tag.decompose()
 
-    # ---------------------------------
-    # Step 3 — replace tables with deterministic placeholders
-    # ---------------------------------
+    # Step 3 — replace images with placeholders BEFORE get_text()
+    # so markers appear at the correct position in document flow
+    image_placeholder_map: dict[str, str] = {}
+    image_counter = 0
+    image_count_skipped = 0
+
+    for img in soup.find_all("img"):
+        src = (img.get("src", "") or "").strip()
+
+        # Skip data: URIs — base64 inline images have no useful label
+        # and their src would be thousands of chars
+        if src.startswith("data:"):
+            image_count_skipped += 1
+            img.decompose()
+            continue
+
+        image_counter += 1
+        label       = _get_image_label(img)
+        placeholder = f"__IMAGE_{image_counter}__"
+        image_placeholder_map[placeholder] = (
+            f"[IMAGE_{image_counter}: {label}]"
+        )
+        img.replace_with(f" {placeholder} ")
+
+    # Step 4 — replace tables with placeholders
     table_csv_map: dict[str, str] = {}
     table_idx = 0
 
@@ -258,14 +262,12 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
             warnings.append("Empty HTML table skipped")
             table.decompose()
 
-    # ---------------------------------
-    # Step 4 — extract text with block structure
-    # ---------------------------------
-    body = soup.find("body") or soup
+    # Step 5 — extract text
+    body     = soup.find("body") or soup
     raw_text = body.get_text(separator="\n")
 
-    lines_raw  = raw_text.splitlines()
-    cleaned:   list[str] = []
+    lines_raw = raw_text.splitlines()
+    cleaned:  list[str] = []
     prev_blank = False
 
     for line in lines_raw:
@@ -278,25 +280,20 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
             cleaned.append(stripped)
             prev_blank = False
 
-    # ---------------------------------
-    # Step 5 — substitute placeholders with CSV text
-    # ---------------------------------
-    text_with_placeholders = "\n".join(cleaned)
-    final_text = text_with_placeholders
+    # Step 6 — substitute placeholders
+    final_text = "\n".join(cleaned)
+
+    for placeholder, marker in image_placeholder_map.items():
+        final_text = final_text.replace(placeholder, marker)
 
     for placeholder, csv_text in table_csv_map.items():
         final_text = final_text.replace(placeholder, csv_text)
 
-    # ---------------------------------
-    # Step 6 — strip residual HTML/JS data from browser-saved pages
-    # Catches anything the pre-parse regex didn't eliminate
-    # ---------------------------------
+    # Step 7 — strip residual HTML/JS
     final_text, residual_warnings = _strip_residual_html(final_text)
     warnings.extend(residual_warnings)
 
-    # ---------------------------------
-    # Step 7 — final whitespace collapse
-    # ---------------------------------
+    # Step 8 — collapse whitespace
     final_text = re.sub(r"\n{3,}", "\n\n", final_text).strip()
 
     lines = final_text.splitlines()
@@ -304,6 +301,17 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
 
     if not final_text:
         warnings.append("No text extracted from HTML")
+
+    if image_counter > 0:
+        warnings.append(
+            f"{image_counter} image(s) detected — "
+            "inserted as [IMAGE_N: label] markers. "
+            "Image content not extracted (OCR not enabled)."
+        )
+    if image_count_skipped > 0:
+        warnings.append(
+            f"{image_count_skipped} inline data: image(s) skipped."
+        )
 
     return ExtractionResult(
         text=final_text,
