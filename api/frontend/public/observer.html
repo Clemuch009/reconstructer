@@ -433,7 +433,7 @@
 
   .seg-block[data-type="prose"]     { background: rgba(107,114,128,0.2); color: var(--c-prose); border-color: rgba(107,114,128,0.3); }
   .seg-block[data-type="table"]     { background: rgba(59,130,246,0.2);  color: var(--c-table); border-color: rgba(59,130,246,0.3); }
-  .seg-block[data-type="kv_block"]  { background: rgba(34,197,94,0.2);   color: var(--c-kv);    border-color: rgba(34,197,94,0.3); }
+  .seg-block[data-type="key_value"]  { background: rgba(34,197,94,0.2);   color: var(--c-kv);    border-color: rgba(34,197,94,0.3); }
   .seg-block[data-type="hierarchy"] { background: rgba(168,85,247,0.2);  color: var(--c-hierarchy); border-color: rgba(168,85,247,0.3); }
   .seg-block[data-type="context"]   { background: rgba(249,115,22,0.2);  color: var(--c-context); border-color: rgba(249,115,22,0.3); }
   .seg-block[data-type="mixed"]     { background: rgba(234,179,8,0.2);   color: var(--c-mixed); border-color: rgba(234,179,8,0.3); }
@@ -947,7 +947,7 @@
       <span class="download-label">DOWNLOAD</span>
       <button class="btn btn-download" onclick="downloadExport('human')" title="Download human-readable .txt">⬇ HUMAN</button>
       <button class="btn btn-download" onclick="downloadExport('machine')" title="Download machine JSON">⬇ MACHINE</button>
-      <button class="btn btn-download" onclick="downloadExport('ai')" title="Download AI LDM JSON">⬇ AI LDM</button>
+      <button class="btn btn-download" onclick="downloadExport('ai')" title="Download AI Structured Blocks JSON">⬇ AI</button>
     </div>
   </div>
 
@@ -1404,7 +1404,7 @@ function updateSessionDisplay(id) {
 const TYPE_LABELS = {
   prose:     'PROSE',
   table:     'TABLE',
-  kv_block:  'KV',
+  key_value: 'KV',
   hierarchy: 'HIER',
   context:   'CTX',
   mixed:     'MIX',
@@ -1460,10 +1460,10 @@ function showSegmentDetail(seg, blockEl) {
   // Pre-classifier route
   const stats = seg.metadata?.classification_stats || {};
   addDetailSection(body, 'CLASSIFICATION', [
-    ['dominant_source',  stats.dominant_source || '—',    'orange'],
-    ['confidence',       formatConf(seg.metadata?.confidence), 'primary'],
-    ['type_entropy',     stats.type_entropy?.toFixed(4) || '—', ''],
-    ['block_count',      stats.block_count ?? '—',         ''],
+    ['classified_by',  stats.classified_by || '—',    'orange'],
+    ['confidence',     formatConf(seg.metadata?.confidence), 'primary'],
+    ['type_entropy',   stats.type_entropy?.toFixed(4) || '—', ''],
+    ['block_count',    stats.block_count ?? '—',         ''],
   ]);
 
   // Flags
@@ -1534,7 +1534,7 @@ function typeColor(type) {
   const map = {
     prose:     'var(--c-prose)',
     table:     'var(--c-table)',
-    kv_block:  'var(--c-kv)',
+    key_value: 'var(--c-kv)',
     hierarchy: 'var(--c-hierarchy)',
     context:   'var(--c-context)',
     mixed:     'var(--c-mixed)',
@@ -1546,7 +1546,7 @@ function typeRGB(type) {
   const map = {
     prose:     '107,114,128',
     table:     '59,130,246',
-    kv_block:  '34,197,94',
+    key_value: '34,197,94',
     hierarchy: '168,85,247',
     context:   '249,115,22',
     mixed:     '234,179,8',
@@ -1904,7 +1904,7 @@ below <span class="drawer-num">0.6</span> → route to human review
         <span>Natural language — sentences, paragraphs, chat messages.</span>
       </div>
       <div class="type-row">
-        <span class="type-badge badge-kv">kv_block</span>
+        <span class="type-badge badge-kv">key_value</span>
         <span>Key-value pairs — config files, forms, metadata.</span>
       </div>
       <div class="type-row">

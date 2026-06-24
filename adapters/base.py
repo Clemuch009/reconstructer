@@ -136,10 +136,22 @@ def _extract_classification_stats(segment: StructuredSegment) -> Optional[Dict[s
     stats = segment["metadata"].get("classification_stats", {})
     if not stats:
         return None
+
+    # Normalize internal classifier source names to user-friendly values
+    raw_source = stats.get("dominant_source", "none")
+    source_map = {
+        "pre_classifier_bypass": "automatic",
+        "structure_engine":      "table_detector",
+        "block_engine":          "block_detector",
+        "fallback_engine":       "fallback",
+        "none":                  "none",
+    }
+    classified_by = source_map.get(raw_source, raw_source)
+
     return {
         "dominant_coverage_lines": stats.get("dominant_coverage_lines", 0),
         "block_count":             stats.get("block_count", 0),
-        "dominant_source":         stats.get("dominant_source", "none"),
+        "classified_by":           classified_by,
     }
 
 

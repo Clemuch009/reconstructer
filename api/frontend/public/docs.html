@@ -458,14 +458,14 @@
         <span class="sidebar-label" style="margin-top:6px">classification_stats</span>
         <a href="#dominant_coverage_lines" class="sidebar-link">dominant_coverage_lines</a>
         <a href="#block_count" class="sidebar-link">block_count</a>
-        <a href="#dominant_source" class="sidebar-link">dominant_source</a>
+        <a href="#classified_by" class="sidebar-link">classified_by</a>
       </div>
     </div>
 
     <div class="sidebar-section">
       <span class="sidebar-label">Structure types</span>
       <a href="#prose" class="sidebar-link">prose</a>
-      <a href="#kv_block" class="sidebar-link">kv_block</a>
+      <a href="#key_value" class="sidebar-link">key_value</a>
       <a href="#table" class="sidebar-link">table</a>
       <a href="#tree" class="sidebar-link">tree</a>
       <a href="#mixed" class="sidebar-link">mixed</a>
@@ -475,7 +475,7 @@
       <span class="sidebar-label">Adapters</span>
       <a href="#human-adapter" class="sidebar-link">HumanAdapter</a>
       <a href="#machine-adapter" class="sidebar-link">MachineAdapter</a>
-      <a href="#ai-adapter" class="sidebar-link">AIAdapter / LDM</a>
+      <a href="#ai-adapter" class="sidebar-link">AIAdapter / Structured Blocks</a>
     </div>
 
     <div class="sidebar-section">
@@ -541,7 +541,7 @@
       <p style="font-size:14px;color:var(--ink-dim)">
         The engine detects structure in your text and classifies each piece into
         typed segments. You then export those segments in whichever format
-        fits your use case: plain text, flat JSON records, or a Logical Document Model.
+        fits your use case: plain text, flat JSON records, or a Structured Blocks.
       </p>
     </section>
 
@@ -667,7 +667,7 @@
           </div>
           <p class="term-desc">
             The number of lines in this segment that matched the dominant
-            structural pattern. For a 5-line KV block, this would be 5.
+            structural pattern. For a 5-line key_value block, this would be 5.
             A low number relative to the total segment length suggests
             mixed content or a weak structural signal.
           </p>
@@ -688,9 +688,9 @@
           <div class="term-example">"block_count": 1</div>
         </div>
 
-        <div class="term-card" id="dominant_source">
+        <div class="term-card" id="classified_by">
           <div class="term-name">
-            dominant_source
+            classified_by
             <span class="term-type">string</span>
           </div>
           <p class="term-desc">
@@ -699,19 +699,19 @@
             this segment.
           </p>
           <p class="term-desc" style="margin-top:10px">
-            <code style="font-family:var(--mono);font-size:12px">pre_classifier_bypass</code> —
+            <code style="font-family:var(--mono);font-size:12px">automatic</code> —
             the structure was clear enough that the engine bypassed deep analysis entirely.
             Fast, high-confidence classifications always carry this source.<br><br>
             <code style="font-family:var(--mono);font-size:12px">structure_engine</code> —
             the full table detector ran on this segment.<br><br>
             <code style="font-family:var(--mono);font-size:12px">block_engine</code> —
-            KV, hierarchy, and context detectors ran.<br><br>
+            key_value, hierarchy, and context detectors ran.<br><br>
             <code style="font-family:var(--mono);font-size:12px">fallback_engine</code> —
             no strong structure was found; context-only detection was used.<br><br>
             <code style="font-family:var(--mono);font-size:12px">none</code> —
             classification failed; segment treated as prose.
           </p>
-          <div class="term-example">"dominant_source": "pre_classifier_bypass"</div>
+          <div class="term-example">"classified_by": "automatic"</div>
         </div>
 
       </div>
@@ -742,8 +742,8 @@
           <div class="type-example">→ "Each row corresponds to one object."</div>
         </div>
 
-        <div class="type-card" id="kv_block">
-          <span class="type-pill pill-kv">kv_block</span>
+        <div class="type-card" id="key_value">
+          <span class="type-pill pill-kv">key_value</span>
           <div class="type-name">Key-value pairs</div>
           <p class="type-desc">
             Structured data in <code style="font-family:var(--mono);font-size:11px">key: value</code>
@@ -782,7 +782,7 @@
           <div class="type-name">Multiple structure types</div>
           <p class="type-desc">
             A segment where more than one structural pattern was detected —
-            e.g. a paragraph followed immediately by a KV block.
+            e.g. a paragraph followed immediately by a key_value block.
             Check <code style="font-family:var(--mono);font-size:11px">confidence</code>
             and <code style="font-family:var(--mono);font-size:11px">block_count</code>
             to understand what's inside; consider splitting or routing
@@ -876,7 +876,7 @@ POST /ingest/file/machine</pre>
     <span class="hl-key">"classification_stats"</span>: {
       <span class="hl-key">"dominant_coverage_lines"</span>: <span class="hl-num">1</span>,
       <span class="hl-key">"block_count"</span>: <span class="hl-num">1</span>,
-      <span class="hl-key">"dominant_source"</span>: <span class="hl-str">"pre_classifier_bypass"</span>
+      <span class="hl-key">"classified_by"</span>: <span class="hl-str">"automatic"</span>
     }
   },
   <span class="hl-cmt">// ... more segments</span>
@@ -904,7 +904,7 @@ POST /ingest/file/machine</pre>
           <tr>
             <td><span class="field-name">type</span></td>
             <td><span class="field-type-tag">string</span></td>
-            <td style="color:var(--ink-dim)">Structural classification: prose · kv_block · table · tree · mixed</td>
+            <td style="color:var(--ink-dim)">Structural classification: prose · key_value · table · tree · mixed</td>
           </tr>
           <tr>
             <td><span class="field-name">content.text</span></td>
@@ -951,19 +951,19 @@ POST /ingest/file/machine</pre>
     <!-- AI ADAPTER -->
     <section class="adapter-section" id="ai-adapter">
       <div class="adapter-header">
-        <span class="adapter-badge badge-ai">AIAdapter / LDM</span>
-        <h3 class="adapter-title">Logical Document Model</h3>
+        <span class="adapter-badge badge-ai">AIAdapter / Structured Blocks</span>
+        <h3 class="adapter-title">Structured Blocks</h3>
       </div>
 
       <div class="adapter-when">
         <strong>Use when:</strong> you're passing document content to an LLM,
         building a RAG pipeline, or need a structured representation that preserves
-        semantic relationships between blocks. The LDM is designed for
+        semantic relationships between blocks. The format is designed for
         machine consumption, not human reading.
       </div>
 
       <p style="font-size:14px;color:var(--ink-dim);margin:0 0 12px">
-        The LDM uses <strong>blocks</strong> instead of segments, and adds
+        The output uses <strong>blocks</strong> instead of segments, and adds
         <strong>tags</strong> — semantic labels that describe both the structural
         type and the content pattern. Blocks are ordered as they appeared in
         the original document.
@@ -979,7 +979,7 @@ POST /ingest/file/ai</pre>
 
       <div class="code-block">
         <div class="code-header">
-          <span class="code-lang">example output — AIAdapter / LDM</span>
+          <span class="code-lang">example output — AIAdapter / Structured Blocks</span>
           <button class="code-copy" onclick="copyCode(this)">copy</button>
         </div>
         <pre>{
@@ -1017,7 +1017,7 @@ POST /ingest/file/ai</pre>
       </div>
 
       <h4 style="font-family:var(--mono);font-size:13px;font-weight:500;margin:24px 0 12px;color:var(--ink)">
-        LDM field reference
+        Field reference
       </h4>
 
       <table class="field-table">
@@ -1032,7 +1032,7 @@ POST /ingest/file/ai</pre>
           <tr>
             <td><span class="field-name">type</span></td>
             <td><span class="field-type-tag">string</span></td>
-            <td style="color:var(--ink-dim)">Structural type: prose · kv_block · table · tree · mixed</td>
+            <td style="color:var(--ink-dim)">Structural type: prose · key_value · table · tree · mixed</td>
           </tr>
           <tr>
             <td><span class="field-name">label</span></td>
@@ -1047,7 +1047,7 @@ POST /ingest/file/ai</pre>
           <tr>
             <td><span class="field-name">tags</span></td>
             <td><span class="field-type-tag">array</span></td>
-            <td style="color:var(--ink-dim)">Semantic labels: PROSE · UNSTRUCTURED · STRUCTURED · KV · TABLE · TREE · MIXED. Multiple tags can apply.</td>
+            <td style="color:var(--ink-dim)">Semantic labels: PROSE · UNSTRUCTURED · STRUCTURED · KEY_VALUE · TABLE · TREE · MIXED. Multiple tags can apply.</td>
           </tr>
           <tr>
             <td><span class="field-name">confidence</span></td>
@@ -1063,7 +1063,7 @@ POST /ingest/file/ai</pre>
         before injecting into a prompt. Use
         <code style="font-family:var(--mono);font-size:12px">tags</code> to route blocks
         to different prompt templates — prose blocks go into a summarisation prompt,
-        kv_block blocks go into an extraction prompt, table blocks get serialised
+        key_value blocks go into an extraction prompt, table blocks get serialised
         to markdown before injection.
       </div>
 

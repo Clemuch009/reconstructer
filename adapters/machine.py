@@ -94,12 +94,12 @@ def _machine_mixed(content: dict) -> Dict[str, Any]:
 
 
 CONTENT_SERIALIZERS = {
-    "prose":     _machine_prose,
-    "context":   _machine_context,
-    "table":     _machine_table,
-    "kv_block":  _machine_kv,
-    "hierarchy": _machine_hierarchy,
-    "mixed":     _machine_mixed,
+    "prose":      _machine_prose,
+    "context":    _machine_context,
+    "table":      _machine_table,
+    "key_value":  _machine_kv,
+    "hierarchy":  _machine_hierarchy,
+    "mixed":      _machine_mixed,
 }
 
 

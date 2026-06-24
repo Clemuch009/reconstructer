@@ -419,6 +419,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
 
   /* Tabs */
@@ -453,7 +455,8 @@
   .tab-content {
     display: none;
     flex: 1;
-    overflow-y: auto;
+    min-height: 0;
+    overflow: hidden;
     position: relative;
   }
 
@@ -465,6 +468,7 @@
   /* Output area */
   .output-area {
     flex: 1;
+    min-height: 0;
     padding: 20px;
     font-family: var(--mono);
     font-size: 12px;
@@ -783,7 +787,7 @@ region: eu-west-1
     <div class="tabs">
       <button class="tab active" onclick="switchTab('human')">HUMAN <span class="help-icon" data-term="human" title="What is HumanAdapter?">?</span></button>
       <button class="tab" onclick="switchTab('machine')">MACHINE <span class="help-icon" data-term="machine" title="What is MachineAdapter?">?</span></button>
-      <button class="tab" onclick="switchTab('ai')">AI / LDM <span class="help-icon" data-term="ai" title="What is AIAdapter / LDM?">?</span></button>
+      <button class="tab" onclick="switchTab('ai')">AI <span class="help-icon" data-term="ai" title="What is AIAdapter?">?</span></button>
     </div>
 
     <!-- Human tab -->
@@ -834,7 +838,7 @@ region: eu-west-1
         <button class="btn" onclick="copyOutput()" title="Copy active view to clipboard">COPY</button>
         <button class="btn btn-download" onclick="downloadFormat('human')" id="download-human-btn" title="Download human-readable .txt">⬇ .TXT</button>
         <button class="btn btn-download" onclick="downloadFormat('machine')" id="download-machine-btn" title="Download machine records .json">⬇ MACHINE</button>
-        <button class="btn btn-download" onclick="downloadFormat('ai')" id="download-ai-btn" title="Download AI LDM .json">⬇ AI LDM</button>
+        <button class="btn btn-download" onclick="downloadFormat('ai')" id="download-ai-btn" title="Download AI Structured Blocks .json">⬇ AI</button>
       </div>
     </div>
 
@@ -1763,7 +1767,7 @@ below <span class="drawer-num">0.6</span> → ambiguous, route to human review
 ✓ Downloading a readable version of a document
 ✓ Building a preview or diff view
 ✗ Storing in a database → use Machine
-✗ Feeding to an LLM → use AI / LDM
+✗ Feeding to an LLM → use AI
       </div>
     `
   },
@@ -1789,13 +1793,13 @@ below <span class="drawer-num">0.6</span> → ambiguous, route to human review
     `
   },
   ai: {
-    term: 'AIAdapter / LDM',
+    term: 'AIAdapter',
     anchor: 'ai-adapter',
     content: `
-      <p><strong style="color:#fff">AIAdapter</strong> returns a
-      <strong style="color:#fff">Logical Document Model (LDM)</strong> —
+      <p><strong style="color:#fff">AIAdapter</strong> returns
+      <strong style="color:#fff">Structured Blocks</strong> —
       a structured representation designed for LLM consumption and RAG pipelines.</p>
-      <p>Instead of segments, the LDM uses <strong style="color:#fff">blocks</strong>
+      <p>Instead of segments, Structured Blocks uses <strong style="color:#fff">blocks</strong>
       with <strong style="color:#fff">tags</strong> — semantic labels that describe
       both structure and content type.</p>
       <h4>Example block</h4>
@@ -1822,7 +1826,7 @@ below <span class="drawer-num">0.6</span> → ambiguous, route to human review
         <span>Natural language — sentences, paragraphs, chat messages. Pass directly to an LLM.</span>
       </div>
       <div class="type-row">
-        <span class="type-badge badge-kv">kv_block</span>
+        <span class="type-badge badge-kv">key_value</span>
         <span>Key-value pairs — config files, forms, metadata. Map to database columns.</span>
       </div>
       <div class="type-row">

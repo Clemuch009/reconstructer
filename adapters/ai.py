@@ -15,12 +15,12 @@ from adapters.base import (
 # ---------------------------------
 
 TYPE_TAGS: Dict[str, List[str]] = {
-    "table":     ["TABLE", "STRUCTURED"],
-    "kv_block":  ["KV", "STRUCTURED"],
-    "hierarchy": ["HIERARCHY", "STRUCTURED"],
-    "context":   ["CONTEXT", "LOG"],
-    "prose":     ["PROSE", "UNSTRUCTURED"],
-    "mixed":     ["MIXED", "STRUCTURED"],
+    "table":      ["TABLE", "STRUCTURED"],
+    "key_value":  ["KEY_VALUE", "STRUCTURED"],
+    "hierarchy":  ["HIERARCHY", "STRUCTURED"],
+    "context":    ["CONTEXT", "LOG"],
+    "prose":      ["PROSE", "UNSTRUCTURED"],
+    "mixed":      ["MIXED", "STRUCTURED"],
 }
 
 
@@ -71,12 +71,12 @@ def _ldm_mixed(content: dict) -> Dict[str, Any]:
 
 
 CONTENT_EXTRACTORS = {
-    "prose":     _ldm_prose,
-    "context":   _ldm_context,
-    "table":     _ldm_table,
-    "kv_block":  _ldm_kv,
-    "hierarchy": _ldm_hierarchy,
-    "mixed":     _ldm_mixed,
+    "prose":      _ldm_prose,
+    "context":    _ldm_context,
+    "table":      _ldm_table,
+    "key_value":  _ldm_kv,
+    "hierarchy":  _ldm_hierarchy,
+    "mixed":      _ldm_mixed,
 }
 
 
