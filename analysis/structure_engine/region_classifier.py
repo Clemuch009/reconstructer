@@ -10,7 +10,7 @@ from analysis.structure_engine.line_model import LineObject
 # Contract
 # ---------------------------------<
 
-print("latest deplyment running"
+print("latest deplyment running")
 class RegionResult(TypedDict):
     region_type: str        # table_candidate | structured_block | unstructured
     start_line:  int
