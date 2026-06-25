@@ -94,6 +94,7 @@ def reconstruct_paragraphs(text: str, split_positions: List[int]) -> List[str]:
     - clean
     """
     segments = segment_text(text, split_positions)
+    cleaned = clean_segments(segments)
     import sys
     print(f"[SEG] input {len(text.splitlines())} lines -> {len(cleaned)} segments; "
           f"sizes={[len(s.splitlines()) for s in cleaned]}", file=sys.stderr)
