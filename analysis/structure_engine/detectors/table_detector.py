@@ -5,11 +5,6 @@ from typing import List, Optional, Tuple, Dict
 from typing_extensions import TypedDict
 from analysis.structure_engine.line_model import LineObject
 
-import sys
-print(f"[detect_table] received {len(lines)} lines:", file=sys.stderr)
-for l in lines[:8]:
-    print(f"  [{l['line_index']}] {l['normalized'][:80]!r}", file=sys.stderr)
-print(f"[detect_table] csv_delim={_detect_csv_delimiter(lines)}", file=sys.stderr)
 # ---------------------------------
 # Contract
 # ---------------------------------
@@ -412,6 +407,13 @@ def detect_table(lines: List[LineObject]) -> Optional[TableResult]:
     ne = _non_empty(lines)
     if not ne:
         return None
+
+
+    import sys
+    print(f"[detect_table] received {len(lines)} lines, {len(ne)} non-empty:", file=sys.stderr)
+    for l in lines[:8]:
+        print(f"  [{l['line_index']}] {l['normalized'][:80]!r}", file=sys.stderr)
+    print(f"[detect_table] csv_delim={_detect_csv_delimiter(lines)}", file=sys.stderr)
 
     # CSV detection — try before pipe/aligned
     # CSV is unambiguous: consistent delimiter, quoted fields, exact columns
