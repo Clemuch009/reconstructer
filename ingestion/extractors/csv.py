@@ -6,7 +6,8 @@ from typing import Optional
 from ingestion.result import ExtractionResult, ExtractionMetadata
 from ingestion.extractors.txt import extract_txt
 
-
+import sys
+print(f"[engine-debug] received {len(text)} chars, {len(text.splitlines())} lines; first 200: {text[:200]!r}", file=sys.stderr)
 # ---------------------------------
 # Dialect detection
 # ---------------------------------

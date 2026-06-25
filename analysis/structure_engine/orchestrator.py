@@ -172,6 +172,9 @@ def run_structure_engine(text: str) -> List[SegmentResult]:
 
     model       = build_line_model(text)
     total_lines = len(model)
+    import sys
+
+    print(f"[engine-debug] received {len(text)} chars, {len(text.splitlines())} lines; first 200: {text[:200]!r}", file=sys.stderr)
 
     if not model:
         return []
