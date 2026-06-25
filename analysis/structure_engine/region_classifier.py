@@ -395,3 +395,14 @@ if __name__ == "__main__":
         print(f"  shape_repetition     : {_shape_repetition(model):.2f}")
         print(f"  has_sep_or_pipe      : {_has_structural_separator(model) or _has_pipe(model)}")
         print("-" * 60)
+
+# TEMP DEBUG — remove after diagnosis
+_orig_csv_check = _csv_column_consistency
+def _csv_column_consistency_debug(lines):
+    import sys
+    ne = [l["normalized"] for l in lines if not l["is_empty"]]
+    result, conf = _orig_csv_check(lines)
+    if ne:
+        print(f"[CSV_DEBUG] ne={len(ne)} first={repr(ne[0][:80])} is_csv={result}", file=sys.stderr)
+    return result, conf
+_csv_column_consistency = _csv_column_consistency_debug
