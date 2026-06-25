@@ -390,6 +390,13 @@ def _score_csv(
         fmt       * 0.1,
         2
     )
+
+
+# ---------------------------------
+# Core
+# ---------------------------------
+
+def detect_table(lines: List[LineObject]) -> Optional[TableResult]:
     """
     Detect and parse table from LineObjects.
     Routes to CSV, pipe, or aligned parser.
