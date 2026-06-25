@@ -1,4 +1,6 @@
 import re
+import csv
+import io
 from typing import List, Tuple
 from typing_extensions import TypedDict
 from analysis.structure_engine.line_model import LineObject
@@ -176,6 +178,38 @@ def _shape_repetition(lines: List[LineObject]) -> float:
     return shapes.count(most_common) / len(shapes)
 
 
+def _csv_column_consistency(lines: List[LineObject]) -> Tuple[bool, float]:
+    """
+    Detect CSV structure: consistent column count when split by comma/tab/semicolon.
+    Uses csv.reader to handle quoted fields correctly.
+
+    Returns (is_csv, confidence):
+    - is_csv: True if all non-empty lines have same column count >= 2
+    - confidence: 1.0 if perfect consistency, 0.0 otherwise
+
+    This is the missing signal for CSV files which have no pipes,
+    no space alignment, and no structural separators.
+    """
+    ne = [l["normalized"] for l in lines if not l["is_empty"]]
+    if len(ne) < MIN_TABLE_LINES:
+        return False, 0.0
+
+    for delim in [",", "\t", ";"]:
+        try:
+            reader = csv.reader(io.StringIO("\n".join(ne)), delimiter=delim)
+            parsed = [row for row in reader if row]
+            if len(parsed) < MIN_TABLE_LINES:
+                continue
+            col_counts = [len(row) for row in parsed]
+            if (min(col_counts) >= 2 and
+                    max(col_counts) - min(col_counts) == 0):
+                return True, 1.0
+        except Exception:
+            continue
+
+    return False, 0.0
+
+
 # ---------------------------------
 # Confidence — normalized signal agreement
 # ---------------------------------
@@ -231,6 +265,15 @@ def _classify(lines: List[LineObject]) -> Tuple[str, float]:
     shape   = _shape_repetition(lines)
 
     has_sep_or_pipe = _has_structural_separator(lines) or _has_pipe(lines)
+
+    # --- CSV table candidate ---
+    # CSV has no pipes, no space alignment, no separators.
+    # Detected purely by consistent column count via csv.reader
+    # (which handles quoted fields containing the delimiter).
+    # Checked first — bypasses the has_sep_or_pipe structural gate.
+    is_csv, csv_conf = _csv_column_consistency(lines)
+    if is_csv and len(ne) >= MIN_TABLE_LINES:
+        return "table_candidate", csv_conf
 
     # --- table_candidate ---
     # Size gate: minimum 3 non-empty lines
