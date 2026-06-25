@@ -10,7 +10,7 @@ from ingestion.extractors.txt import extract_txt
 # ---------------------------------
 # Dialect detection
 # ---------------------------------
-
+print("new version")
 def _detect_dialect(
     text: str,
 ) -> tuple[csv.Dialect, list[str]]:

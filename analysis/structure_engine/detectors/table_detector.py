@@ -36,7 +36,7 @@ CSV_DELIMITERS       = [",", "\t", ";"]
 CSV_MIN_ROWS         = 2
 CSV_VARIANCE_MAX     = 0    # CSV must be perfectly consistent column count
 
-
+print("table detector deplyed")
 # ---------------------------------
 # Helpers
 # ---------------------------------
