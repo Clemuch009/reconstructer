@@ -10,7 +10,7 @@ from analysis.structure_engine.line_model import LineObject
 # Contract
 # ---------------------------------
 import sys
-print(f"[engine-debug] received {len(text)} chars, {len(text.splitlines())} lines; first 200: {text[:200]!r}", file=sys.stderr)
+print("table working")
 class TableResult(TypedDict):
     region_type: str                  # always "table"
     table_type:  str                  # "pipe" | "aligned" | "hybrid"
