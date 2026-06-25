@@ -8,9 +8,8 @@ from analysis.structure_engine.line_model import LineObject
 
 # ---------------------------------
 # Contract
-# ---------------------------------<
-
-print("latest deplyment running")
+# ---------------------------------
+print("improved deployment")
 class RegionResult(TypedDict):
     region_type: str        # table_candidate | structured_block | unstructured
     start_line:  int
@@ -191,7 +190,11 @@ def _csv_column_consistency(lines: List[LineObject]) -> Tuple[bool, float]:
     This is the missing signal for CSV files which have no pipes,
     no space alignment, and no structural separators.
     """
-    ne = [l["normalized"] for l in lines if not l["is_empty"]]
+    ne = [
+        l["normalized"] for l in lines
+        if not l["is_empty"]
+        and not re.match(r"^\[PAGE:\s*\d+\]$", l["normalized"])
+    ]
     if len(ne) < MIN_TABLE_LINES:
         return False, 0.0
 
@@ -395,14 +398,3 @@ if __name__ == "__main__":
         print(f"  shape_repetition     : {_shape_repetition(model):.2f}")
         print(f"  has_sep_or_pipe      : {_has_structural_separator(model) or _has_pipe(model)}")
         print("-" * 60)
-
-# TEMP DEBUG — remove after diagnosis
-_orig_csv_check = _csv_column_consistency
-def _csv_column_consistency_debug(lines):
-    import sys
-    ne = [l["normalized"] for l in lines if not l["is_empty"]]
-    result, conf = _orig_csv_check(lines)
-    if ne:
-        print(f"[CSV_DEBUG] ne={len(ne)} first={repr(ne[0][:80])} is_csv={result}", file=sys.stderr)
-    return result, conf
-_csv_column_consistency = _csv_column_consistency_debug
