@@ -78,19 +78,37 @@ def _parse_rows(
 # Rows → plain text reconstruction
 # ---------------------------------
 
-def _rows_to_text(rows: list[list[str]]) -> str:
+def _rows_to_text(rows: list[list[str]], delimiter: str = ",") -> str:
     """
-    Reconstruct CSV rows as plain comma-separated text.
+    Reconstruct CSV rows as plain text using csv.writer.
 
     Rules:
-    - No pipe conversion — engine receives natural CSV text
+    - Fields containing the delimiter are re-quoted automatically
+      by csv.writer — this preserves column count consistency so
+      the engine correctly classifies the output as a table
     - Header row preserved as first line
     - Each row on its own line
     - Empty result returns empty string
+
+    Without re-quoting, a field like:
+      "Data-driven diagnostics, market analysis, risk..."
+    becomes:
+      Data-driven diagnostics, market analysis, risk...
+    which adds spurious commas → ragged rows → engine misclassifies
+    as prose instead of table.
     """
     if not rows:
         return ""
-    return "\n".join(",".join(row) for row in rows)
+
+    output = io.StringIO()
+    writer = csv.writer(
+        output,
+        delimiter=delimiter,
+        quoting=csv.QUOTE_MINIMAL,
+        lineterminator="\n",
+    )
+    writer.writerows(rows)
+    return output.getvalue().strip()
 
 
 # ---------------------------------
@@ -144,8 +162,9 @@ def extract_csv(raw_bytes: bytes) -> ExtractionResult:
     rows, row_warnings = _parse_rows(text, dialect)
     warnings.extend(row_warnings)
 
-    # Step 4 — reconstruct as plain CSV text
-    clean_text = _rows_to_text(rows)
+    # Step 4 — reconstruct as plain CSV text (re-quoting fields with delimiters)
+    delimiter  = getattr(dialect, "delimiter", ",")
+    clean_text = _rows_to_text(rows, delimiter=delimiter)
 
     lines  = clean_text.splitlines()
     words  = clean_text.split()

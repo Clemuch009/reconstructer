@@ -1,4 +1,6 @@
 import re
+import csv
+import io
 from typing import List, Optional, Tuple, Dict
 from typing_extensions import TypedDict
 from analysis.structure_engine.line_model import LineObject
@@ -27,6 +29,12 @@ PIPE_THRESHOLD       = 0.50
 HYBRID_MARGIN        = 0.15
 HEADER_MIN_ROWS      = 2
 MAX_ROW_LENGTH_VARIANCE = 4
+
+# CSV detection — comma/tab/semicolon/pipe delimited text
+# A line is CSV-like if it has consistent delimiter-split column counts
+CSV_DELIMITERS       = [",", "\t", ";"]
+CSV_MIN_ROWS         = 2
+CSV_VARIANCE_MAX     = 0    # CSV must be perfectly consistent column count
 
 
 # ---------------------------------
@@ -299,19 +307,116 @@ def _parse_aligned_table(
 
 
 # ---------------------------------
-# Core
+# CSV table parser
 # ---------------------------------
 
-def detect_table(lines: List[LineObject]) -> Optional[TableResult]:
+def _detect_csv_delimiter(lines: List[LineObject]) -> Optional[str]:
+    """
+    Detect consistent delimiter across all non-empty lines.
+    Returns delimiter if all lines split to the same column count,
+    None if no consistent delimiter found.
+
+    Tries comma first (most common), then tab, then semicolon.
+    Pipe is handled by the existing pipe parser — skip it here.
+    """
+    ne = [l["normalized"] for l in lines if not l["is_empty"]]
+    if len(ne) < CSV_MIN_ROWS:
+        return None
+
+    for delim in CSV_DELIMITERS:
+        try:
+            # Use csv.reader to handle quoted fields correctly
+            reader = csv.reader(io.StringIO("\n".join(ne)), delimiter=delim)
+            parsed = [row for row in reader if row]
+            if len(parsed) < CSV_MIN_ROWS:
+                continue
+            col_counts = [len(row) for row in parsed]
+            # All rows must have same column count AND >= MIN_COLUMNS
+            if (
+                min(col_counts) >= MIN_COLUMNS
+                and max(col_counts) - min(col_counts) == CSV_VARIANCE_MAX
+            ):
+                return delim
+        except Exception:
+            continue
+
+    return None
+
+
+def _parse_csv_table(
+    lines: List[LineObject],
+    delimiter: str,
+) -> Tuple[Optional[List[str]], List[List[str]], int]:
+    """
+    Parse CSV lines into headers and rows using csv.reader.
+    Handles quoted fields containing the delimiter correctly.
+    Returns (headers, rows, col_count).
+    """
+    ne = [l["normalized"] for l in lines if not l["is_empty"]]
+
+    try:
+        reader = csv.reader(io.StringIO("\n".join(ne)), delimiter=delimiter)
+        raw_rows = [[cell.strip() for cell in row] for row in reader if row]
+    except Exception:
+        return None, [], 0
+
+    if not raw_rows:
+        return None, [], 0
+
+    col_count = len(raw_rows[0])
+    headers, rows = _infer_header(raw_rows)
+    return headers, rows, col_count
+
+
+def _score_csv(
+    col_count: int,
+    row_count: int,
+    headers_detected: bool,
+) -> float:
+    """
+    Confidence for CSV tables.
+    CSV has perfect column consistency by definition (csv.reader handles quoting).
+    Structure: 0.4, Row consistency: 0.3, Header: 0.2, Format: 0.1
+    """
+    structure = 1.0 if col_count >= MIN_COLUMNS else 0.0
+    row_cons  = 1.0 if row_count >= 2 else 0.5
+    header    = 1.0 if headers_detected else 0.0
+    fmt       = 1.0  # CSV is always perfectly consistent
+
+    return round(
+        structure * 0.4 +
+        row_cons  * 0.3 +
+        header    * 0.2 +
+        fmt       * 0.1,
+        2
+    )
     """
     Detect and parse table from LineObjects.
-    Routes to pipe or aligned parser.
-    Detects hybrid when scores are within HYBRID_MARGIN.
+    Routes to CSV, pipe, or aligned parser.
+    CSV is tried first — it is the most unambiguous format.
+    Detects hybrid when pipe/aligned scores are within HYBRID_MARGIN.
     Returns None if no valid table detected.
     """
     ne = _non_empty(lines)
     if not ne:
         return None
+
+    # CSV detection — try before pipe/aligned
+    # CSV is unambiguous: consistent delimiter, quoted fields, exact columns
+    csv_delimiter = _detect_csv_delimiter(lines)
+    if csv_delimiter is not None:
+        c_headers, c_rows, c_cols = _parse_csv_table(lines, csv_delimiter)
+        if c_rows and c_cols >= MIN_COLUMNS:
+            csv_score = _score_csv(c_cols, len(c_rows), c_headers is not None)
+            return TableResult(
+                region_type="table",
+                table_type="csv",
+                headers=c_headers,
+                rows=c_rows,
+                col_count=c_cols,
+                row_count=len(c_rows),
+                confidence=csv_score,
+            )
 
     pipe = _pipe_density(lines)
 
