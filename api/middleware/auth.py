@@ -103,18 +103,39 @@ async def require_auth(
 
     limit_result = check_request_limit(request, api_key, id_token=id_token)
 
-    if limit_result.is_free_tier and not limit_result.allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "message":  "Free tier limit reached.",
-                "limit":    limit_result.limit,
-                "count":    limit_result.current_count,
-                "hint":     "Sign up for a free Starter account to get 50 requests/day and an API key.",
-                "signup":   "https://moonlit-grail-386316.web.app/signup",
-            },
-            headers=limit_result.headers,
-        )
+    if not limit_result.allowed:
+        if limit_result.is_free_tier:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": "Free tier limit reached.",
+                    "limit":   limit_result.limit,
+                    "count":   limit_result.current_count,
+                    "hint":    "Sign up for a free Starter account to get 50 requests/day and an API key.",
+                    "signup":  "https://moonlit-grail-386316.web.app/signup",
+                },
+                headers=limit_result.headers,
+            )
+        else:
+            # Authenticated user over their daily limit
+            tier = limit_result.tier
+            upgrade_hint = {
+                "starter": "Upgrade to Pro for 1,000 requests/day.",
+                "pro":     "Upgrade to Team for 10,000 requests/day shared pool.",
+                "team":    "Contact us for Enterprise unlimited access.",
+            }.get(tier, "Upgrade your plan for higher limits.")
+
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": f"Daily limit reached for {tier} plan.",
+                    "limit":   limit_result.limit,
+                    "count":   limit_result.current_count,
+                    "hint":    upgrade_hint,
+                    "upgrade": "https://moonlit-grail-386316.web.app/pricing",
+                },
+                headers=limit_result.headers,
+            )
 
     key_hash = hash_key(api_key) if api_key else None
 

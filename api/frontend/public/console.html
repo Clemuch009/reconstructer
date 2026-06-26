@@ -474,12 +474,15 @@
     font-size: 12px;
     line-height: 1.7;
     color: var(--text);
-    white-space: pre-wrap;
+    white-space: pre;        /* preserve spacing, scroll wide content */
     overflow-y: auto;
+    overflow-x: auto;        /* horizontal scroll for wide tables */
   }
 
   .output-area.json {
     font-size: 11px;
+    white-space: pre-wrap;   /* JSON can wrap — no wide columns */
+    overflow-x: hidden;
   }
 
   .empty-state {
