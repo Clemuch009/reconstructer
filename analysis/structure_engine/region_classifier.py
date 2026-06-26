@@ -9,7 +9,7 @@ from analysis.structure_engine.line_model import LineObject
 # ---------------------------------
 # Contract
 # ---------------------------------
-print("improved deployment")
+print("am the latest deplyment")
 class RegionResult(TypedDict):
     region_type: str        # table_candidate | structured_block | unstructured
     start_line:  int
@@ -190,11 +190,7 @@ def _csv_column_consistency(lines: List[LineObject]) -> Tuple[bool, float]:
     This is the missing signal for CSV files which have no pipes,
     no space alignment, and no structural separators.
     """
-    ne = [
-        l["normalized"] for l in lines
-        if not l["is_empty"]
-        and not re.match(r"^\[PAGE:\s*\d+\]$", l["normalized"])
-    ]
+    ne = [l["normalized"] for l in lines if not l["is_empty"]]
     if len(ne) < MIN_TABLE_LINES:
         return False, 0.0
 
@@ -301,12 +297,28 @@ def _classify(lines: List[LineObject]) -> Tuple[str, float]:
         return "structured_block", conf
 
     # --- space-aligned table candidate ---
-    # Detects thread dumps, metrics tables without pipe borders
+    # Detects thread dumps, metrics tables, and docx/extracted tables that use
+    # space padding for columns rather than pipes or separator rows.
+    #
+    # Confidence must NOT be scored via _table_confidence here: that formula
+    # counts pipe-density and has_sep_or_pipe as signals, but a space-aligned
+    # table structurally has neither — so it could never exceed 0.5 and would
+    # fall below the router's CONFIDENCE_FALLBACK_THRESHOLD (0.55), getting
+    # misrouted to the block engine and misclassified as context/prose.
+    #
+    # Instead score against the signals that actually define space alignment:
+    # column alignment, token-count stability, and multi-space density. A
+    # cleanly aligned table (all three high) scores ~1.0 and routes correctly.
     multi_space = _multi_space_ratio(lines)
     if (stable >= 0.60 and
             multi_space >= 0.50 and
             len(ne) >= MIN_TABLE_LINES):
-        conf = _table_confidence(0.0, stable, stable, False)
+        signals = [
+            aligned >= ALIGNED_ROW_RATIO_THRESHOLD,
+            stable  >= TOKEN_STABILITY_THRESHOLD,
+            multi_space >= 0.50,
+        ]
+        conf = round(sum(signals) / len(signals), 2)
         return "table_candidate", conf
 
     # --- structured_block ---
