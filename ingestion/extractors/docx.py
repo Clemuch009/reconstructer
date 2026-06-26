@@ -11,15 +11,13 @@ _HEADING_STYLES = {
 
 
 def _table_to_csv(table) -> str:
-    lines: list[str] = []
-    for row in table.rows:
-        cells = [
-            cell.text.strip().replace("\n", " ").replace(",", ";")
-            for cell in row.cells
-        ]
-        if any(cells):
-            lines.append(",".join(cells))
-    return "\n".join(lines)
+    # Serialize via the shared helper, which quotes cells containing commas
+    # (e.g. "142,500") so column counts stay consistent and values are not
+    # corrupted. Previously this did .replace(",", ";") + ",".join(), which
+    # both mangled the data (142,500 -> 142;500) and could still break columns.
+    from ingestion.extractors._table_serialize import rows_to_delimited_text
+    rows = [[cell.text for cell in row.cells] for row in table.rows]
+    return rows_to_delimited_text(rows)
 
 
 def _get_image_alt(shape) -> str:

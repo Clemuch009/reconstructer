@@ -126,23 +126,18 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                         "may be image-based (OCR not supported)"
                     )
 
-                # Extract tables — render as CSV text
+                # Extract tables — render as CSV text (quoted via shared helper
+                # so comma-containing cells like "142,500" keep column counts
+                # consistent instead of being mis-split into extra columns).
+                from ingestion.extractors._table_serialize import rows_to_delimited_text
                 tables = page.extract_tables()
                 for table_idx, table in enumerate(tables, start=1):
                     if not table:
                         continue
-                    table_lines: list[str] = []
-                    for row in table:
-                        if row is None:
-                            continue
-                        cleaned = [
-                            (cell or "").strip().replace("\n", " ")
-                            for cell in row
-                        ]
-                        if any(cleaned):
-                            table_lines.append(",".join(cleaned))
-                    if table_lines:
-                        page_parts.append("\n".join(table_lines))
+                    table_rows = [row for row in table if row is not None]
+                    table_text = rows_to_delimited_text(table_rows)
+                    if table_text:
+                        page_parts.append(table_text)
 
                 # Detect images — insert markers with captions
                 try:

@@ -1,4 +1,4 @@
-# ingestion/extractors/xlsx.py
+                                                                                                        # ingestion/extractors/xlsx.py
 
 import io
 from ingestion.result import ExtractionResult, ExtractionMetadata
@@ -28,9 +28,16 @@ def _sheet_to_csv(sheet) -> tuple[str, int, list[str]]:
     """
     Convert openpyxl worksheet to CSV text.
     Returns (csv_text, row_count, warnings).
+
+    Serialization goes through the shared rows_to_delimited_text helper so cells
+    containing commas (e.g. "142,500") are quoted and column counts stay
+    consistent — a naive ",".join would split such cells into extra columns and
+    cause the engine to misclassify the sheet as prose.
     """
+    from ingestion.extractors._table_serialize import rows_to_delimited_text
+
     warnings:      list[str] = []
-    lines:         list[str] = []
+    data_rows:     list[list[str]] = []
     expected_cols: int | None = None
     row_count:     int = 0
 
@@ -50,9 +57,9 @@ def _sheet_to_csv(sheet) -> tuple[str, int, list[str]]:
                 f"got {len(cells)} — ragged row detected"
             )
 
-        lines.append(",".join(cells))
+        data_rows.append(cells)
 
-    return "\n".join(lines), row_count, warnings
+    return rows_to_delimited_text(data_rows), row_count, warnings
 
 
 def extract_xlsx(raw_bytes: bytes) -> ExtractionResult:

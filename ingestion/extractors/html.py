@@ -102,16 +102,18 @@ def _get_image_label(img_tag) -> str:
 
 
 def _table_to_csv(tag) -> str:
-    lines: list[str] = []
+    # Serialize via the shared helper (quotes comma-containing cells) instead of
+    # replacing commas with semicolons + naive join, which corrupted values and
+    # could break column counts.
+    from ingestion.extractors._table_serialize import rows_to_delimited_text
+    rows: list[list[str]] = []
     for row in tag.find_all("tr"):
-        cells = []
-        for cell in row.find_all(["td", "th"]):
-            text = cell.get_text(separator=" ", strip=True)
-            text = text.replace(",", ";").replace("\n", " ")
-            cells.append(text)
-        if any(cells):
-            lines.append(",".join(cells))
-    return "\n".join(lines)
+        cells = [
+            cell.get_text(separator=" ", strip=True)
+            for cell in row.find_all(["td", "th"])
+        ]
+        rows.append(cells)
+    return rows_to_delimited_text(rows)
 
 
 def extract_html(raw_bytes: bytes) -> ExtractionResult:
