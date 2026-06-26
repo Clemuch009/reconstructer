@@ -116,28 +116,87 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
             for page_num, page in enumerate(pdf.pages, start=1):
                 page_parts: list[str] = []
 
-                # Extract raw text
-                page_text = page.extract_text()
+                # Extract tables first — pdfplumber detects table regions
+                # Filter to only valid tables (skip single-cell full-page tables
+                # which are pdfplumber misdetections of the whole page as a table)
+                tables = page.extract_tables()
+                valid_tables = [
+                    t for t in tables
+                    if t and len(t) >= 2
+                    and len(t[0]) >= 2
+                    and not (len(t) <= 2 and len(t[0]) == 1)
+                ]
+
+                # Get bounding boxes of valid tables to exclude from text
+                table_bboxes = []
+                try:
+                    for pt in page.find_tables():
+                        bbox = pt.bbox  # (x0, top, x1, bottom)
+                        # Check if this table matches a valid table
+                        extracted = pt.extract()
+                        if (extracted and len(extracted) >= 2
+                                and len(extracted[0]) >= 2
+                                and not (len(extracted) <= 2 and len(extracted[0]) == 1)):
+                            table_bboxes.append(bbox)
+                except Exception:
+                    pass
+
+                # Extract text excluding table regions
+                if table_bboxes:
+                    try:
+                        # Crop page to non-table regions
+                        non_table_text_parts = []
+                        prev_bottom = 0
+                        sorted_bboxes = sorted(table_bboxes, key=lambda b: b[1])
+                        for bbox in sorted_bboxes:
+                            x0, top, x1, bottom = bbox
+                            if top > prev_bottom:
+                                region = page.within_bbox((0, prev_bottom, page.width, top))
+                                t = region.extract_text()
+                                if t and t.strip():
+                                    non_table_text_parts.append(t.strip())
+                            prev_bottom = bottom
+                        # Text after last table
+                        if prev_bottom < page.height:
+                            region = page.within_bbox((0, prev_bottom, page.width, page.height))
+                            t = region.extract_text()
+                            if t and t.strip():
+                                non_table_text_parts.append(t.strip())
+                        page_text = "\n".join(non_table_text_parts)
+                    except Exception:
+                        page_text = page.extract_text() or ""
+                else:
+                    page_text = page.extract_text() or ""
+
                 if page_text and page_text.strip():
                     page_parts.append(page_text.strip())
-                else:
+                elif not valid_tables:
                     warnings.append(
                         f"Page {page_num}: no text extracted — "
                         "may be image-based (OCR not supported)"
                     )
 
-                # Extract tables — render as CSV text (quoted via shared helper
-                # so comma-containing cells like "142,500" keep column counts
-                # consistent instead of being mis-split into extra columns).
-                from ingestion.extractors._table_serialize import rows_to_delimited_text
-                tables = page.extract_tables()
-                for table_idx, table in enumerate(tables, start=1):
+                # Render valid tables as CSV text
+                for table_idx, table in enumerate(valid_tables, start=1):
                     if not table:
                         continue
-                    table_rows = [row for row in table if row is not None]
-                    table_text = rows_to_delimited_text(table_rows)
-                    if table_text:
-                        page_parts.append(table_text)
+                    table_lines: list[str] = []
+                    for row in table:
+                        if row is None:
+                            continue
+                        cleaned = [
+                            (cell or "").strip()
+                                     .replace("\n", " ")
+                            for cell in row
+                        ]
+                        if any(cleaned):
+                            # Use csv.writer to re-quote fields containing commas
+                            import csv as _csv, io as _io
+                            buf = _io.StringIO()
+                            _csv.writer(buf, quoting=_csv.QUOTE_MINIMAL).writerow(cleaned)
+                            table_lines.append(buf.getvalue().strip())
+                    if table_lines:
+                        page_parts.append("\n".join(table_lines))
 
                 # Detect images — insert markers with captions
                 try:
