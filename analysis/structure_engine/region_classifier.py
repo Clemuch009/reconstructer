@@ -9,7 +9,6 @@ from analysis.structure_engine.line_model import LineObject
 # ---------------------------------
 # Contract
 # ---------------------------------
-print("am tired")
 class RegionResult(TypedDict):
     region_type: str        # table_candidate | structured_block | unstructured
     start_line:  int
@@ -183,14 +182,20 @@ def _csv_column_consistency(lines: List[LineObject]) -> Tuple[bool, float]:
     Detect CSV structure: consistent column count when split by comma/tab/semicolon.
     Uses csv.reader to handle quoted fields correctly.
 
+    Skips [PAGE: N] markers inserted by pdf.py — these are not data rows.
+
     Returns (is_csv, confidence):
     - is_csv: True if all non-empty lines have same column count >= 2
     - confidence: 1.0 if perfect consistency, 0.0 otherwise
-
-    This is the missing signal for CSV files which have no pipes,
-    no space alignment, and no structural separators.
     """
-    ne = [l["normalized"] for l in lines if not l["is_empty"]]
+    PAGE_MARKER_RE = re.compile(r"^\[PAGE:\s*\d+\]$")
+
+    ne = [
+        l["normalized"] for l in lines
+        if not l["is_empty"]
+        and not PAGE_MARKER_RE.match(l["normalized"].strip())
+    ]
+
     if len(ne) < MIN_TABLE_LINES:
         return False, 0.0
 
@@ -276,10 +281,12 @@ def _classify(lines: List[LineObject]) -> Tuple[str, float]:
         return "table_candidate", csv_conf
 
     # --- table_candidate ---
-    # Size gate: minimum 3 non-empty lines
-    # Structural gate: must have pipe or separator — prevents ghost tables
-    if len(ne) >= MIN_TABLE_LINES and has_sep_or_pipe:
-        if pipe >= PIPE_DENSITY_THRESHOLD:
+    # Pipe tables require has_sep_or_pipe (prevents ghost tables from prose).
+    # Aligned tables with strong signal (alignment + stability) are detected
+    # without requiring pipes or separators — most real-world tables in DOCX,
+    # plain text, and extracted PDFs use space alignment only.
+    if len(ne) >= MIN_TABLE_LINES:
+        if pipe >= PIPE_DENSITY_THRESHOLD and has_sep_or_pipe:
             conf = _table_confidence(pipe, aligned, stable, has_sep_or_pipe)
             return "table_candidate", conf
 
