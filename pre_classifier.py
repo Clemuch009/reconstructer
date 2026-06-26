@@ -1,5 +1,7 @@
 import re
 import json
+import csv
+import io
 import asyncio
 import hashlib
 from typing import List, Optional, Any, Tuple
@@ -14,14 +16,49 @@ from core.signals.hierarchy import hierarchy_signal
 
 class RoutingSignals(TypedDict):
     delimiter_density:    float
+    csv_density:          float   # consistent delimiter column count signal
     glyph_density:        float
     kv_density:           float
     pipe_density:         float
-    hierarchy_step_ratio: float    # replaces indent_variance
+    hierarchy_step_ratio: float
     multi_space_ratio:    float
     prose_score:          float
-    is_hierarchy:         bool     # shared hierarchy definition verdict
-    hierarchy_confidence: float    # valid-transition fraction from that verdict
+    is_hierarchy:         bool
+    hierarchy_confidence: float
+
+
+# ---------------------------------
+# CSV density — uses csv.reader for accuracy
+# ---------------------------------
+
+def _compute_csv_density(text: str) -> float:
+    """
+    Returns 1.0 if text lines have consistent column count when parsed
+    as CSV/TSV/semicolon-delimited — 0.0 otherwise.
+
+    Uses csv.reader to handle quoted fields correctly, so commas inside
+    quoted strings don't produce false positives from prose sentences.
+
+    Minimum 3 non-empty lines required.
+    All lines must parse to the same column count (>= 2).
+    """
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if len(lines) < 3:
+        return 0.0
+
+    for delim in [",", "\t", ";"]:
+        try:
+            reader = csv.reader(io.StringIO("\n".join(lines)), delimiter=delim)
+            parsed = [row for row in reader if row]
+            if len(parsed) < 3:
+                continue
+            col_counts = [len(row) for row in parsed]
+            if min(col_counts) >= 3 and max(col_counts) - min(col_counts) == 0:
+                return 1.0
+        except Exception:
+            continue
+
+    return 0.0
 
 
 class RoutingDecision(TypedDict):
@@ -146,9 +183,15 @@ def _extract_signals(text: str, lines: List[str]) -> RoutingSignals:
     )
 
     # Delimiter density — normalized against non-alphanumeric chars
-    # Isolated to structural delimiters only — not general punctuation
+    # Structural delimiters — pipe, tab, tilde, plus only
+    # Commas excluded — too common in prose to use as raw signal
     delimiter_count = sum(1 for c in text if c in "|+~\t")
     delimiter_density = delimiter_count / non_alpha_chars
+
+    # CSV density — uses csv.reader to check column consistency
+    # This correctly handles quoted fields and distinguishes
+    # CSV tables from prose containing commas/semicolons
+    csv_density = _compute_csv_density(text)
 
     # Structural glyph density — normalized against total chars
     glyph_count   = sum(1 for c in text if c in "└├─┌┐┘┤┬┴┼│")
@@ -198,6 +241,7 @@ def _extract_signals(text: str, lines: List[str]) -> RoutingSignals:
 
     return RoutingSignals(
         delimiter_density=round(delimiter_density, 4),
+        csv_density=round(csv_density, 4),
         glyph_density=round(glyph_density, 4),
         kv_density=round(kv_density, 4),
         pipe_density=round(pipe_density, 4),
@@ -226,11 +270,15 @@ def _evaluate_candidates(
     reason_codes: List[str]               = []
 
     # Table score
-    table_score = (
+    # Pipe tables: pipe_density dominates
+    # CSV/TSV tables: csv_density dominates (column-consistent delimiter check)
+    pipe_table_score = (
         signals["pipe_density"]      * 0.50 +
         signals["multi_space_ratio"] * 0.30 +
         signals["delimiter_density"] * 0.20
     )
+    csv_table_score = signals["csv_density"] * 0.80
+    table_score = max(pipe_table_score, csv_table_score)
 
     # KV score
     kv_score = (
@@ -239,12 +287,15 @@ def _evaluate_candidates(
     )
 
     # Evaluate TABLE — independent block
+    # Pipe tables: high pipe density or moderate pipe + multi-space
+    # CSV/TSV tables: csv_density = 1.0 when columns are consistent
     if (
         signals["pipe_density"] >= TABLE_HIGH_THRESHOLD or
         (
             signals["pipe_density"] >= TABLE_LOW_THRESHOLD and
             signals["multi_space_ratio"] >= 0.40
-        )
+        ) or
+        signals["csv_density"] >= 1.0
     ):
         candidates.append(("TABLE", table_score))
         reason_codes.append("TABLE_SIGNATURE_MATCHED")
@@ -296,11 +347,11 @@ def _decide_route(
         )
 
     # Layer 2 — Structural tier gate
-    # Use only line-normalized metrics for fair comparison
     max_line_signal = max(
         signals["pipe_density"],
         signals["kv_density"],
         signals["hierarchy_step_ratio"],
+        signals["csv_density"],   # CSV/TSV column-consistency signal
     )
 
     # A confirmed hierarchy (shared definition) always reaches Layer 3 —
