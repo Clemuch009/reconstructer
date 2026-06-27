@@ -113,20 +113,37 @@ def _render_mixed(content: dict, label: Optional[str]) -> str:
     """
     Render mixed segment.
     Show label if available.
-    Render kv_block sub-blocks with expansion.
-    Skip context sub-blocks to avoid duplication.
+    For kv-dominant mixed: render kv pairs from context lines.
+    For other mixed: render context lines directly.
+    Skip context sub-blocks only when kv sub-block already covers them.
     """
-    parts      = []
-    sub_blocks = content.get("sub_blocks", [])
+    parts        = []
+    sub_blocks   = content.get("sub_blocks", [])
+    dominant     = content.get("dominant_type", "")
 
     if label:
         parts.append(label)
 
+    # Check if we have explicit kv pairs to render
+    kv_rendered = False
     for sub in sub_blocks:
         stype = sub.get("type")
-        if stype == "kv_block":
+        if stype == "key_value":
             pairs = sub.get("content", {}).get("pairs", [])
-            parts.append(_render_kv_pairs(pairs))
+            if pairs:
+                parts.append(_render_kv_pairs(pairs))
+                kv_rendered = True
+
+    # If no explicit kv pairs but context has kv-annotated lines,
+    # render the raw lines (they already look like "key: value")
+    if not kv_rendered:
+        for sub in sub_blocks:
+            stype = sub.get("type")
+            if stype == "context":
+                lines = sub.get("content", {}).get("lines", [])
+                text  = _render_context({"lines": lines})
+                if text:
+                    parts.append(text)
 
     return "\n".join(parts)
 
@@ -162,7 +179,7 @@ def _render_segment(segment: StructuredSegment) -> Optional[str]:
             return f"{label}\n{rendered}" if rendered else label
         return rendered if rendered else None
 
-    elif stype == "kv_block":
+    elif stype == "key_value":
         rendered = _render_kv_block(content)
         if label:
             return f"{label}\n{rendered}" if rendered else label
@@ -201,7 +218,7 @@ class HumanAdapter(BaseAdapter):
     """
 
     # Segment types that warrant a divider before them
-    MAJOR_TYPES = {"table", "hierarchy", "kv_block"}
+    MAJOR_TYPES = {"table", "hierarchy", "key_value"}
 
     def adapt(self, output: PostprocessOutput) -> str:
         self._validate_input(output)

@@ -8,30 +8,30 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-            {
-  "source": "/",
-  "destination": "/index.html"
-},
-{ 
+      {
+        "source": "/",
+        "destination": "/index.html"
+      },
+      {
         "source": "/console",
         "destination": "/console.html"
       },
       {
-  "source": "/feedback",
-  "destination": "/feedback.html"
-},
-{
-  "source": "/pricing",
-  "destination": "/pricing.html"
-},
-{
-  "source": "/terms",
-  "destination": "/terms.html"
-},
-{
-  "source": "/privacy",
-  "destination": "/privacy.html"
-},
+        "source": "/feedback",
+        "destination": "/feedback.html"
+      },
+      {
+        "source": "/pricing",
+        "destination": "/pricing.html"
+      },
+      {
+        "source": "/terms",
+        "destination": "/terms.html"
+      },
+      {
+        "source": "/privacy",
+        "destination": "/privacy.html"
+      },
       {
         "source": "/observer",
         "destination": "/observer.html"
@@ -98,6 +98,10 @@
           "serviceId": "qrynt",
           "region": "europe-west1"
         }
+      },
+      {
+        "source": "/refund",
+        "destination": "/refund.html"
       },
       {
         "source": "/help",

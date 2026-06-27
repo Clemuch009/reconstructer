@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Refund Policy — Qrynt</title>
+<link rel="icon" type="image/png" href="/assets/QryNt.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #f8f7f4;
+    --surface:   #ffffff;
+    --border:    #e8e5e0;
+    --ink:       #1a1814;
+    --ink-dim:   #6b6760;
+    --ink-muted: #b0ada6;
+    --accent:    #00c96e;
+    --accent-dk: #009e56;
+    --sans:      'DM Sans', system-ui, sans-serif;
+    --mono:      'IBM Plex Mono', monospace;
+    --serif:     'Instrument Serif', Georgia, serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 8px;
+    text-decoration: none; color: var(--ink);
+    font-family: var(--mono); font-size: 14px; font-weight: 500;
+  }
+
+  .nav-logo img { width: 20px; height: 20px; }
+
+  .nav-links { display: flex; gap: 4px; margin-left: auto; }
+
+  .nav-link {
+    font-size: 13px; color: var(--ink-dim);
+    text-decoration: none; padding: 6px 12px;
+    border-radius: 6px; transition: all 0.15s;
+  }
+
+  .nav-link:hover { color: var(--ink); background: var(--border); }
+
+  /* ─── CONTENT ─── */
+  .page {
+    max-width: 720px;
+    margin: 60px auto;
+    padding: 0 24px 80px;
+  }
+
+  .page-label {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); letter-spacing: 0.12em;
+    text-transform: uppercase; display: block;
+    margin-bottom: 16px;
+  }
+
+  .page-title {
+    font-family: var(--serif); font-size: 42px;
+    font-weight: 400; color: var(--ink);
+    margin-bottom: 8px; line-height: 1.15;
+  }
+
+  .page-date {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink-muted); margin-bottom: 48px;
+    display: block;
+  }
+
+  .merchant-note {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 40px;
+    font-size: 14px;
+    color: var(--ink-dim);
+    line-height: 1.6;
+  }
+
+  .merchant-note strong { color: var(--ink); }
+
+  h2 {
+    font-family: var(--mono); font-size: 13px;
+    font-weight: 500; color: var(--ink);
+    letter-spacing: 0.05em; text-transform: uppercase;
+    margin: 36px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  p { color: var(--ink-dim); margin-bottom: 16px; }
+
+  ul {
+    color: var(--ink-dim);
+    padding-left: 20px;
+    margin-bottom: 16px;
+  }
+
+  ul li { margin-bottom: 8px; }
+
+  a { color: var(--accent-dk); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .contact-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-top: 40px;
+  }
+
+  .contact-block h3 {
+    font-family: var(--mono); font-size: 12px;
+    font-weight: 500; color: var(--ink-muted);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .contact-row {
+    display: flex; gap: 12px; align-items: baseline;
+    margin-bottom: 8px; font-size: 14px;
+  }
+
+  .contact-label {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink-muted); min-width: 60px;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 48px;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    font-size: 12px; color: var(--ink-muted);
+  }
+
+  footer a { color: var(--ink-muted); text-decoration: none; }
+  footer a:hover { color: var(--ink); }
+  .footer-links { display: flex; gap: 20px; }
+
+  @media (max-width: 600px) {
+    nav { padding: 0 20px; }
+    .page { margin: 32px auto; }
+    .page-title { font-size: 32px; }
+    footer { flex-direction: column; gap: 12px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/assets/QryNt.png" alt="Qrynt">
+    Qrynt
+  </a>
+  <div class="nav-links">
+    <a href="/help" class="nav-link">Help</a>
+    <a href="/pricing" class="nav-link">Pricing</a>
+  </div>
+</nav>
+
+<div class="page">
+
+  <span class="page-label">Legal</span>
+  <h1 class="page-title">Refund Policy</h1>
+  <span class="page-date">Last updated: June 2026</span>
+
+  <div class="merchant-note">
+    <strong>Sold by Paddle.</strong> Qrynt subscription payments are processed
+    by <a href="https://paddle.com">Paddle.com</a>, our authorised reseller and
+    Merchant of Record. Paddle handles all billing, invoicing, tax collection,
+    and payment disputes on our behalf.
+  </div>
+
+  <h2>30-Day Money-Back Guarantee</h2>
+  <p>
+    If you are not satisfied with your Qrynt subscription, you may request a
+    full refund within <strong>30 days</strong> of your initial purchase date,
+    no questions asked.
+  </p>
+  <p>
+    This applies to first-time purchases of Pro and Team plans. Renewal charges
+    are eligible for a refund if requested within 7 days of the renewal date.
+  </p>
+
+  <h2>How to Request a Refund</h2>
+  <p>To request a refund, contact us by email:</p>
+  <ul>
+    <li>Email <a href="mailto:qrynttech@gmail.com">qrynttech@gmail.com</a> with
+        the subject line <strong>Refund Request</strong></li>
+    <li>Include your registered email address and the date of purchase</li>
+    <li>We will process your request within 2 business days</li>
+  </ul>
+  <p>
+    Alternatively, you can contact Paddle directly at
+    <a href="https://www.paddle.com/legal/customer-support" target="_blank">
+      paddle.com/legal/customer-support
+    </a> for billing-related issues.
+  </p>
+
+  <h2>Refund Processing Time</h2>
+  <p>
+    Once a refund is approved, it is processed by Paddle and typically appears
+    on your statement within <strong>5–10 business days</strong>, depending on
+    your bank or card issuer.
+  </p>
+
+  <h2>Non-Refundable Situations</h2>
+  <ul>
+    <li>Requests made more than 30 days after the initial purchase</li>
+    <li>Renewal charges requested more than 7 days after the renewal date</li>
+    <li>Accounts that have been suspended for Terms of Service violations</li>
+  </ul>
+
+  <h2>Subscription Cancellation</h2>
+  <p>
+    You may cancel your subscription at any time from your
+    <a href="/dashboard">dashboard</a> → Billing → Manage subscription.
+    Cancellation stops future charges. Access continues until the end of the
+    current billing period. Cancellation does not automatically trigger a refund
+    — submit a refund request separately if eligible.
+  </p>
+
+  <h2>Disputes and Chargebacks</h2>
+  <p>
+    If you have a billing concern, please contact us before initiating a
+    chargeback. Paddle, as Merchant of Record, will respond to any dispute
+    filed with your bank. Unresolved disputes may result in account suspension.
+  </p>
+
+  <div class="contact-block">
+    <h3>Contact</h3>
+    <div class="contact-row">
+      <span class="contact-label">Email</span>
+      <a href="mailto:qrynttech@gmail.com">qrynttech@gmail.com</a>
+    </div>
+    <div class="contact-row">
+      <span class="contact-label">Response</span>
+      <span style="color:var(--ink-dim)">Within 2 business days</span>
+    </div>
+    <div class="contact-row">
+      <span class="contact-label">Paddle</span>
+      <a href="https://www.paddle.com/legal/customer-support" target="_blank">
+        paddle.com/legal/customer-support
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>© 2026 Qrynt. All rights reserved.</span>
+  <div class="footer-links">
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+    <a href="/refund">Refunds</a>
+    <a href="/help">Help</a>
+  </div>
+</footer>
+
+</body>
+</html>

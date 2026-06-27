@@ -999,33 +999,56 @@ window.onAuthReady = function() {
   }
 };
 
-// Detect the free-tier wall (HTTP 429) and send the visitor to sign in,
-// preserving their current input so nothing is lost across the redirect.
+// Handle HTTP 429 — adapts message based on whether user is signed in
 function handleFreeTierWall(detail) {
   try { localStorage.setItem('qrynt_pending_input', inputText.value || ''); } catch (e) {}
-  const signup = (detail && detail.signup) || '/signup';
-  const url = signup + (signup.includes('?') ? '&' : '?') +
-              'return=' + encodeURIComponent(window.location.pathname);
-  showWallModal(url);
+
+  const isSignedIn = !!(window.__qryntAuth && window.__qryntAuth.user);
+  const hasUpgrade = detail && detail.upgrade;   // authenticated user over limit
+  const hasSignup  = detail && detail.signup;    // free/anonymous user
+
+  if (isSignedIn || hasUpgrade) {
+    // Authenticated user hit their plan limit
+    const tier    = (detail && detail.tier) || 'your plan';
+    const hint    = (detail && detail.hint) || 'Upgrade your plan for higher limits.';
+    const pricing = (detail && detail.upgrade) || '/pricing';
+    showLimitModal({
+      title:   'Daily limit reached',
+      body:    hint,
+      btnText: 'View plans',
+      btnUrl:  pricing,
+    });
+  } else {
+    // Anonymous user hit the free IP limit
+    const signup = hasSignup || '/signup';
+    const url    = signup + (signup.includes('?') ? '&' : '?') +
+                   'return=' + encodeURIComponent(window.location.pathname);
+    showLimitModal({
+      title:   'Free limit reached',
+      body:    "You\'ve used your 10 free requests. Sign in — free, Pro, or higher — to keep going. Your current input is saved.",
+      btnText: 'Sign in to continue',
+      btnUrl:  url,
+    });
+  }
 }
 
-function showWallModal(signupUrl) {
+function showLimitModal({ title, body, btnText, btnUrl }) {
   let modal = document.getElementById('wall-modal');
   if (!modal) {
     modal = document.createElement('div');
-    modal.id = 'wall-modal';
+    modal.id        = 'wall-modal';
     modal.className = 'wall-overlay';
-    modal.innerHTML =
-      '<div class="wall-card">' +
-      '<div class="wall-title">Free limit reached</div>' +
-      '<div class="wall-body">You\'ve used your 10 free requests. Sign in — free, Pro, or higher — to keep going. Your current input is saved.</div>' +
-      '<div class="wall-actions">' +
-      '<button class="btn" onclick="document.getElementById(\'wall-modal\').style.display=\'none\'">Not now</button>' +
-      '<button class="btn btn-primary" id="wall-signin">Sign in to continue</button>' +
-      '</div></div>';
     document.body.appendChild(modal);
   }
-  modal.querySelector('#wall-signin').onclick = () => { window.location.href = signupUrl; };
+  modal.innerHTML =
+    '<div class="wall-card">' +
+    '<div class="wall-title">' + title + '</div>' +
+    '<div class="wall-body">' + body + '</div>' +
+    '<div class="wall-actions">' +
+    '<button class="btn" onclick="document.getElementById(\'wall-modal\').style.display=\'none\'">Dismiss</button>' +
+    '<button class="btn btn-primary" id="wall-action-btn">' + btnText + '</button>' +
+    '</div></div>';
+  modal.querySelector('#wall-action-btn').onclick = () => { window.location.href = btnUrl; };
   modal.style.display = 'flex';
 }
 
@@ -1248,7 +1271,8 @@ async function processText() {
       if (fileRes.status === 429) {
         const err = await fileRes.json().catch(() => ({}));
         handleFreeTierWall(err.detail);
-        throw new Error('Free tier limit reached — sign in to continue.');
+        setStatus('ready', 'READY');
+        return;
       }
 
       if (!fileRes.ok) {
@@ -1293,7 +1317,8 @@ async function processText() {
       if (ingestRes.status === 429) {
         const err = await ingestRes.json().catch(() => ({}));
         handleFreeTierWall(err.detail);
-        throw new Error('Free tier limit reached — sign in to continue.');
+        setStatus('ready', 'READY');
+        return;  // don't throw — wall modal handles it
       }
 
       if (!ingestRes.ok) {
@@ -1313,7 +1338,8 @@ async function processText() {
       if (resolveRes.status === 429) {
         const err = await resolveRes.json().catch(() => ({}));
         handleFreeTierWall(err.detail);
-        throw new Error('Free tier limit reached — sign in to continue.');
+        setStatus('ready', 'READY');
+        return;
       }
 
       if (!resolveRes.ok) {
