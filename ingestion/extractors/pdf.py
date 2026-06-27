@@ -218,63 +218,81 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                     )
 
                     if has_vectors and page.chars:
-                        # Find vertical gaps > 80pt between text lines
                         char_tops = sorted(set(round(c['top']) for c in page.chars))
                         prev_top  = char_tops[0]
 
+                        # Collect raw gaps > 40pt that contain vector objects
+                        raw_gaps = []
                         for top in char_tops[1:]:
                             gap_size = top - prev_top
-                            if gap_size > 80:
+                            if gap_size > 40:
                                 gap_top = prev_top
                                 gap_bot = top
 
-                                # Check if any vector objects overlap with this gap
-                                def in_gap(obj):
-                                    obj_top = obj.get('top', obj.get('y0', 0))
-                                    obj_bot = obj.get('bottom', obj.get('y1', page.height))
-                                    # Overlap: object must have at least 20pt inside the gap
-                                    overlap_top = max(obj_top, gap_top)
-                                    overlap_bot = min(obj_bot, gap_bot)
-                                    return (overlap_bot - overlap_top) > 20
+                                def overlaps(obj, g_top=gap_top, g_bot=gap_bot):
+                                    ot = obj.get('top', obj.get('y0', 0))
+                                    ob = obj.get('bottom', obj.get('y1', page.height))
+                                    return (min(ob, g_bot) - max(ot, g_top)) > 20
 
-                                vectors_in_gap = (
-                                    any(in_gap(r) for r in page.rects) or
-                                    any(in_gap(l) for l in page.lines) or
-                                    any(in_gap(c) for c in page.curves)
+                                if (
+                                    any(overlaps(r) for r in page.rects) or
+                                    any(overlaps(l) for l in page.lines) or
+                                    any(overlaps(c) for c in page.curves)
+                                ):
+                                    raw_gaps.append((gap_top, gap_bot))
+
+                            prev_top = top
+
+                        # Merge adjacent gaps within 50pt of each other
+                        # Charts with axis labels create text interruptions
+                        # inside a single chart region — merge into one visual
+                        # Only merge if the connector region also has vectors
+                        merged_gaps = []
+                        for gap_top, gap_bot in raw_gaps:
+                            if merged_gaps:
+                                prev_end   = merged_gaps[-1][1]
+                                connector  = gap_top - prev_end  # gap between gaps
+                                # Merge if close AND total merged height < 500pt
+                                # (prevents merging entire page into one visual)
+                                total_height = gap_bot - merged_gaps[-1][0]
+                                if connector <= 50 and total_height < 500:
+                                    merged_gaps[-1] = [merged_gaps[-1][0], gap_bot]
+                                    continue
+                            merged_gaps.append([gap_top, gap_bot])
+
+                        for gap_top, gap_bot in merged_gaps:
+                            if (gap_bot - gap_top) < 120:  # skip small decorative elements
+                                continue
+                            vis_index += 1
+                            vid = make_visual_id(vis_index)
+                            try:
+                                pad  = 8
+                                bbox = (
+                                    0,
+                                    max(0, gap_top - pad),
+                                    page.width,
+                                    min(page.height, gap_bot + pad),
                                 )
+                                crop    = page.within_bbox(bbox)
+                                pil_img = crop.to_image(resolution=150).original
+                                buf     = _io.BytesIO()
+                                pil_img.save(buf, format="PNG")
+                                img_bytes = buf.getvalue()
 
-                                if vectors_in_gap:
-                                    vis_index += 1
-                                    vid = make_visual_id(vis_index)
-                                    try:
-                                        # Add padding around gap
-                                        pad = 8
-                                        bbox = (
-                                            0,
-                                            max(0, gap_top - pad),
-                                            page.width,
-                                            min(page.height, gap_bot + pad),
-                                        )
-                                        crop    = page.within_bbox(bbox)
-                                        pil_img = crop.to_image(resolution=150).original
-                                        buf     = _io.BytesIO()
-                                        pil_img.save(buf, format="PNG")
-                                        img_bytes = buf.getvalue()
-
-                                        visuals.append(EmbeddedVisual(
-                                            id=vid, page=page_num,
-                                            mime_type="image/png",
-                                            width=pil_img.width,
-                                            height=pil_img.height,
-                                            image_bytes=img_bytes,
-                                            warnings=["rasterized from vector drawing"],
-                                        ))
-                                        page_parts.append(visual_placeholder(vid))
-                                    except Exception as e:
-                                        warnings.append(
-                                            f"Page {page_num}: vector rasterize failed: {str(e)[:80]}"
-                                        )
-                                        vis_index -= 1
+                                visuals.append(EmbeddedVisual(
+                                    id=vid, page=page_num,
+                                    mime_type="image/png",
+                                    width=pil_img.width,
+                                    height=pil_img.height,
+                                    image_bytes=img_bytes,
+                                    warnings=["rasterized from vector drawing"],
+                                ))
+                                page_parts.append(visual_placeholder(vid))
+                            except Exception as e:
+                                warnings.append(
+                                    f"Page {page_num}: vector rasterize failed: {str(e)[:80]}"
+                                )
+                                vis_index -= 1
 
                             prev_top = top
 
