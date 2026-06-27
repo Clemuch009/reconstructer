@@ -1,4 +1,4 @@
-                                                                                                        # ingestion/extractors/xlsx.py
+# ingestion/extractors/xlsx.py
 
 import io
 from ingestion.result import ExtractionResult, ExtractionMetadata
@@ -140,11 +140,27 @@ def extract_xlsx(raw_bytes: bytes) -> ExtractionResult:
             extraction_success=False,
         )
 
+    from ingestion.visual import EmbeddedVisual, make_visual_id, visual_placeholder
+
     sheet_names   = wb.sheetnames
     sheet_count   = len(sheet_names)
     hidden_sheets: list[str] = []
     empty_sheets:  list[str] = []
     sheet_blocks:  list[str] = []
+    visuals:       list      = []
+    vis_index:     int       = 0
+
+    # MIME map from openpyxl image format strings
+    _MIME = {
+        "png":  "image/png",
+        "jpeg": "image/jpeg",
+        "jpg":  "image/jpeg",
+        "gif":  "image/gif",
+        "bmp":  "image/bmp",
+        "tiff": "image/tiff",
+        "emf":  "image/x-emf",
+        "wmf":  "image/x-wmf",
+    }
 
     for sheet_name in sheet_names:
         sheet = wb[sheet_name]
@@ -168,7 +184,80 @@ def extract_xlsx(raw_bytes: bytes) -> ExtractionResult:
             f"[SHEET: {sheet_name}]\n"
             f"rows: {row_count}"
         )
-        sheet_blocks.append(f"{sheet_marker}\n{csv_text}")
+
+        # Extract images embedded in this sheet
+        sheet_visual_placeholders: list[str] = []
+        try:
+            sheet_images = getattr(sheet, "_images", [])
+            for img_obj in sheet_images:
+                try:
+                    # openpyxl Image object has .ref (path in zip) and ._data() or .path
+                    img_bytes = None
+                    fmt = "png"
+
+                    # Try _data() method first
+                    if hasattr(img_obj, "_data"):
+                        try:
+                            img_bytes = img_obj._data()
+                        except Exception:
+                            pass
+
+                    # Fallback: read from the workbook zip directly
+                    if not img_bytes and hasattr(img_obj, "path"):
+                        try:
+                            import zipfile
+                            with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
+                                img_path = img_obj.path.lstrip("/")
+                                img_bytes = zf.read(img_path)
+                            fmt = img_path.rsplit(".", 1)[-1].lower()
+                        except Exception:
+                            pass
+
+                    if not img_bytes:
+                        warnings.append(
+                            f"Sheet '{sheet_name}': image bytes not extractable — skipped"
+                        )
+                        continue
+
+                    vis_index += 1
+                    vid  = make_visual_id(vis_index)
+                    mime = _MIME.get(fmt, f"image/{fmt}")
+
+                    # Dimensions from anchor if available
+                    width = height = None
+                    try:
+                        anchor = img_obj.anchor
+                        if hasattr(anchor, "ext"):
+                            # EMU → pixels at 96dpi
+                            EMU = 914400 / 96
+                            width  = int(anchor.ext.cx / EMU)
+                            height = int(anchor.ext.cy / EMU)
+                    except Exception:
+                        pass
+
+                    visuals.append(EmbeddedVisual(
+                        id=vid,
+                        page=None,
+                        mime_type=mime,
+                        width=width,
+                        height=height,
+                        image_bytes=img_bytes,
+                        warnings=[f"from sheet: {sheet_name}"],
+                    ))
+                    sheet_visual_placeholders.append(visual_placeholder(vid))
+
+                except Exception as e:
+                    warnings.append(
+                        f"Sheet '{sheet_name}': image extraction error: {str(e)[:80]}"
+                    )
+        except Exception:
+            pass
+
+        # Append sheet block with visuals at end
+        sheet_content = f"{sheet_marker}\n{csv_text}"
+        if sheet_visual_placeholders:
+            sheet_content += "\n" + "\n".join(sheet_visual_placeholders)
+        sheet_blocks.append(sheet_content)
 
     try:
         wb.close()
@@ -194,8 +283,15 @@ def extract_xlsx(raw_bytes: bytes) -> ExtractionResult:
     if not has_data:
         warnings.append("No sheet data extracted from workbook")
 
+    if visuals:
+        warnings.append(
+            f"{len(visuals)} visual(s) extracted from workbook — "
+            "available in result.visuals[] as raw bytes."
+        )
+
     return ExtractionResult(
         text=text,
+        visuals=visuals,
         metadata=ExtractionMetadata(
             source_format="xlsx",
             page_count=None,

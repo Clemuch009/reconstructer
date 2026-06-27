@@ -150,17 +150,15 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                     if table_lines:
                         page_parts.append("\n".join(table_lines))
 
-                # ── Step 4: extract embedded visuals ──
+                # ── Step 4: extract embedded raster visuals ──
                 try:
                     page_images = page.images
                     for img in page_images:
                         vis_index += 1
                         vid = make_visual_id(vis_index)
 
-                        # Extract image bytes from PDF stream
                         img_bytes = None
                         try:
-                            # pdfplumber image dict has 'stream' key on some versions
                             stream = img.get("stream")
                             if stream is not None:
                                 img_bytes = (
@@ -171,12 +169,11 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                         except Exception:
                             pass
 
-                        # Fallback: render the region as PNG via page crop
                         if not img_bytes:
                             try:
-                                x0 = float(img.get("x0", 0))
+                                x0  = float(img.get("x0",  0))
                                 top = float(img.get("top", 0))
-                                x1 = float(img.get("x1", page.width))
+                                x1  = float(img.get("x1",  page.width))
                                 bot = float(img.get("bottom", page.height))
                                 if x1 > x0 and bot > top:
                                     crop = page.within_bbox((x0, top, x1, bot))
@@ -195,24 +192,117 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                             vis_index -= 1
                             continue
 
-                        mime = _mime_from_filter(img.get("filters"))
+                        mime   = _mime_from_filter(img.get("filters"))
                         width  = int(img.get("width",  0)) or None
                         height = int(img.get("height", 0)) or None
 
                         visuals.append(EmbeddedVisual(
-                            id=vid,
-                            page=page_num,
-                            mime_type=mime,
-                            width=width,
-                            height=height,
-                            image_bytes=img_bytes,
-                            warnings=[],
+                            id=vid, page=page_num, mime_type=mime,
+                            width=width, height=height,
+                            image_bytes=img_bytes, warnings=[],
                         ))
-
                         page_parts.append(visual_placeholder(vid))
 
                 except Exception as e:
-                    warnings.append(f"Page {page_num}: visual extraction error: {str(e)[:100]}")
+                    warnings.append(f"Page {page_num}: raster visual extraction error: {str(e)[:100]}")
+
+                # ── Step 5: detect and rasterize vector drawing regions ──
+                # PDF vector graphics (rects/lines/curves) have no stream bytes.
+                # Detect them by finding large vertical gaps in char layout
+                # that coincide with vector drawing objects on the page.
+                try:
+                    has_vectors = (
+                        len(page.rects) > 0 or
+                        len(page.lines) > 0 or
+                        len(page.curves) > 0
+                    )
+
+                    if has_vectors and page.chars:
+                        # Find vertical gaps > 80pt between text lines
+                        char_tops = sorted(set(round(c['top']) for c in page.chars))
+                        prev_top  = char_tops[0]
+
+                        for top in char_tops[1:]:
+                            gap_size = top - prev_top
+                            if gap_size > 80:
+                                gap_top = prev_top
+                                gap_bot = top
+
+                                # Check if any vector objects overlap with this gap
+                                def in_gap(obj):
+                                    obj_top = obj.get('top', obj.get('y0', 0))
+                                    obj_bot = obj.get('bottom', obj.get('y1', page.height))
+                                    # Overlap: object must have at least 20pt inside the gap
+                                    overlap_top = max(obj_top, gap_top)
+                                    overlap_bot = min(obj_bot, gap_bot)
+                                    return (overlap_bot - overlap_top) > 20
+
+                                vectors_in_gap = (
+                                    any(in_gap(r) for r in page.rects) or
+                                    any(in_gap(l) for l in page.lines) or
+                                    any(in_gap(c) for c in page.curves)
+                                )
+
+                                if vectors_in_gap:
+                                    vis_index += 1
+                                    vid = make_visual_id(vis_index)
+                                    try:
+                                        # Add padding around gap
+                                        pad = 8
+                                        bbox = (
+                                            0,
+                                            max(0, gap_top - pad),
+                                            page.width,
+                                            min(page.height, gap_bot + pad),
+                                        )
+                                        crop    = page.within_bbox(bbox)
+                                        pil_img = crop.to_image(resolution=150).original
+                                        buf     = _io.BytesIO()
+                                        pil_img.save(buf, format="PNG")
+                                        img_bytes = buf.getvalue()
+
+                                        visuals.append(EmbeddedVisual(
+                                            id=vid, page=page_num,
+                                            mime_type="image/png",
+                                            width=pil_img.width,
+                                            height=pil_img.height,
+                                            image_bytes=img_bytes,
+                                            warnings=["rasterized from vector drawing"],
+                                        ))
+                                        page_parts.append(visual_placeholder(vid))
+                                    except Exception as e:
+                                        warnings.append(
+                                            f"Page {page_num}: vector rasterize failed: {str(e)[:80]}"
+                                        )
+                                        vis_index -= 1
+
+                            prev_top = top
+
+                    elif has_vectors and not page.chars:
+                        # Entire page is vector — rasterize whole page
+                        vis_index += 1
+                        vid = make_visual_id(vis_index)
+                        try:
+                            pil_img   = page.to_image(resolution=150).original
+                            buf       = _io.BytesIO()
+                            pil_img.save(buf, format="PNG")
+                            img_bytes = buf.getvalue()
+                            visuals.append(EmbeddedVisual(
+                                id=vid, page=page_num,
+                                mime_type="image/png",
+                                width=pil_img.width, height=pil_img.height,
+                                image_bytes=img_bytes,
+                                warnings=["full page rasterized — no text found"],
+                            ))
+                            page_parts.append(visual_placeholder(vid))
+                        except Exception as e:
+                            warnings.append(
+                                f"Page {page_num}: full page rasterize failed: {str(e)[:80]}"
+                            )
+                            vis_index -= 1
+
+                except Exception as e:
+                    warnings.append(f"Page {page_num}: vector detection error: {str(e)[:100]}")
 
                 if page_parts:
                     block = f"[PAGE: {page_num}]\n" + "\n\n".join(page_parts)

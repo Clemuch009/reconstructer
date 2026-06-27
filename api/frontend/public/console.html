@@ -1487,12 +1487,20 @@ function renderHuman(text, visuals) {
   const el = document.getElementById('human-output');
   el.style.display = 'block';
 
-  // Build visual lookup map: id → data URI
+  // Build visual lookup map: id → { type, src } or { type, svg }
   const visualMap = {};
   if (visuals && visuals.length) {
     for (const v of visuals) {
       if (v.data) {
-        visualMap[v.id] = `data:${v.mime_type};base64,${v.data}`;
+        if (v.mime_type === 'image/svg+xml') {
+          try {
+            visualMap[v.id] = { type: 'svg', content: atob(v.data) };
+          } catch(e) {
+            visualMap[v.id] = { type: 'img', src: `data:${v.mime_type};base64,${v.data}` };
+          }
+        } else {
+          visualMap[v.id] = { type: 'img', src: `data:${v.mime_type};base64,${v.data}` };
+        }
       }
     }
   }
@@ -1527,12 +1535,14 @@ function renderHuman(text, visuals) {
     if (VISUAL_RE.test(line)) {
       VISUAL_RE.lastIndex = 0;
       let rendered = line.replace(VISUAL_RE, (match, vid) => {
-        const src = visualMap[vid];
-        if (src) {
-          return `<img src="${src}" class="visual-inline" alt="${vid}"` +
+        const v = visualMap[vid];
+        if (v) {
+          if (v.type === 'svg') {
+            return `<div class="visual-inline" style="max-width:100%;margin:8px 0;">${v.content}</div>`;
+          }
+          return `<img src="${v.src}" class="visual-inline" alt="${vid}"` +
                  ` style="max-width:100%;height:auto;display:block;margin:8px 0;border-radius:4px;">`;
         }
-        // No bytes (URL reference) — show styled placeholder
         return `<span class="visual-ref">[VISUAL: ${vid}]</span>`;
       });
       if (inTable) { flushTable(); }
@@ -1608,8 +1618,16 @@ function renderAI(data, visuals) {
       if (v.width && v.height) vizHtml += ` · ${v.width}×${v.height}`;
       vizHtml += ` · ${v.mime_type}</div>`;
       if (v.data) {
-        vizHtml += `<img src="data:${v.mime_type};base64,${v.data}" ` +
-                   `alt="${v.id}" class="visual-thumb">`;
+        if (v.mime_type === 'image/svg+xml') {
+          try {
+            vizHtml += `<div class="visual-thumb" style="padding:8px;overflow:auto;">${atob(v.data)}</div>`;
+          } catch(e) {
+            vizHtml += `<div class="visual-no-bytes">SVG decode error</div>`;
+          }
+        } else {
+          vizHtml += `<img src="data:${v.mime_type};base64,${v.data}" ` +
+                     `alt="${v.id}" class="visual-thumb">`;
+        }
       } else {
         vizHtml += `<div class="visual-no-bytes">URL reference — bytes not fetched</div>`;
       }

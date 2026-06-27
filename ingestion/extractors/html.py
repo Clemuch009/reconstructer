@@ -9,8 +9,9 @@ from ingestion.visual import EmbeddedVisual, make_visual_id, visual_placeholder
 
 _STRIP_TAGS = {
     "script", "style", "noscript", "meta", "link",
-    "head", "iframe", "object", "embed", "svg", "canvas",
+    "head", "iframe", "object", "embed", "canvas",
 }
+# Note: svg removed from strip tags — SVGs are extracted as visuals
 
 _RESIDUAL_TAG_RE = re.compile(
     r"</?[a-zA-Z][a-zA-Z0-9]*(?:\s[^>]*)?>",
@@ -258,7 +259,39 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         vis_placeholder_map[placeholder] = visual_placeholder(vid)
         img.replace_with(f" {placeholder} ")
 
-    # Step 5 — replace tables
+    # Step 4b — extract SVG elements as visuals
+    # SVGs are inline vector graphics — serialize to bytes directly
+    for svg in soup.find_all("svg"):
+        vis_index += 1
+        vid = make_visual_id(vis_index)
+
+        svg_str = str(svg)
+        svg_bytes = svg_str.encode("utf-8")
+
+        # Get dimensions from width/height or viewBox
+        width = height = None
+        try:
+            w = svg.get("width", "")
+            h = svg.get("height", "")
+            width  = int(float(str(w).replace("px","").replace("%",""))) if w and str(w).replace("px","").replace("%","").replace(".","").isdigit() else None
+            height = int(float(str(h).replace("px","").replace("%",""))) if h and str(h).replace("px","").replace("%","").replace(".","").isdigit() else None
+        except Exception:
+            pass
+
+        visual = EmbeddedVisual(
+            id=vid,
+            page=None,
+            mime_type="image/svg+xml",
+            width=width,
+            height=height,
+            image_bytes=svg_bytes,
+            warnings=[],
+        )
+        visuals.append(visual)
+
+        placeholder = f"__VIS_{vid}__"
+        vis_placeholder_map[placeholder] = visual_placeholder(vid)
+        svg.replace_with(f" {placeholder} ")
     table_csv_map: dict = {}
     table_idx = 0
     for table in soup.find_all("table"):
