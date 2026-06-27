@@ -474,15 +474,90 @@
     font-size: 12px;
     line-height: 1.7;
     color: var(--text);
-    white-space: pre;        /* preserve spacing, scroll wide content */
+    white-space: pre-wrap;   /* wrap long lines — correct for prose */
     overflow-y: auto;
-    overflow-x: auto;        /* horizontal scroll for wide tables */
+    overflow-x: auto;
   }
 
   .output-area.json {
     font-size: 11px;
-    white-space: pre-wrap;   /* JSON can wrap — no wide columns */
-    overflow-x: hidden;
+    white-space: pre-wrap;
+  }
+
+  /* Table content needs no-wrap to preserve alignment */
+  .output-area .table-block {
+    white-space: pre;
+    overflow-x: auto;
+    display: block;
+    margin: 8px 0;
+  }
+
+  /* Visual rendering */
+  .visual-inline {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 12px 0;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  .visual-ref {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.05);
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin: 4px 0;
+  }
+
+  .visuals-section {
+    margin-top: 24px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+
+  .visuals-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+
+  .visual-card {
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .visual-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .visual-thumb {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    max-height: 400px;
+    object-fit: contain;
+  }
+
+  .visual-no-bytes {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 12px;
+    font-style: italic;
   }
 
   .empty-state {
@@ -1390,41 +1465,159 @@ async function exportFormat(format) {
 
   if (!res.ok) return;
 
+  // Visuals come from the envelope (currentResult), not the export endpoint
+  const visuals = (currentResult && currentResult.visuals) || [];
+
   if (format === 'human') {
     currentHuman = await res.text();
-    renderHuman(currentHuman);
+    renderHuman(currentHuman, visuals);
   } else if (format === 'machine') {
     const data   = await res.json();
     currentMachine = data.content;
-    renderMachine(currentMachine);
+    renderMachine(currentMachine, visuals);
   } else if (format === 'ai') {
     const data = await res.json();
     currentAI  = data.content;
-    renderAI(currentAI);
+    renderAI(currentAI, visuals);
   }
 }
 
-function renderHuman(text) {
+function renderHuman(text, visuals) {
   document.getElementById('human-empty').style.display  = 'none';
   const el = document.getElementById('human-output');
   el.style.display = 'block';
-  el.textContent   = text;
+
+  // Build visual lookup map: id → data URI
+  const visualMap = {};
+  if (visuals && visuals.length) {
+    for (const v of visuals) {
+      if (v.data) {
+        visualMap[v.id] = `data:${v.mime_type};base64,${v.data}`;
+      }
+    }
+  }
+
+  const DIVIDER_RE = /^[─═\-]{10,}$/;
+  const lines = text.split('\n');
+  let html = '';
+  let inTable = false;
+  let tableLines = [];
+
+  function flushTable() {
+    if (tableLines.length) {
+      html += '<span class="table-block">' +
+              tableLines.map(l => escHtml(l)).join('\n') +
+              '</span>\n';
+      tableLines = [];
+    }
+    inTable = false;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Regex to match [VISUAL: vis_001]
+  const VISUAL_RE = /\[VISUAL:\s*(vis_\d+)\]/g;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Check for visual placeholder
+    if (VISUAL_RE.test(line)) {
+      VISUAL_RE.lastIndex = 0;
+      let rendered = line.replace(VISUAL_RE, (match, vid) => {
+        const src = visualMap[vid];
+        if (src) {
+          return `<img src="${src}" class="visual-inline" alt="${vid}"` +
+                 ` style="max-width:100%;height:auto;display:block;margin:8px 0;border-radius:4px;">`;
+        }
+        // No bytes (URL reference) — show styled placeholder
+        return `<span class="visual-ref">[VISUAL: ${vid}]</span>`;
+      });
+      if (inTable) { flushTable(); }
+      html += rendered + '\n';
+      continue;
+    }
+
+    const isDivider = DIVIDER_RE.test(line.trim());
+
+    if (isDivider) {
+      if (!inTable) {
+        inTable = true;
+        const lastNl = html.lastIndexOf('\n', html.length - 2);
+        const lastLine = html.slice(lastNl + 1);
+        html = html.slice(0, lastNl + 1);
+        tableLines.push(lastLine.trimEnd());
+        tableLines.push(line);
+      } else {
+        tableLines.push(line);
+        flushTable();
+      }
+    } else if (inTable) {
+      tableLines.push(line);
+    } else {
+      html += escHtml(line) + '\n';
+    }
+  }
+
+  if (inTable) flushTable();
+
+  el.innerHTML = html;
   document.getElementById('output-footer').style.display = 'flex';
 }
 
-function renderMachine(data) {
+function renderMachine(data, visuals) {
   document.getElementById('machine-empty').style.display = 'none';
   const el = document.getElementById('machine-output');
   el.style.display  = 'block';
   el.innerHTML      = syntaxHighlight(JSON.stringify(data, null, 2));
+
+  // Append visuals section if present
+  if (visuals && visuals.length) {
+    el.innerHTML += '\n\n' + syntaxHighlight(
+      JSON.stringify({ visuals: visuals.map(v => ({
+        id:        v.id,
+        page:      v.page,
+        mime_type: v.mime_type,
+        width:     v.width,
+        height:    v.height,
+        data:      v.data ? v.data.substring(0, 32) + '...[base64]' : null,
+        warnings:  v.warnings,
+      }))}, null, 2)
+    );
+  }
+
   document.getElementById('machine-schema-bar').style.display = 'flex';
 }
 
-function renderAI(data) {
+function renderAI(data, visuals) {
   document.getElementById('ai-empty').style.display = 'none';
   const el = document.getElementById('ai-output');
   el.style.display = 'block';
   el.innerHTML     = syntaxHighlight(JSON.stringify(data, null, 2));
+
+  // Append rendered visuals below blocks
+  if (visuals && visuals.length) {
+    let vizHtml = '\n\n<div class="visuals-section">';
+    vizHtml += '<div class="visuals-label">VISUALS</div>';
+    for (const v of visuals) {
+      vizHtml += `<div class="visual-card">`;
+      vizHtml += `<div class="visual-meta">${v.id}`;
+      if (v.page) vizHtml += ` · page ${v.page}`;
+      if (v.width && v.height) vizHtml += ` · ${v.width}×${v.height}`;
+      vizHtml += ` · ${v.mime_type}</div>`;
+      if (v.data) {
+        vizHtml += `<img src="data:${v.mime_type};base64,${v.data}" ` +
+                   `alt="${v.id}" class="visual-thumb">`;
+      } else {
+        vizHtml += `<div class="visual-no-bytes">URL reference — bytes not fetched</div>`;
+      }
+      vizHtml += `</div>`;
+    }
+    vizHtml += '</div>';
+    el.innerHTML += vizHtml;
+  }
 }
 
 function showLoading() {

@@ -1,33 +1,24 @@
 # ingestion/extractors/pdf.py
 
 import io
-from typing import Optional
+from typing import Optional, List
 from ingestion.result import ExtractionResult, ExtractionMetadata
+from ingestion.visual import EmbeddedVisual, make_visual_id, visual_placeholder
 
 
-def _get_image_caption(page, img_bbox: tuple, page_text: str) -> str:
+def _mime_from_filter(filters) -> str:
     """
-    Attempt to find a caption for an image by looking for text
-    immediately below the image bounding box.
-    Returns caption text or empty string if none found.
-
-    Strategy: extract words within a 50pt vertical band below
-    the image bottom edge, within the same horizontal span.
+    Infer MIME type from pdfplumber image filter names.
+    Falls back to image/png.
     """
-    try:
-        x0, top, x1, bottom = img_bbox
-        caption_band = page.within_bbox((
-            max(0, x0 - 20),
-            bottom,
-            min(page.width, x1 + 20),
-            bottom + 60,   # 60pt band below image
-        ))
-        caption_text = caption_band.extract_text()
-        if caption_text and caption_text.strip():
-            return caption_text.strip()[:200]  # cap caption length
-    except Exception:
-        pass
-    return ""
+    if not filters:
+        return "image/png"
+    f = str(filters).lower()
+    if "jpeg" in f or "dct" in f:
+        return "image/jpeg"
+    if "jp2" in f:
+        return "image/jp2"
+    return "image/png"
 
 
 def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
@@ -36,116 +27,83 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
 
     Pipeline:
     1. Open PDF from bytes
-    2. Extract text page by page
-    3. Extract tables per page — render as CSV text
-    4. Detect images per page — insert [IMAGE_N: caption] markers
-    5. Interleave text, tables, and image markers in document order
-    6. Return single text block — engine sees one document
+    2. Per page:
+       a. Detect tables → extract as CSV, get bounding boxes
+       b. Extract text from non-table regions only
+       c. Detect embedded visuals → extract bytes, insert [VISUAL: vis_N] placeholder
+    3. Return text + visuals list
 
-    Page format:
-        [PAGE: 1]
-        <extracted text>
-        <extracted tables as CSV>
-        [IMAGE_1: Figure 1. Revenue chart]
-        [IMAGE_2: no description]
-
-    Image markers:
-    - Inserted at end of each page's content block
-    - Caption extracted from text immediately below image bbox
-    - If no caption found: [IMAGE_N: no description]
-    - Image count tracked across all pages (globally incrementing)
-
-    Rules:
-    - Never raises — returns extraction_success: False on failure
-    - Tables extracted as CSV text — no pipe conversion
-    - Empty pages skipped with warning
-    - Encrypted PDFs warned and skipped
-    - pdfplumber import failure returns actionable warning
+    Visual extraction:
+    - Uses page.images (pdfplumber) to locate image objects
+    - Extracts raw bytes via page.to_image().original or image stream
+    - Width/height from image dict
+    - Placeholder [VISUAL: vis_001] inserted at end of page block
+    - Full EmbeddedVisual in result.visuals[]
     """
-    warnings: list[str] = []
+    warnings:  List[str] = []
+    visuals:   List[EmbeddedVisual] = []
+    vis_index: int = 0
 
     try:
         import pdfplumber
     except ImportError:
         return ExtractionResult(
-            text="",
+            text="", visuals=[],
             metadata=ExtractionMetadata(
-                source_format="pdf",
-                page_count=None,
-                sheet_count=None,
-                char_count=0,
-                line_count=0,
-                word_count=0,
-                encoding_used=None,
+                source_format="pdf", page_count=None, sheet_count=None,
+                char_count=0, line_count=0, word_count=0, encoding_used=None,
             ),
-            extraction_warnings=[
-                "pdfplumber not installed. "
-                "Run: pip install pdfplumber"
-            ],
+            extraction_warnings=["pdfplumber not installed. Run: pip install pdfplumber"],
             extraction_success=False,
         )
 
-    page_blocks:  list[str] = []
-    page_count:   int = 0
-    image_counter: int = 0  # global across all pages
+    page_blocks: List[str] = []
+    page_count:  int = 0
 
     try:
+        import csv as _csv, io as _io
+
         with pdfplumber.open(io.BytesIO(raw_bytes)) as pdf:
             page_count = len(pdf.pages)
 
             is_encrypted = getattr(pdf.doc, "encryption", None) is not None
             if is_encrypted:
                 return ExtractionResult(
-                    text="",
+                    text="", visuals=[],
                     metadata=ExtractionMetadata(
-                        source_format="pdf",
-                        page_count=page_count,
-                        sheet_count=None,
-                        char_count=0,
-                        line_count=0,
-                        word_count=0,
-                        encoding_used=None,
+                        source_format="pdf", page_count=page_count, sheet_count=None,
+                        char_count=0, line_count=0, word_count=0, encoding_used=None,
                     ),
-                    extraction_warnings=[
-                        "PDF is encrypted — cannot extract text. "
-                        "Decrypt before ingestion."
-                    ],
+                    extraction_warnings=["PDF is encrypted — cannot extract text. Decrypt before ingestion."],
                     extraction_success=False,
                 )
 
             for page_num, page in enumerate(pdf.pages, start=1):
-                page_parts: list[str] = []
+                page_parts: List[str] = []
 
-                # Extract tables first — pdfplumber detects table regions
-                # Filter to only valid tables (skip single-cell full-page tables
-                # which are pdfplumber misdetections of the whole page as a table)
+                # ── Step 1: detect valid tables and get bboxes ──
                 tables = page.extract_tables()
                 valid_tables = [
                     t for t in tables
-                    if t and len(t) >= 2
-                    and len(t[0]) >= 2
+                    if t and len(t) >= 2 and len(t[0]) >= 2
                     and not (len(t) <= 2 and len(t[0]) == 1)
                 ]
 
-                # Get bounding boxes of valid tables to exclude from text
                 table_bboxes = []
                 try:
                     for pt in page.find_tables():
-                        bbox = pt.bbox  # (x0, top, x1, bottom)
-                        # Check if this table matches a valid table
                         extracted = pt.extract()
                         if (extracted and len(extracted) >= 2
                                 and len(extracted[0]) >= 2
                                 and not (len(extracted) <= 2 and len(extracted[0]) == 1)):
-                            table_bboxes.append(bbox)
+                            table_bboxes.append(pt.bbox)
                 except Exception:
                     pass
 
-                # Extract text excluding table regions
+                # ── Step 2: extract text from non-table regions ──
                 if table_bboxes:
                     try:
-                        # Crop page to non-table regions
-                        non_table_text_parts = []
+                        non_table_parts = []
                         prev_bottom = 0
                         sorted_bboxes = sorted(table_bboxes, key=lambda b: b[1])
                         for bbox in sorted_bboxes:
@@ -154,15 +112,14 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                                 region = page.within_bbox((0, prev_bottom, page.width, top))
                                 t = region.extract_text()
                                 if t and t.strip():
-                                    non_table_text_parts.append(t.strip())
+                                    non_table_parts.append(t.strip())
                             prev_bottom = bottom
-                        # Text after last table
                         if prev_bottom < page.height:
                             region = page.within_bbox((0, prev_bottom, page.width, page.height))
                             t = region.extract_text()
                             if t and t.strip():
-                                non_table_text_parts.append(t.strip())
-                        page_text = "\n".join(non_table_text_parts)
+                                non_table_parts.append(t.strip())
+                        page_text = "\n".join(non_table_parts)
                     except Exception:
                         page_text = page.extract_text() or ""
                 else:
@@ -176,52 +133,86 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                         "may be image-based (OCR not supported)"
                     )
 
-                # Render valid tables as CSV text
-                for table_idx, table in enumerate(valid_tables, start=1):
-                    if not table:
-                        continue
-                    table_lines: list[str] = []
+                # ── Step 3: render valid tables as CSV ──
+                for table in valid_tables:
+                    table_lines: List[str] = []
                     for row in table:
                         if row is None:
                             continue
                         cleaned = [
-                            (cell or "").strip()
-                                     .replace("\n", " ")
+                            (cell or "").strip().replace("\n", " ")
                             for cell in row
                         ]
                         if any(cleaned):
-                            # Use csv.writer to re-quote fields containing commas
-                            import csv as _csv, io as _io
                             buf = _io.StringIO()
                             _csv.writer(buf, quoting=_csv.QUOTE_MINIMAL).writerow(cleaned)
                             table_lines.append(buf.getvalue().strip())
                     if table_lines:
                         page_parts.append("\n".join(table_lines))
 
-                # Detect images — insert markers with captions
+                # ── Step 4: extract embedded visuals ──
                 try:
-                    images = page.images
-                    if images:
-                        image_markers: list[str] = []
-                        for img in images:
-                            image_counter += 1
-                            bbox = (
-                                img.get("x0", 0),
-                                img.get("top", 0),
-                                img.get("x1", 0),
-                                img.get("bottom", 0),
+                    page_images = page.images
+                    for img in page_images:
+                        vis_index += 1
+                        vid = make_visual_id(vis_index)
+
+                        # Extract image bytes from PDF stream
+                        img_bytes = None
+                        try:
+                            # pdfplumber image dict has 'stream' key on some versions
+                            stream = img.get("stream")
+                            if stream is not None:
+                                img_bytes = (
+                                    stream.get_data()
+                                    if hasattr(stream, "get_data")
+                                    else bytes(stream)
+                                )
+                        except Exception:
+                            pass
+
+                        # Fallback: render the region as PNG via page crop
+                        if not img_bytes:
+                            try:
+                                x0 = float(img.get("x0", 0))
+                                top = float(img.get("top", 0))
+                                x1 = float(img.get("x1", page.width))
+                                bot = float(img.get("bottom", page.height))
+                                if x1 > x0 and bot > top:
+                                    crop = page.within_bbox((x0, top, x1, bot))
+                                    pil_img = crop.to_image(resolution=150).original
+                                    buf = _io.BytesIO()
+                                    pil_img.save(buf, format="PNG")
+                                    img_bytes = buf.getvalue()
+                            except Exception:
+                                pass
+
+                        if not img_bytes:
+                            warnings.append(
+                                f"Page {page_num} visual {vid}: "
+                                "could not extract image bytes — skipped"
                             )
-                            caption = _get_image_caption(
-                                page, bbox, page_text or ""
-                            )
-                            label = caption if caption else "no description"
-                            image_markers.append(
-                                f"[IMAGE_{image_counter}: {label}]"
-                            )
-                        if image_markers:
-                            page_parts.append("\n".join(image_markers))
-                except Exception:
-                    pass  # image detection never blocks text extraction
+                            vis_index -= 1
+                            continue
+
+                        mime = _mime_from_filter(img.get("filters"))
+                        width  = int(img.get("width",  0)) or None
+                        height = int(img.get("height", 0)) or None
+
+                        visuals.append(EmbeddedVisual(
+                            id=vid,
+                            page=page_num,
+                            mime_type=mime,
+                            width=width,
+                            height=height,
+                            image_bytes=img_bytes,
+                            warnings=[],
+                        ))
+
+                        page_parts.append(visual_placeholder(vid))
+
+                except Exception as e:
+                    warnings.append(f"Page {page_num}: visual extraction error: {str(e)[:100]}")
 
                 if page_parts:
                     block = f"[PAGE: {page_num}]\n" + "\n\n".join(page_parts)
@@ -229,15 +220,10 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
 
     except Exception as e:
         return ExtractionResult(
-            text="",
+            text="", visuals=[],
             metadata=ExtractionMetadata(
-                source_format="pdf",
-                page_count=page_count,
-                sheet_count=None,
-                char_count=0,
-                line_count=0,
-                word_count=0,
-                encoding_used=None,
+                source_format="pdf", page_count=page_count, sheet_count=None,
+                char_count=0, line_count=0, word_count=0, encoding_used=None,
             ),
             extraction_warnings=[f"PDF extraction failed: {str(e)[:200]}"],
             extraction_success=False,
@@ -248,27 +234,20 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
     words = text.split()
 
     if not text.strip():
-        warnings.append(
-            "No text extracted from any page — "
-            "PDF may be entirely image-based"
-        )
+        warnings.append("No text extracted from any page — PDF may be entirely image-based")
 
-    if image_counter > 0:
+    if visuals:
         warnings.append(
-            f"{image_counter} image(s) detected — "
-            "inserted as [IMAGE_N: caption] markers. "
-            "Image content not extracted (OCR not enabled)."
+            f"{len(visuals)} visual(s) extracted — "
+            "available in result.visuals[] as raw bytes."
         )
 
     return ExtractionResult(
         text=text,
+        visuals=visuals,
         metadata=ExtractionMetadata(
-            source_format="pdf",
-            page_count=page_count,
-            sheet_count=None,
-            char_count=len(text),
-            line_count=len(lines),
-            word_count=len(words),
+            source_format="pdf", page_count=page_count, sheet_count=None,
+            char_count=len(text), line_count=len(lines), word_count=len(words),
             encoding_used=None,
         ),
         extraction_warnings=warnings,

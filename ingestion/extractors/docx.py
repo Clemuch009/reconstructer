@@ -1,7 +1,9 @@
 # ingestion/extractors/docx.py
 
 import io
+from typing import List, Optional
 from ingestion.result import ExtractionResult, ExtractionMetadata
+from ingestion.visual import EmbeddedVisual, make_visual_id, visual_placeholder
 
 _HEADING_STYLES = {
     "heading 1", "heading 2", "heading 3",
@@ -9,38 +11,30 @@ _HEADING_STYLES = {
     "title", "subtitle",
 }
 
+# MIME type map from OOXML relationship content types
+_MIME_MAP = {
+    "image/png":  "image/png",
+    "image/jpeg": "image/jpeg",
+    "image/jpg":  "image/jpeg",
+    "image/gif":  "image/gif",
+    "image/bmp":  "image/bmp",
+    "image/tiff": "image/tiff",
+    "image/svg+xml": "image/svg+xml",
+    "image/x-emf": "image/x-emf",
+    "image/x-wmf": "image/x-wmf",
+}
+
 
 def _table_to_csv(table) -> str:
-    # Serialize via the shared helper, which quotes cells containing commas
-    # (e.g. "142,500") so column counts stay consistent and values are not
-    # corrupted. Previously this did .replace(",", ";") + ",".join(), which
-    # both mangled the data (142,500 -> 142;500) and could still break columns.
-    from ingestion.extractors._table_serialize import rows_to_delimited_text
-    rows = [[cell.text for cell in row.cells] for row in table.rows]
-    return rows_to_delimited_text(rows)
-
-
-def _get_image_alt(shape) -> str:
-    """
-    Extract alt-text description from an inline image shape.
-    python-docx exposes this via the docPr XML element's 'descr' attribute.
-    Falls back to 'name' attribute (usually "Picture 1" etc.) if no description.
-    Returns empty string if neither is available.
-    """
-    try:
-        from docx.oxml.ns import qn
-        # Inline images: shape._inline.docPr
-        doc_pr = shape._inline.find(qn("wp:docPr"))
-        if doc_pr is not None:
-            descr = doc_pr.get("descr", "").strip()
-            if descr:
-                return descr[:200]
-            name = doc_pr.get("name", "").strip()
-            if name:
-                return name
-    except Exception:
-        pass
-    return ""
+    lines: List[str] = []
+    for row in table.rows:
+        cells = [
+            cell.text.strip().replace("\n", " ").replace(",", ";")
+            for cell in row.cells
+        ]
+        if any(cells):
+            lines.append(",".join(cells))
+    return "\n".join(lines)
 
 
 def extract_docx(raw_bytes: bytes) -> ExtractionResult:
@@ -49,46 +43,34 @@ def extract_docx(raw_bytes: bytes) -> ExtractionResult:
 
     Pipeline:
     1. Open DOCX from bytes
-    2. Walk doc.paragraphs and doc.tables in document order
-       using iter_block_items — stable public API
-    3. Headings preserved as text — engine detects hierarchy
-    4. Tables rendered as CSV text
-    5. Inline images detected — [IMAGE_N: alt-text] markers inserted
-       at the position where the image appears in the document flow
-    6. Return single text block
+    2. Walk doc body in document order (paragraphs + tables)
+    3. For each paragraph:
+       - Detect inline drawings → extract image bytes from relationship parts
+       - Insert [VISUAL: vis_N] placeholder at image position
+       - Extract paragraph text
+    4. Tables rendered as CSV
+    5. Return text + visuals[]
 
-    Image markers:
-    - Inserted inline at image position in document flow
-    - Alt-text extracted from wp:docPr descr attribute
-    - Falls back to shape name (e.g. "Picture 1") if no alt-text
-    - [IMAGE_N: no description] if neither available
-
-    Rules:
-    - Never raises
-    - Uses stable python-docx API only — no lxml traversal beyond docPr
-    - Tables rendered as CSV — no pipe conversion
-    - Page count not available in DOCX — None
+    Visual extraction:
+    - Finds w:drawing → wp:inline elements in paragraph runs
+    - Reads r:embed from a:blip to get relationship ID
+    - Loads image bytes from word/media/ via part.related_parts
+    - Width/height from wp:extent (EMUs → pixels at 96dpi)
     """
-    warnings: list[str] = []
+    warnings:  List[str] = []
+    visuals:   List[EmbeddedVisual] = []
+    vis_index: int = 0
 
     try:
         from docx import Document
     except ImportError:
         return ExtractionResult(
-            text="",
+            text="", visuals=[],
             metadata=ExtractionMetadata(
-                source_format="docx",
-                page_count=None,
-                sheet_count=None,
-                char_count=0,
-                line_count=0,
-                word_count=0,
-                encoding_used=None,
+                source_format="docx", page_count=None, sheet_count=None,
+                char_count=0, line_count=0, word_count=0, encoding_used=None,
             ),
-            extraction_warnings=[
-                "python-docx not installed. "
-                "Run: pip install python-docx"
-            ],
+            extraction_warnings=["python-docx not installed. Run: pip install python-docx"],
             extraction_success=False,
         )
 
@@ -96,26 +78,80 @@ def extract_docx(raw_bytes: bytes) -> ExtractionResult:
         doc = Document(io.BytesIO(raw_bytes))
     except Exception as e:
         return ExtractionResult(
-            text="",
+            text="", visuals=[],
             metadata=ExtractionMetadata(
-                source_format="docx",
-                page_count=None,
-                sheet_count=None,
-                char_count=0,
-                line_count=0,
-                word_count=0,
-                encoding_used=None,
+                source_format="docx", page_count=None, sheet_count=None,
+                char_count=0, line_count=0, word_count=0, encoding_used=None,
             ),
             extraction_warnings=[f"DOCX open failed: {str(e)[:200]}"],
             extraction_success=False,
         )
 
-    parts: list[str] = []
-    image_counter: int = 0
+    parts: List[str] = []
 
     from docx.oxml.ns import qn
     from docx.table import Table
     from docx.text.paragraph import Paragraph
+
+    # EMU → pixels at 96dpi
+    EMU_PER_PIXEL = 914400 / 96
+
+    def _extract_visual_from_drawing(drawing_elem, doc_part) -> Optional[EmbeddedVisual]:
+        """
+        Extract image bytes from a w:drawing element.
+        Returns EmbeddedVisual or None if extraction fails.
+        """
+        nonlocal vis_index
+
+        try:
+            # Find a:blip for the relationship ID
+            blip = drawing_elem.find(".//" + qn("a:blip"))
+            if blip is None:
+                return None
+
+            r_embed = blip.get(qn("r:embed"))
+            if not r_embed:
+                return None
+
+            # Get image part via relationship
+            img_part = doc_part.related_parts.get(r_embed)
+            if img_part is None:
+                return None
+
+            img_bytes = img_part.blob
+            if not img_bytes:
+                return None
+
+            # Get dimensions from wp:extent (EMUs)
+            extent = drawing_elem.find(".//" + qn("wp:extent"))
+            width  = None
+            height = None
+            if extent is not None:
+                cx = extent.get("cx")
+                cy = extent.get("cy")
+                if cx:
+                    width  = int(int(cx) / EMU_PER_PIXEL)
+                if cy:
+                    height = int(int(cy) / EMU_PER_PIXEL)
+
+            # MIME from content type
+            ct = getattr(img_part, "content_type", "image/png")
+            mime = _MIME_MAP.get(ct, ct if ct.startswith("image/") else "image/png")
+
+            vis_index += 1
+            return EmbeddedVisual(
+                id=make_visual_id(vis_index),
+                page=None,
+                mime_type=mime,
+                width=width,
+                height=height,
+                image_bytes=img_bytes,
+                warnings=[],
+            )
+
+        except Exception as e:
+            warnings.append(f"Visual extraction failed: {str(e)[:100]}")
+            return None
 
     def iter_block_items(document):
         parent_elm = document.element.body
@@ -127,37 +163,17 @@ def extract_docx(raw_bytes: bytes) -> ExtractionResult:
 
     for block in iter_block_items(doc):
         if isinstance(block, Paragraph):
-            # Check for inline images in this paragraph
-            # Inline images are in runs as drawing elements
-            try:
-                from docx.oxml.ns import qn as _qn
-                for run in block.runs:
-                    drawings = run._element.findall(
-                        f".//{_qn('w:drawing')}"
-                    )
-                    for drawing in drawings:
-                        # Find inline shape
-                        inline = drawing.find(_qn("wp:inline"))
-                        if inline is not None:
-                            image_counter += 1
-                            # Extract alt text from docPr
-                            doc_pr = inline.find(_qn("wp:docPr"))
-                            alt = ""
-                            if doc_pr is not None:
-                                alt = doc_pr.get("descr", "").strip()
-                                if not alt:
-                                    alt = doc_pr.get("name", "").strip()
-                            label = alt[:200] if alt else "no description"
-                            parts.append(
-                                f"[IMAGE_{image_counter}: {label}]"
-                            )
-            except Exception:
-                pass  # image detection never blocks text extraction
+            # Check for drawings in this paragraph's runs
+            for run in block.runs:
+                for drawing in run._element.findall(".//" + qn("w:drawing")):
+                    visual = _extract_visual_from_drawing(drawing, doc.part)
+                    if visual:
+                        visuals.append(visual)
+                        parts.append(visual_placeholder(visual["id"]))
 
             text = block.text.strip()
-            if not text:
-                continue
-            parts.append(text)
+            if text:
+                parts.append(text)
 
         elif isinstance(block, Table):
             csv_text = _table_to_csv(block)
@@ -173,22 +189,18 @@ def extract_docx(raw_bytes: bytes) -> ExtractionResult:
     if not text.strip():
         warnings.append("No text extracted from DOCX")
 
-    if image_counter > 0:
+    if visuals:
         warnings.append(
-            f"{image_counter} image(s) detected — "
-            "inserted as [IMAGE_N: alt-text] markers. "
-            "Image content not extracted (OCR not enabled)."
+            f"{len(visuals)} visual(s) extracted — "
+            "available in result.visuals[] as raw bytes."
         )
 
     return ExtractionResult(
         text=text,
+        visuals=visuals,
         metadata=ExtractionMetadata(
-            source_format="docx",
-            page_count=None,
-            sheet_count=None,
-            char_count=len(text),
-            line_count=len(lines),
-            word_count=len(words),
+            source_format="docx", page_count=None, sheet_count=None,
+            char_count=len(text), line_count=len(lines), word_count=len(words),
             encoding_used=None,
         ),
         extraction_warnings=warnings,

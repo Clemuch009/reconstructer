@@ -2,7 +2,10 @@
 
 import re
 import os
+import base64
+from typing import List, Optional, Tuple
 from ingestion.result import ExtractionResult, ExtractionMetadata
+from ingestion.visual import EmbeddedVisual, make_visual_id, visual_placeholder
 
 _STRIP_TAGS = {
     "script", "style", "noscript", "meta", "link",
@@ -14,13 +17,14 @@ _RESIDUAL_TAG_RE = re.compile(
     re.DOTALL,
 )
 
-_HTML_ENTITY_RE = re.compile(r"&(?:lt|gt|amp|nbsp;|quot|apos);")
+# MIME types from data: URI prefix
+_DATA_MIME_RE = re.compile(r"^data:(image/[a-zA-Z0-9+\-.]+);base64,(.+)$", re.DOTALL)
 
 
-def _strip_residual_html(text: str) -> tuple[str, list[str]]:
-    warnings: list[str] = []
+def _strip_residual_html(text: str) -> Tuple[str, List[str]]:
+    warnings: List[str] = []
     lines = text.splitlines()
-    cleaned: list[str] = []
+    cleaned: List[str] = []
     residual_count = 0
 
     for line in lines:
@@ -60,7 +64,7 @@ def _strip_residual_html(text: str) -> tuple[str, list[str]]:
             f"(browser-saved page JS blob leakage)"
         )
 
-    final: list[str] = []
+    final: List[str] = []
     prev_blank = False
     for line in cleaned:
         if not line:
@@ -74,46 +78,33 @@ def _strip_residual_html(text: str) -> tuple[str, list[str]]:
     return "\n".join(final), warnings
 
 
-def _get_image_label(img_tag) -> str:
-    """
-    Extract best available label for an HTML image:
-    1. alt attribute (most informative)
-    2. title attribute
-    3. filename from src (strip path and extension)
-    4. "no description" fallback
-    """
+def _get_label(img_tag) -> str:
     alt = (img_tag.get("alt", "") or "").strip()
     if alt and alt.lower() not in ("", "image", "img", "photo", "picture"):
         return alt[:200]
-
     title = (img_tag.get("title", "") or "").strip()
     if title:
         return title[:200]
-
     src = (img_tag.get("src", "") or "").strip()
     if src and not src.startswith("data:"):
-        # Extract filename without extension from src URL
         filename = os.path.basename(src.split("?")[0])
         name = os.path.splitext(filename)[0]
         if name and len(name) > 1:
             return name[:200]
-
-    return "no description"
+    return ""
 
 
 def _table_to_csv(tag) -> str:
-    # Serialize via the shared helper (quotes comma-containing cells) instead of
-    # replacing commas with semicolons + naive join, which corrupted values and
-    # could break column counts.
-    from ingestion.extractors._table_serialize import rows_to_delimited_text
-    rows: list[list[str]] = []
+    lines: List[str] = []
     for row in tag.find_all("tr"):
-        cells = [
-            cell.get_text(separator=" ", strip=True)
-            for cell in row.find_all(["td", "th"])
-        ]
-        rows.append(cells)
-    return rows_to_delimited_text(rows)
+        cells = []
+        for cell in row.find_all(["td", "th"]):
+            text = cell.get_text(separator=" ", strip=True)
+            text = text.replace(",", ";").replace("\n", " ")
+            cells.append(text)
+        if any(cells):
+            lines.append(",".join(cells))
+    return "\n".join(lines)
 
 
 def extract_html(raw_bytes: bytes) -> ExtractionResult:
@@ -121,44 +112,38 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
     HTML extractor using BeautifulSoup.
 
     Pipeline:
-    1. Decode bytes — UTF-8, meta charset, latin-1, utf-8-recovered
-    2. Pre-parse: remove __NEXT_DATA__ / JS hydration blobs
-    3. Strip script/style/noise tags
-    4. Replace images with [IMAGE_N: label] placeholders
-       — label from alt, title, or src filename
-    5. Replace tables with deterministic placeholders
-    6. Extract text with block structure preserved
-    7. Substitute placeholders with CSV / image markers
-    8. Strip residual HTML/JS data from browser-saved pages
-    9. Collapse whitespace — return clean text block
+    1. Decode bytes
+    2. Pre-parse: remove JS hydration blobs
+    3. Strip noise tags (nav, aside, header, footer, script, style...)
+    4. Extract visuals from <img> tags:
+       - data: URI → decode base64 → EmbeddedVisual with raw bytes
+       - URL src  → EmbeddedVisual with empty bytes + src as warning
+       - Insert [VISUAL: vis_N] placeholder at img position in flow
+    5. Replace tables with placeholders
+    6. Extract text
+    7. Substitute placeholders
+    8. Strip residual HTML/JS
+    9. Collapse whitespace
 
-    Image markers:
-    - data: URIs skipped (base64 inline images, no useful label)
-    - alt text used when meaningful (not generic "image"/"img")
-    - title attribute as fallback
-    - src filename (without extension) as last resort
-    - [IMAGE_N: no description] if nothing available
+    Visuals:
+    - data: URIs fully decoded to raw bytes
+    - URL references: placeholder inserted, bytes=b'' (not fetched)
+    - Width/height from width/height attributes if present
     """
-    warnings: list[str] = []
+    warnings:  List[str] = []
+    visuals:   List[EmbeddedVisual] = []
+    vis_index: int = 0
 
     try:
         from bs4 import BeautifulSoup
     except ImportError:
         return ExtractionResult(
-            text="",
+            text="", visuals=[],
             metadata=ExtractionMetadata(
-                source_format="html",
-                page_count=None,
-                sheet_count=None,
-                char_count=0,
-                line_count=0,
-                word_count=0,
-                encoding_used=None,
+                source_format="html", page_count=None, sheet_count=None,
+                char_count=0, line_count=0, word_count=0, encoding_used=None,
             ),
-            extraction_warnings=[
-                "beautifulsoup4 not installed. "
-                "Run: pip install beautifulsoup4 lxml"
-            ],
+            extraction_warnings=["beautifulsoup4 not installed. Run: pip install beautifulsoup4 lxml"],
             extraction_success=False,
         )
 
@@ -175,19 +160,14 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
                 charset = meta_charset.get("charset", "latin-1")
                 text_raw = raw_bytes.decode(charset, errors="replace")
                 encoding_used = charset
-                warnings.append(
-                    f"UTF-8 decode failed — used charset from meta tag: {charset}"
-                )
             else:
                 text_raw = raw_bytes.decode("latin-1")
                 encoding_used = "latin-1"
-                warnings.append("UTF-8 decode failed — fell back to latin-1")
         except Exception:
             text_raw = raw_bytes.decode("utf-8", errors="replace")
             encoding_used = "utf-8-recovered"
-            warnings.append("Encoding detection failed — decoded as utf-8-recovered")
 
-    # Step 1b — remove JS hydration blobs
+    # Step 2 — remove JS hydration blobs
     text_raw = re.sub(
         r'<script[^>]*(?:id="__NEXT_DATA__"|type="application/json")[^>]*>.*?</script>',
         "", text_raw, flags=re.DOTALL | re.IGNORECASE,
@@ -197,7 +177,7 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         "", text_raw, flags=re.DOTALL | re.IGNORECASE,
     )
 
-    # Step 2 — parse
+    # Step 3 — parse
     try:
         soup = BeautifulSoup(text_raw, "lxml")
     except Exception:
@@ -206,53 +186,81 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
             warnings.append("lxml parser unavailable — fell back to html.parser")
         except Exception as e:
             return ExtractionResult(
-                text="",
+                text="", visuals=[],
                 metadata=ExtractionMetadata(
-                    source_format="html",
-                    page_count=None,
-                    sheet_count=None,
-                    char_count=0,
-                    line_count=0,
-                    word_count=0,
-                    encoding_used=encoding_used,
+                    source_format="html", page_count=None, sheet_count=None,
+                    char_count=0, line_count=0, word_count=0, encoding_used=encoding_used,
                 ),
                 extraction_warnings=[f"HTML parse failed: {str(e)[:200]}"],
                 extraction_success=False,
             )
 
-    # Strip noise tags + nav/aside/header/footer
     _STRIP_STRUCTURAL = _STRIP_TAGS | {"nav", "aside", "header", "footer"}
     for tag in soup.find_all(_STRIP_STRUCTURAL):
         tag.decompose()
 
-    # Step 3 — replace images with placeholders BEFORE get_text()
-    # so markers appear at the correct position in document flow
-    image_placeholder_map: dict[str, str] = {}
-    image_counter = 0
-    image_count_skipped = 0
+    # Step 4 — extract visuals from <img> tags
+    vis_placeholder_map: dict = {}
 
     for img in soup.find_all("img"):
         src = (img.get("src", "") or "").strip()
 
-        # Skip data: URIs — base64 inline images have no useful label
-        # and their src would be thousands of chars
-        if src.startswith("data:"):
-            image_count_skipped += 1
-            img.decompose()
-            continue
+        vis_index += 1
+        vid = make_visual_id(vis_index)
 
-        image_counter += 1
-        label       = _get_image_label(img)
-        placeholder = f"__IMAGE_{image_counter}__"
-        image_placeholder_map[placeholder] = (
-            f"[IMAGE_{image_counter}: {label}]"
+        # Get dimensions from attributes
+        try:
+            width  = int(img.get("width",  0)) or None
+            height = int(img.get("height", 0)) or None
+        except (ValueError, TypeError):
+            width = height = None
+
+        img_bytes = b""
+        mime_type = "image/png"
+        img_warnings: List[str] = []
+
+        if src.startswith("data:"):
+            # Inline base64 image — decode to raw bytes
+            m = _DATA_MIME_RE.match(src)
+            if m:
+                mime_type = m.group(1)
+                try:
+                    img_bytes = base64.b64decode(m.group(2))
+                except Exception:
+                    img_warnings.append(f"{vid}: base64 decode failed")
+            else:
+                img_warnings.append(f"{vid}: malformed data URI")
+
+        elif src:
+            # URL reference — can't fetch here, note it
+            mime_type = "image/unknown"
+            img_warnings.append(
+                f"{vid}: external URL not fetched — "
+                f"src={src[:100]}"
+            )
+
+        else:
+            img_warnings.append(f"{vid}: no src attribute")
+
+        visual = EmbeddedVisual(
+            id=vid,
+            page=None,
+            mime_type=mime_type,
+            width=width,
+            height=height,
+            image_bytes=img_bytes,
+            warnings=img_warnings,
         )
+        visuals.append(visual)
+        warnings.extend(img_warnings)
+
+        placeholder = f"__VIS_{vid}__"
+        vis_placeholder_map[placeholder] = visual_placeholder(vid)
         img.replace_with(f" {placeholder} ")
 
-    # Step 4 — replace tables with placeholders
-    table_csv_map: dict[str, str] = {}
+    # Step 5 — replace tables
+    table_csv_map: dict = {}
     table_idx = 0
-
     for table in soup.find_all("table"):
         csv_text = _table_to_csv(table)
         if csv_text.strip():
@@ -264,14 +272,12 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
             warnings.append("Empty HTML table skipped")
             table.decompose()
 
-    # Step 5 — extract text
+    # Step 6 — extract text
     body     = soup.find("body") or soup
     raw_text = body.get_text(separator="\n")
-
     lines_raw = raw_text.splitlines()
-    cleaned:  list[str] = []
+    cleaned: List[str] = []
     prev_blank = False
-
     for line in lines_raw:
         stripped = line.strip()
         if not stripped:
@@ -282,48 +288,41 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
             cleaned.append(stripped)
             prev_blank = False
 
-    # Step 6 — substitute placeholders
+    # Step 7 — substitute placeholders
     final_text = "\n".join(cleaned)
-
-    for placeholder, marker in image_placeholder_map.items():
+    for placeholder, marker in vis_placeholder_map.items():
         final_text = final_text.replace(placeholder, marker)
-
     for placeholder, csv_text in table_csv_map.items():
         final_text = final_text.replace(placeholder, csv_text)
 
-    # Step 7 — strip residual HTML/JS
+    # Step 8 — strip residual HTML
     final_text, residual_warnings = _strip_residual_html(final_text)
     warnings.extend(residual_warnings)
 
-    # Step 8 — collapse whitespace
+    # Step 9 — collapse whitespace
     final_text = re.sub(r"\n{3,}", "\n\n", final_text).strip()
-
     lines = final_text.splitlines()
     words = final_text.split()
 
     if not final_text:
         warnings.append("No text extracted from HTML")
 
-    if image_counter > 0:
-        warnings.append(
-            f"{image_counter} image(s) detected — "
-            "inserted as [IMAGE_N: label] markers. "
-            "Image content not extracted (OCR not enabled)."
-        )
-    if image_count_skipped > 0:
-        warnings.append(
-            f"{image_count_skipped} inline data: image(s) skipped."
-        )
+    if visuals:
+        embedded  = sum(1 for v in visuals if v["image_bytes"])
+        url_refs  = sum(1 for v in visuals if not v["image_bytes"])
+        msg = f"{len(visuals)} visual(s) detected"
+        if embedded:
+            msg += f" — {embedded} embedded (bytes available)"
+        if url_refs:
+            msg += f", {url_refs} URL reference(s) (not fetched)"
+        warnings.append(msg)
 
     return ExtractionResult(
         text=final_text,
+        visuals=visuals,
         metadata=ExtractionMetadata(
-            source_format="html",
-            page_count=None,
-            sheet_count=None,
-            char_count=len(final_text),
-            line_count=len(lines),
-            word_count=len(words),
+            source_format="html", page_count=None, sheet_count=None,
+            char_count=len(final_text), line_count=len(lines), word_count=len(words),
             encoding_used=encoding_used,
         ),
         extraction_warnings=warnings,

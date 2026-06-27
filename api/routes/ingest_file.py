@@ -107,7 +107,12 @@ async def _process_file(
 
     raw_line_count = len(normalized_text.split("\n"))
     session_trace  = build_session_trace(output, raw_line_count)
-    envelope       = build_coc(normalized_text, output, session_trace)
+    envelope       = build_coc(
+        normalized_text,
+        output,
+        session_trace,
+        visuals=ingestion_result["extraction_result"].get("visuals", []),
+    )
 
     envelope["ingestion_warnings"] = ingestion_result["all_warnings"]
     envelope["ingestion_metadata"] = {
