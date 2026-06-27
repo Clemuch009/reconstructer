@@ -264,6 +264,43 @@ def extract_xlsx(raw_bytes: bytes) -> ExtractionResult:
     except Exception:
         pass
 
+    # Fallback: if no visuals found via sheet._images, read xl/media/ directly
+    # This catches drawings anchored via xl/drawings/ which openpyxl doesn't
+    # expose through sheet._images
+    if not visuals:
+        try:
+            import zipfile as _zf
+            with _zf.ZipFile(io.BytesIO(raw_bytes)) as zf:
+                media_files = sorted(
+                    n for n in zf.namelist()
+                    if n.startswith('xl/media/') and '.' in n.rsplit('/', 1)[-1]
+                )
+                for media_path in media_files:
+                    try:
+                        img_bytes = zf.read(media_path)
+                        if not img_bytes:
+                            continue
+                        ext  = media_path.rsplit('.', 1)[-1].lower()
+                        mime = _MIME.get(ext, f"image/{ext}")
+                        vis_index += 1
+                        vid = make_visual_id(vis_index)
+                        visuals.append(EmbeddedVisual(
+                            id=vid,
+                            page=None,
+                            mime_type=mime,
+                            width=None,
+                            height=None,
+                            image_bytes=img_bytes,
+                            warnings=[f"from xl/media/{media_path.rsplit('/', 1)[-1]}"],
+                        ))
+                        # Append placeholder at end of last sheet block
+                        if sheet_blocks:
+                            sheet_blocks[-1] += f"\n{visual_placeholder(vid)}"
+                    except Exception as e:
+                        warnings.append(f"xl/media extraction error: {str(e)[:80]}")
+        except Exception as e:
+            warnings.append(f"XLSX media fallback error: {str(e)[:80]}")
+
     # Build workbook marker with inline summary
     workbook_marker = (
         f"[WORKBOOK]\n"

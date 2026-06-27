@@ -1153,7 +1153,8 @@ function setInputMode(mode) {
 }
 
 // Binary formats — sent to /ingest/file, not read as text
-const BINARY_EXTENSIONS = new Set(['.pdf', '.docx', '.xlsx']);
+// All formats that support visual extraction must be in this set
+const BINARY_EXTENSIONS = new Set(['.pdf', '.docx', '.xlsx', '.html', '.htm', '.csv']);
 
 function getExtension(filename) {
   const m = filename.toLowerCase().match(/\.[^.]+$/);
@@ -1360,8 +1361,6 @@ async function processText() {
       envelope         = await fileRes.json();
       currentSessionId = envelope.source_id;
       currentResult    = envelope;
-      console.log('[DEBUG] envelope keys:', Object.keys(envelope));
-      console.log('[DEBUG] visuals:', envelope.visuals?.length, envelope.visuals?.[0]?.id);
 
       // Show ingestion warnings if any
       const warnings = envelope.ingestion_warnings || [];

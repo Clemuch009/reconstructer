@@ -243,36 +243,51 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
 
                             prev_top = top
 
-                        # Merge adjacent gaps within 50pt of each other
+                        # Merge adjacent gaps within 80pt of each other
                         # Charts with axis labels create text interruptions
-                        # inside a single chart region — merge into one visual
-                        # Only merge if the connector region also has vectors
+                        # Minimum merged height 100pt to filter decorative borders
                         merged_gaps = []
                         for gap_top, gap_bot in raw_gaps:
                             if merged_gaps:
-                                prev_end   = merged_gaps[-1][1]
-                                connector  = gap_top - prev_end  # gap between gaps
-                                # Merge if close AND total merged height < 500pt
-                                # (prevents merging entire page into one visual)
+                                prev_end     = merged_gaps[-1][1]
+                                connector    = gap_top - prev_end
                                 total_height = gap_bot - merged_gaps[-1][0]
-                                if connector <= 50 and total_height < 500:
+                                if connector <= 80 and total_height < 500:
                                     merged_gaps[-1] = [merged_gaps[-1][0], gap_bot]
                                     continue
                             merged_gaps.append([gap_top, gap_bot])
 
                         for gap_top, gap_bot in merged_gaps:
-                            if (gap_bot - gap_top) < 120:  # skip small decorative elements
+                            if (gap_bot - gap_top) < 100:
                                 continue
                             vis_index += 1
                             vid = make_visual_id(vis_index)
                             try:
-                                pad  = 8
-                                bbox = (
-                                    0,
-                                    max(0, gap_top - pad),
-                                    page.width,
-                                    min(page.height, gap_bot + pad),
-                                )
+                                # Find tightest bbox of vector objects in this region
+                                # Exclude full-page background rects (> 80% of page height)
+                                pad  = 12
+                                vec_tops = []
+                                vec_bots = []
+                                max_span = page.height * 0.80
+                                for obj in list(page.rects) + list(page.lines) + list(page.curves):
+                                    ot = obj.get('top', obj.get('y0', 0))
+                                    ob = obj.get('bottom', obj.get('y1', page.height))
+                                    # Skip full-page background objects
+                                    if (ob - ot) > max_span:
+                                        continue
+                                    # Only include objects that overlap the gap
+                                    if (min(ob, gap_bot) - max(ot, gap_top)) > 10:
+                                        vec_tops.append(ot)
+                                        vec_bots.append(ob)
+
+                                if vec_tops:
+                                    crop_top = max(0, min(vec_tops) - pad)
+                                    crop_bot = min(page.height, max(vec_bots) + pad)
+                                else:
+                                    crop_top = max(0, gap_top - pad)
+                                    crop_bot = min(page.height, gap_bot + pad)
+
+                                bbox    = (0, crop_top, page.width, crop_bot)
                                 crop    = page.within_bbox(bbox)
                                 pil_img = crop.to_image(resolution=150).original
                                 buf     = _io.BytesIO()
