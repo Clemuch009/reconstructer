@@ -1129,7 +1129,14 @@ function showLimitModal({ title, body, btnText, btnUrl }) {
 
 // Input stats
 const inputText = document.getElementById('input-text');
-inputText.addEventListener('input', updateInputStats);
+inputText.addEventListener('input', () => {
+  updateInputStats();
+  // If user types or pastes, cancel any pending file upload
+  if (pendingBinaryFile && inputText.value.trim()) {
+    pendingBinaryFile = null;
+    inputText.removeAttribute('readonly');
+  }
+});
 
 function updateInputStats() {
   const text = inputText.value;

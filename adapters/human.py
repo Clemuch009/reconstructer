@@ -62,12 +62,21 @@ def _render_table(content: dict) -> str:
             cells.append(val.ljust(widths[i] + TABLE_COL_PAD))
         return "  ".join(cells).rstrip()
 
+    divider = "  ".join("─" * (w + TABLE_COL_PAD) for w in widths).rstrip()
+
     lines = []
     if headers:
         lines.append(render_row(headers))
-        lines.append("  ".join("─" * (w + TABLE_COL_PAD) for w in widths).rstrip())
-    for row in rows:
-        lines.append(render_row(row))
+        lines.append(divider)
+        for row in rows:
+            lines.append(render_row(row))
+    else:
+        # No header detected — still emit divider after first row
+        # so console can detect this as a scrollable table block
+        lines.append(render_row(rows[0]))
+        lines.append(divider)
+        for row in rows[1:]:
+            lines.append(render_row(row))
 
     return "\n".join(lines)
 

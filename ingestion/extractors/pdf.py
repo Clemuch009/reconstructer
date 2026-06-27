@@ -150,10 +150,27 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                     if table_lines:
                         page_parts.append("\n".join(table_lines))
 
-                # ── Step 4: extract embedded raster visuals ──
+                # ── Steps 4+5: unified visual extraction ──
+                #
+                # A) Raster images → extract bytes from stream
+                #    Track their bboxes to avoid re-extracting as vectors
+                # B) Vector clusters → cluster objects by proximity,
+                #    skip if overlaps a raster bbox (dedup)
+                # C) No-text, no-raster pages → rasterize full page
+
+                extracted_bboxes = []  # (top, bot) of already extracted regions
+
+                def bbox_overlaps(top, bot, threshold=0.5):
+                    for et, eb in extracted_bboxes:
+                        region  = bot - top
+                        overlap = min(bot, eb) - max(top, et)
+                        if region > 0 and overlap / region > threshold:
+                            return True
+                    return False
+
+                # A) Raster images
                 try:
-                    page_images = page.images
-                    for img in page_images:
+                    for img in page.images:
                         vis_index += 1
                         vid = make_visual_id(vis_index)
 
@@ -176,21 +193,22 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                                 x1  = float(img.get("x1",  page.width))
                                 bot = float(img.get("bottom", page.height))
                                 if x1 > x0 and bot > top:
-                                    crop = page.within_bbox((x0, top, x1, bot))
+                                    crop    = page.within_bbox((x0, top, x1, bot))
                                     pil_img = crop.to_image(resolution=150).original
-                                    buf = _io.BytesIO()
+                                    buf     = _io.BytesIO()
                                     pil_img.save(buf, format="PNG")
                                     img_bytes = buf.getvalue()
                             except Exception:
                                 pass
 
                         if not img_bytes:
-                            warnings.append(
-                                f"Page {page_num} visual {vid}: "
-                                "could not extract image bytes — skipped"
-                            )
                             vis_index -= 1
+                            warnings.append(f"Page {page_num}: raster image not extractable — skipped")
                             continue
+
+                        img_top = float(img.get("top",    0))
+                        img_bot = float(img.get("bottom", page.height))
+                        extracted_bboxes.append((img_top, img_bot))
 
                         mime   = _mime_from_filter(img.get("filters"))
                         width  = int(img.get("width",  0)) or None
@@ -204,138 +222,104 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                         page_parts.append(visual_placeholder(vid))
 
                 except Exception as e:
-                    warnings.append(f"Page {page_num}: raster visual extraction error: {str(e)[:100]}")
+                    warnings.append(f"Page {page_num}: raster extraction error: {str(e)[:100]}")
 
-                # ── Step 5: detect and rasterize vector drawing regions ──
-                # PDF vector graphics (rects/lines/curves) have no stream bytes.
-                # Detect them by finding large vertical gaps in char layout
-                # that coincide with vector drawing objects on the page.
+                # B) Vector clusters
                 try:
-                    has_vectors = (
-                        len(page.rects) > 0 or
-                        len(page.lines) > 0 or
-                        len(page.curves) > 0
-                    )
+                    max_span   = page.height * 0.80
+                    min_height = 80
 
-                    if has_vectors and page.chars:
-                        char_tops = sorted(set(round(c['top']) for c in page.chars))
-                        prev_top  = char_tops[0]
+                    all_vec = []
+                    for obj in list(page.rects) + list(page.lines) + list(page.curves):
+                        ot = float(obj.get('top',    obj.get('y0', 0)))
+                        ob = float(obj.get('bottom', obj.get('y1', page.height)))
+                        if (ob - ot) > max_span:
+                            continue
+                        if ob > ot:
+                            all_vec.append((ot, ob))
 
-                        # Collect raw gaps > 40pt that contain vector objects
-                        raw_gaps = []
-                        for top in char_tops[1:]:
-                            gap_size = top - prev_top
-                            if gap_size > 40:
-                                gap_top = prev_top
-                                gap_bot = top
+                    if all_vec:
+                        all_vec.sort()
+                        clusters = []
+                        ct, cb = all_vec[0]
+                        for ot, ob in all_vec[1:]:
+                            if ot - cb <= 30:
+                                cb = max(cb, ob)
+                            else:
+                                clusters.append((ct, cb))
+                                ct, cb = ot, ob
+                        clusters.append((ct, cb))
 
-                                def overlaps(obj, g_top=gap_top, g_bot=gap_bot):
-                                    ot = obj.get('top', obj.get('y0', 0))
-                                    ob = obj.get('bottom', obj.get('y1', page.height))
-                                    return (min(ob, g_bot) - max(ot, g_top)) > 20
+                        # Precompute which objects have meaningful content
+                        # (lines or curves) — pure rect clusters are UI boxes
+                        lines_curves = []
+                        for obj in list(page.lines) + list(page.curves):
+                            ot = float(obj.get('top',    obj.get('y0', 0)))
+                            ob = float(obj.get('bottom', obj.get('y1', page.height)))
+                            if (ob - ot) <= max_span:
+                                lines_curves.append((ot, ob))
 
-                                if (
-                                    any(overlaps(r) for r in page.rects) or
-                                    any(overlaps(l) for l in page.lines) or
-                                    any(overlaps(c) for c in page.curves)
-                                ):
-                                    raw_gaps.append((gap_top, gap_bot))
-
-                            prev_top = top
-
-                        # Merge adjacent gaps within 80pt of each other
-                        # Charts with axis labels create text interruptions
-                        # Minimum merged height 100pt to filter decorative borders
-                        merged_gaps = []
-                        for gap_top, gap_bot in raw_gaps:
-                            if merged_gaps:
-                                prev_end     = merged_gaps[-1][1]
-                                connector    = gap_top - prev_end
-                                total_height = gap_bot - merged_gaps[-1][0]
-                                if connector <= 80 and total_height < 500:
-                                    merged_gaps[-1] = [merged_gaps[-1][0], gap_bot]
-                                    continue
-                            merged_gaps.append([gap_top, gap_bot])
-
-                        for gap_top, gap_bot in merged_gaps:
-                            if (gap_bot - gap_top) < 100:
+                        for ct, cb in clusters:
+                            if (cb - ct) < min_height:
                                 continue
+                            if bbox_overlaps(ct, cb):
+                                continue
+                            # Must contain at least one line or curve
+                            # (pure rect clusters are decorative boxes/borders)
+                            has_content = any(
+                                (min(ob, cb) - max(ot, ct)) > 10
+                                for ot, ob in lines_curves
+                            )
+                            if not has_content:
+                                continue
+
                             vis_index += 1
                             vid = make_visual_id(vis_index)
                             try:
-                                # Find tightest bbox of vector objects in this region
-                                # Exclude full-page background rects (> 80% of page height)
-                                pad  = 12
-                                vec_tops = []
-                                vec_bots = []
-                                max_span = page.height * 0.80
-                                for obj in list(page.rects) + list(page.lines) + list(page.curves):
-                                    ot = obj.get('top', obj.get('y0', 0))
-                                    ob = obj.get('bottom', obj.get('y1', page.height))
-                                    # Skip full-page background objects
-                                    if (ob - ot) > max_span:
-                                        continue
-                                    # Only include objects that overlap the gap
-                                    if (min(ob, gap_bot) - max(ot, gap_top)) > 10:
-                                        vec_tops.append(ot)
-                                        vec_bots.append(ob)
-
-                                if vec_tops:
-                                    crop_top = max(0, min(vec_tops) - pad)
-                                    crop_bot = min(page.height, max(vec_bots) + pad)
-                                else:
-                                    crop_top = max(0, gap_top - pad)
-                                    crop_bot = min(page.height, gap_bot + pad)
-
-                                bbox    = (0, crop_top, page.width, crop_bot)
-                                crop    = page.within_bbox(bbox)
-                                pil_img = crop.to_image(resolution=150).original
-                                buf     = _io.BytesIO()
+                                pad      = 10
+                                crop_top = max(0, ct - pad)
+                                crop_bot = min(page.height, cb + pad)
+                                crop     = page.within_bbox((0, crop_top, page.width, crop_bot))
+                                pil_img  = crop.to_image(resolution=150).original
+                                buf      = _io.BytesIO()
                                 pil_img.save(buf, format="PNG")
                                 img_bytes = buf.getvalue()
 
+                                extracted_bboxes.append((ct, cb))
                                 visuals.append(EmbeddedVisual(
                                     id=vid, page=page_num,
                                     mime_type="image/png",
-                                    width=pil_img.width,
-                                    height=pil_img.height,
+                                    width=pil_img.width, height=pil_img.height,
                                     image_bytes=img_bytes,
                                     warnings=["rasterized from vector drawing"],
                                 ))
                                 page_parts.append(visual_placeholder(vid))
                             except Exception as e:
-                                warnings.append(
-                                    f"Page {page_num}: vector rasterize failed: {str(e)[:80]}"
-                                )
+                                warnings.append(f"Page {page_num}: vector rasterize failed: {str(e)[:80]}")
                                 vis_index -= 1
-
-                            prev_top = top
-
-                    elif has_vectors and not page.chars:
-                        # Entire page is vector — rasterize whole page
-                        vis_index += 1
-                        vid = make_visual_id(vis_index)
-                        try:
-                            pil_img   = page.to_image(resolution=150).original
-                            buf       = _io.BytesIO()
-                            pil_img.save(buf, format="PNG")
-                            img_bytes = buf.getvalue()
-                            visuals.append(EmbeddedVisual(
-                                id=vid, page=page_num,
-                                mime_type="image/png",
-                                width=pil_img.width, height=pil_img.height,
-                                image_bytes=img_bytes,
-                                warnings=["full page rasterized — no text found"],
-                            ))
-                            page_parts.append(visual_placeholder(vid))
-                        except Exception as e:
-                            warnings.append(
-                                f"Page {page_num}: full page rasterize failed: {str(e)[:80]}"
-                            )
-                            vis_index -= 1
 
                 except Exception as e:
                     warnings.append(f"Page {page_num}: vector detection error: {str(e)[:100]}")
+
+                # C) No-text, no-raster page → rasterize full page
+                if not page.chars and not page.images and not extracted_bboxes:
+                    try:
+                        vis_index += 1
+                        vid     = make_visual_id(vis_index)
+                        pil_img = page.to_image(resolution=150).original
+                        buf     = _io.BytesIO()
+                        pil_img.save(buf, format="PNG")
+                        visuals.append(EmbeddedVisual(
+                            id=vid, page=page_num,
+                            mime_type="image/png",
+                            width=pil_img.width, height=pil_img.height,
+                            image_bytes=buf.getvalue(),
+                            warnings=["full page rasterized — no text found"],
+                        ))
+                        page_parts.append(visual_placeholder(vid))
+                    except Exception as e:
+                        warnings.append(f"Page {page_num}: full page rasterize failed: {str(e)[:80]}")
+                        vis_index -= 1
 
                 if page_parts:
                     block = f"[PAGE: {page_num}]\n" + "\n\n".join(page_parts)
