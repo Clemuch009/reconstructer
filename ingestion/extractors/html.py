@@ -96,16 +96,21 @@ def _get_label(img_tag) -> str:
 
 
 def _table_to_csv(tag) -> str:
-    lines: List[str] = []
+    import csv as _csv
+    import io as _io
+
+    output = _io.StringIO()
+    writer = _csv.writer(output, quoting=_csv.QUOTE_MINIMAL, lineterminator="\n")
+
     for row in tag.find_all("tr"):
         cells = []
         for cell in row.find_all(["td", "th"]):
-            text = cell.get_text(separator=" ", strip=True)
-            text = text.replace(",", ";").replace("\n", " ")
+            text = cell.get_text(separator=" ", strip=True).replace("\n", " ")
             cells.append(text)
         if any(cells):
-            lines.append(",".join(cells))
-    return "\n".join(lines)
+            writer.writerow(cells)
+
+    return output.getvalue().strip()
 
 
 def extract_html(raw_bytes: bytes) -> ExtractionResult:
