@@ -238,12 +238,12 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
                 img_warnings.append(f"{vid}: malformed data URI")
 
         elif src:
-            # URL reference — can't fetch here, note it
-            mime_type = "image/unknown"
-            img_warnings.append(
-                f"{vid}: external URL not fetched — "
-                f"src={src[:100]}"
-            )
+            # External URL — can't fetch, emit as inline text reference
+            # Format: [vis_001: https://example.com/image.png]
+            placeholder = f"__VIS_{vid}__"
+            vis_placeholder_map[placeholder] = f"[{vid}: {src}]"
+            img.replace_with(f" {placeholder} ")
+            continue  # skip creating an EmbeddedVisual for unfetchable URLs
 
         else:
             img_warnings.append(f"{vid}: no src attribute")
@@ -265,21 +265,51 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         img.replace_with(f" {placeholder} ")
 
     # Step 4b — extract SVG elements as visuals
-    # SVGs are inline vector graphics — serialize to bytes directly
-    for svg in soup.find_all("svg"):
-        vis_index += 1
-        vid = make_visual_id(vis_index)
+    # Skip UI chrome SVGs: icons with role="presentation", tiny fixed sizes (<=32px),
+    # or known icon class patterns (ipc-icon, fa-, icon-, bi-)
+    _UI_ICON_CLASS = re.compile(r'\b(ipc-icon|ipc-progress|ipc-watchlist|fa-|icon-|bi-)\b')
+    _UI_ICON_SIZE  = 32  # px — icons at or below this size in both dimensions are UI chrome
 
-        svg_str = str(svg)
+    for svg in soup.find_all("svg"):
+        # Filter 1: role="presentation" — decorative/icon SVG
+        if svg.get("role") == "presentation":
+            svg.replace_with("")
+            continue
+
+        # Filter 2: known UI icon class patterns
+        cls = " ".join(svg.get("class") or [])
+        if _UI_ICON_CLASS.search(cls):
+            svg.replace_with("")
+            continue
+
+        # Filter 3: tiny fixed pixel dimensions — UI icons
+        try:
+            w_raw = str(svg.get("width",  "") or "").replace("px", "").strip()
+            h_raw = str(svg.get("height", "") or "").replace("px", "").strip()
+            if w_raw.replace(".","").isdigit() and h_raw.replace(".","").isdigit():
+                if float(w_raw) <= _UI_ICON_SIZE and float(h_raw) <= _UI_ICON_SIZE:
+                    svg.replace_with("")
+                    continue
+        except Exception:
+            pass
+
+        # Filter 4: hidden SVG sprite containers (width:0;height:0 in style)
+        style = svg.get("style", "")
+        if "width:0" in style or "height:0" in style or "display:none" in style.replace(" ", ""):
+            svg.replace_with("")
+            continue
+
+        vis_index += 1
+        vid       = make_visual_id(vis_index)
+        svg_str   = str(svg)
         svg_bytes = svg_str.encode("utf-8")
 
-        # Get dimensions from width/height or viewBox
-        width = height = None
+        svg_width = svg_height = None
         try:
             w = svg.get("width", "")
             h = svg.get("height", "")
-            width  = int(float(str(w).replace("px","").replace("%",""))) if w and str(w).replace("px","").replace("%","").replace(".","").isdigit() else None
-            height = int(float(str(h).replace("px","").replace("%",""))) if h and str(h).replace("px","").replace("%","").replace(".","").isdigit() else None
+            svg_width  = int(float(str(w).replace("px","").replace("%",""))) if w and str(w).replace("px","").replace("%","").replace(".","").isdigit() else None
+            svg_height = int(float(str(h).replace("px","").replace("%",""))) if h and str(h).replace("px","").replace("%","").replace(".","").isdigit() else None
         except Exception:
             pass
 
@@ -287,8 +317,8 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
             id=vid,
             page=None,
             mime_type="image/svg+xml",
-            width=width,
-            height=height,
+            width=svg_width,
+            height=svg_height,
             image_bytes=svg_bytes,
             warnings=[],
         )
