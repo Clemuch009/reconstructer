@@ -314,22 +314,27 @@ def _detect_csv_delimiter(lines: List[LineObject]) -> Optional[str]:
     Returns delimiter if all lines split to the same column count,
     None if no consistent delimiter found.
 
-    Tries comma first (most common), then tab, then semicolon.
-    Pipe is handled by the existing pipe parser — skip it here.
+    Skips structural marker lines from extractors ([PAGE:], [SHEET:] etc.)
     """
-    ne = [l["normalized"] for l in lines if not l["is_empty"]]
+    import re as _re
+    _MARKER = _re.compile(
+        r"^\[PAGE:\s*\d+\]$|^\[WORKBOOK\]$|^\[SHEET:|^\[VISUAL:"
+        r"|^rows:\s*\d+$|^sheets:\s*\d+|^sheet_names:|^hidden_sheets:|^empty_sheets:"
+    )
+    ne = [
+        l["normalized"] for l in lines
+        if not l["is_empty"] and not _MARKER.match(l["normalized"].strip())
+    ]
     if len(ne) < CSV_MIN_ROWS:
         return None
 
     for delim in CSV_DELIMITERS:
         try:
-            # Use csv.reader to handle quoted fields correctly
             reader = csv.reader(io.StringIO("\n".join(ne)), delimiter=delim)
             parsed = [row for row in reader if row]
             if len(parsed) < CSV_MIN_ROWS:
                 continue
             col_counts = [len(row) for row in parsed]
-            # All rows must have same column count AND >= MIN_COLUMNS
             if (
                 min(col_counts) >= MIN_COLUMNS
                 and max(col_counts) - min(col_counts) == CSV_VARIANCE_MAX
@@ -348,9 +353,18 @@ def _parse_csv_table(
     """
     Parse CSV lines into headers and rows using csv.reader.
     Handles quoted fields containing the delimiter correctly.
+    Skips structural marker lines from extractors.
     Returns (headers, rows, col_count).
     """
-    ne = [l["normalized"] for l in lines if not l["is_empty"]]
+    import re as _re
+    _MARKER = _re.compile(
+        r"^\[PAGE:\s*\d+\]$|^\[WORKBOOK\]$|^\[SHEET:|^\[VISUAL:"
+        r"|^rows:\s*\d+$|^sheets:\s*\d+|^sheet_names:|^hidden_sheets:|^empty_sheets:"
+    )
+    ne = [
+        l["normalized"] for l in lines
+        if not l["is_empty"] and not _MARKER.match(l["normalized"].strip())
+    ]
 
     try:
         reader = csv.reader(io.StringIO("\n".join(ne)), delimiter=delimiter)

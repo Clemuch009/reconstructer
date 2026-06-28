@@ -914,7 +914,7 @@ region: eu-west-1
       </div>
       <div class="footer-actions">
         <button class="btn" onclick="copyOutput()" title="Copy active view to clipboard">COPY</button>
-        <button class="btn btn-download" onclick="downloadFormat('human')" id="download-human-btn" title="Download human-readable .txt">⬇ .TXT</button>
+        <button class="btn btn-download" onclick="downloadFormat('human')" id="download-human-btn" title="Download human-readable .txt">⬇ HUMAN.TXT</button>
         <button class="btn btn-download" onclick="downloadFormat('machine')" id="download-machine-btn" title="Download machine records .json">⬇ MACHINE</button>
         <button class="btn btn-download" onclick="downloadFormat('ai')" id="download-ai-btn" title="Download AI Structured Blocks .json">⬇ AI</button>
       </div>
@@ -1548,9 +1548,12 @@ function renderHuman(text, visuals) {
           if (v.type === 'svg') {
             return `<div class="visual-inline" style="max-width:100%;margin:8px 0;">${v.content}</div>`;
           }
-          return `<img src="${v.src}" class="visual-inline" alt="${vid}"` +
-                 ` style="max-width:100%;height:auto;display:block;margin:8px 0;border-radius:4px;">`;
+          if (v.src) {
+            return `<img src="${v.src}" class="visual-inline" alt="${vid}"` +
+                   ` style="max-width:100%;height:auto;display:block;margin:8px 0;border-radius:4px;">`;
+          }
         }
+        // No renderable data — show compact text badge, not blank space
         return `<span class="visual-ref">[VISUAL: ${vid}]</span>`;
       });
       if (inTable) { flushTable(); }

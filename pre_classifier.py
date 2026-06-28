@@ -36,27 +36,76 @@ def _compute_csv_density(text: str) -> float:
     Returns 1.0 if text lines have consistent column count when parsed
     as CSV/TSV/semicolon-delimited — 0.0 otherwise.
 
-    Uses csv.reader to handle quoted fields correctly, so commas inside
-    quoted strings don't produce false positives from prose sentences.
+    For multi-sheet XLSX output, checks each sheet block independently
+    and returns 1.0 if ANY sheet has consistent columns.
 
-    Minimum 3 non-empty lines required.
-    All lines must parse to the same column count (>= 2).
+    Skips structural marker lines inserted by extractors:
+      [PAGE: N], [WORKBOOK], [SHEET: name], rows: N
+
+    Uses csv.reader to handle quoted fields correctly.
+    Minimum 3 non-empty, non-marker lines required.
+    All lines must parse to the same column count (>= 3).
     """
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
-    if len(lines) < 3:
-        return 0.0
+    _MARKER_RE = re.compile(
+        r"^\[PAGE:\s*\d+\]$"
+        r"|^\[WORKBOOK\]$"
+        r"|^\[SHEET:"
+        r"|^\w[\w\s]*Matrix\]$"      # catches "Correlation Matrix]" after split
+        r"|^\w[\w\s]*Sheet\]$"       # catches other sheet name remnants
+        r"|^rows:\s*\d+$"
+        r"|^sheets:\s*\d+$"
+        r"|^sheet_names:"
+        r"|^hidden_sheets:"
+        r"|^empty_sheets:"
+        r"|^\[VISUAL:"               # skip visual placeholders
+    )
 
-    for delim in [",", "\t", ";"]:
-        try:
-            reader = csv.reader(io.StringIO("\n".join(lines)), delimiter=delim)
-            parsed = [row for row in reader if row]
-            if len(parsed) < 3:
+    def _check_block(block_lines):
+        if len(block_lines) < 3:
+            return False
+        for delim in [",", "\t", ";"]:
+            try:
+                reader = csv.reader(io.StringIO("\n".join(block_lines)), delimiter=delim)
+                parsed = [row for row in reader if row]
+                if len(parsed) < 3:
+                    continue
+                col_counts = [len(row) for row in parsed]
+                if min(col_counts) >= 3 and max(col_counts) - min(col_counts) == 0:
+                    return True
+            except Exception:
                 continue
-            col_counts = [len(row) for row in parsed]
-            if min(col_counts) >= 3 and max(col_counts) - min(col_counts) == 0:
-                return 1.0
-        except Exception:
-            continue
+        return False
+
+    # Split into blocks by [SHEET:] markers to handle multi-sheet XLSX
+    _SHEET_SPLIT_RE = re.compile(r"^\[SHEET:", re.MULTILINE)
+    raw_blocks = _SHEET_SPLIT_RE.split(text)
+
+    for raw_block in raw_blocks:
+        lines_raw = raw_block.splitlines()
+        # First line after split is sheet name remnant e.g. "Correlation Matrix]"
+        # Skip it along with other markers
+        block_lines = []
+        for j, l in enumerate(lines_raw):
+            ls = l.strip()
+            if not ls:
+                continue
+            # Skip first non-empty line of a sheet block (sheet name remnant)
+            if j == 0 and ls.endswith(']') and not ls.startswith('['):
+                continue
+            if _MARKER_RE.match(ls):
+                continue
+            block_lines.append(ls)
+
+        if _check_block(block_lines):
+            return 1.0
+
+    # Also check the full text (for single-sheet or plain CSV)
+    all_lines = [
+        l.strip() for l in text.splitlines()
+        if l.strip() and not _MARKER_RE.match(l.strip())
+    ]
+    if _check_block(all_lines):
+        return 1.0
 
     return 0.0
 

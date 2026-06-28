@@ -188,7 +188,16 @@ def _csv_column_consistency(lines: List[LineObject]) -> Tuple[bool, float]:
     - is_csv: True if all non-empty lines have same column count >= 2
     - confidence: 1.0 if perfect consistency, 0.0 otherwise
     """
-    PAGE_MARKER_RE = re.compile(r"^\[PAGE:\s*\d+\]$")
+    PAGE_MARKER_RE = re.compile(
+        r"^\[PAGE:\s*\d+\]$"
+        r"|^\[WORKBOOK\]$"
+        r"|^\[SHEET:"
+        r"|^rows:\s*\d+$"
+        r"|^sheets:\s*\d+"
+        r"|^sheet_names:"
+        r"|^hidden_sheets:"
+        r"|^empty_sheets:"
+    )
 
     ne = [
         l["normalized"] for l in lines
