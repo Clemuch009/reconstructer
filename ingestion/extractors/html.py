@@ -21,34 +21,6 @@ _RESIDUAL_TAG_RE = re.compile(
 # MIME types from data: URI prefix
 _DATA_MIME_RE = re.compile(r"^data:(image/[a-zA-Z0-9+\-.]+);base64,(.+)$", re.DOTALL)
 
-# UI chrome detection for <img> tags
-_UI_SRC_RE = re.compile(
-    r'/(profile_images|icons?|favicon|assets|static|ui|sprites?|thumbs?|'
-    r'buttons?|avatars?|badges?|emoji|glyph|toolbar)/',
-    re.IGNORECASE,
-)
-_UI_ALT_RE = re.compile(
-    r'^(avatar|icon|logo|button|emoji|badge|spinner|thumbnail|play|pause|'
-    r'close|menu|arrow|chevron|search|loading|verified|checkmark)$',
-    re.IGNORECASE,
-)
-_UI_MIN_SIZE = 100  # px — images smaller than this in both dimensions are chrome
-
-
-def _is_ui_chrome_img(src: str, alt: str, width, height) -> bool:
-    """Return True if an <img> tag looks like UI chrome rather than content."""
-    if src and not src.startswith("data:") and _UI_SRC_RE.search(src):
-        return True
-    if alt and _UI_ALT_RE.match(alt.strip()):
-        return True
-    if width and height:
-        try:
-            if int(width) <= _UI_MIN_SIZE and int(height) <= _UI_MIN_SIZE:
-                return True
-        except (ValueError, TypeError):
-            pass
-    return False
-
 
 def _strip_residual_html(text: str) -> Tuple[str, List[str]]:
     warnings: List[str] = []
@@ -150,7 +122,6 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
     2. Pre-parse: remove JS hydration blobs
     3. Strip noise tags (nav, aside, header, footer, script, style...)
     4. Extract visuals from <img> tags:
-       - UI chrome filtered out (src path, alt text, small dimensions, chrome parents)
        - data: URI → decode base64 → EmbeddedVisual with raw bytes
        - URL src  → EmbeddedVisual with empty bytes + src as warning
        - Insert [VISUAL: vis_N] placeholder at img position in flow
@@ -164,12 +135,10 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
     - data: URIs fully decoded to raw bytes
     - URL references: placeholder inserted, bytes=b'' (not fetched)
     - Width/height from width/height attributes if present
-    - UI chrome images (icons, avatars, buttons, tiny images) are discarded
     """
     warnings:  List[str] = []
     visuals:   List[EmbeddedVisual] = []
     vis_index: int = 0
-    chrome_discarded: int = 0
 
     try:
         from bs4 import BeautifulSoup
@@ -237,40 +206,31 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         tag.decompose()
 
     # Step 4 — extract visuals from <img> tags
-    # UI chrome images are discarded before creating EmbeddedVisuals.
-    # Chrome signals (any one is sufficient to discard):
-    #   - src path matches known UI/asset patterns (_UI_SRC_RE)
-    #   - alt text matches known chrome labels (_UI_ALT_RE)
-    #   - both width and height are <= _UI_MIN_SIZE px
-    #   - parent is a chrome structural element (nav/header/footer/button/aside)
-    #     Note: nav/header/footer/aside are already stripped in Step 3, so this
-    #     catches <button> and any that survive structural stripping.
     vis_placeholder_map: dict = {}
 
     for img in soup.find_all("img"):
         src = (img.get("src", "") or "").strip()
-        alt = (img.get("alt", "") or "").strip()
 
+        if src and not src.startswith("data:"):
+            # External URL — emit inline text reference, no visual slot consumed
+            # Format: [vis_001: https://example.com/image.png]
+            # Use a temporary unique key (src hash) since we have no vid yet
+            _url_key = f"__URLREF_{abs(hash(src))}__"
+            vis_index += 1
+            vid = make_visual_id(vis_index)
+            vis_placeholder_map[_url_key] = f"[{vid}: {src}]"
+            img.replace_with(f" {_url_key} ")
+            continue
+
+        vis_index += 1
+        vid = make_visual_id(vis_index)
+
+        # Get dimensions from attributes
         try:
             width  = int(img.get("width",  0)) or None
             height = int(img.get("height", 0)) or None
         except (ValueError, TypeError):
             width = height = None
-
-        # Chrome filter: structural parent
-        if img.find_parent(["nav", "header", "footer", "button", "aside"]):
-            img.decompose()
-            chrome_discarded += 1
-            continue
-
-        # Chrome filter: src path, alt text, small dimensions
-        if _is_ui_chrome_img(src, alt, width, height):
-            img.decompose()
-            chrome_discarded += 1
-            continue
-
-        vis_index += 1
-        vid = make_visual_id(vis_index)
 
         img_bytes = b""
         mime_type = "image/png"
@@ -287,15 +247,6 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
                     img_warnings.append(f"{vid}: base64 decode failed")
             else:
                 img_warnings.append(f"{vid}: malformed data URI")
-
-        elif src:
-            # External URL — can't fetch, emit as inline text reference
-            # Format: [vis_001: https://example.com/image.png]
-            placeholder = f"__VIS_{vid}__"
-            vis_placeholder_map[placeholder] = f"[{vid}: {src}]"
-            img.replace_with(f" {placeholder} ")
-            continue  # skip creating an EmbeddedVisual for unfetchable URLs
-
         else:
             img_warnings.append(f"{vid}: no src attribute")
 
@@ -315,58 +266,40 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         vis_placeholder_map[placeholder] = visual_placeholder(vid)
         img.replace_with(f" {placeholder} ")
 
-    if chrome_discarded:
-        warnings.append(f"{chrome_discarded} UI chrome image(s) discarded (icon/avatar/small)")
-
     # Step 4b — extract SVG elements as visuals
-    # General chrome filters — no site-specific class patterns.
-    # An SVG is discarded if it looks like an icon/decoration by universal signals:
-    #   F1: role="presentation" or aria-hidden="true" — explicitly decorative
-    #   F2: hidden via inline style
-    #   F3: small viewBox (both w,h <= 32 units) AND no <title>/<desc> — icon heuristic
-    #       viewBox is checked because icons sized via CSS carry no width/height attrs.
-    #       Content SVGs (charts, diagrams) use large coordinate spaces (e.g. 400x300).
-    #   F4: fixed pixel width/height attributes both <= 32px (fallback for no viewBox)
-    _SVG_ICON_VIEWBOX = 32   # viewBox units threshold
-    _SVG_ICON_PX      = 32   # px attribute threshold
+    # Skip UI chrome SVGs: icons with role="presentation", tiny fixed sizes (<=32px),
+    # or known icon class patterns (ipc-icon, fa-, icon-, bi-)
+    _UI_ICON_CLASS = re.compile(r'\b(ipc-icon|ipc-progress|ipc-watchlist|fa-|icon-|bi-)\b')
+    _UI_ICON_SIZE  = 32  # px — icons at or below this size in both dimensions are UI chrome
 
     for svg in soup.find_all("svg"):
-        # F1: explicitly decorative
-        if svg.get("role") == "presentation" or svg.get("aria-hidden") == "true":
+        # Filter 1: role="presentation" — decorative/icon SVG
+        if svg.get("role") == "presentation":
             svg.replace_with("")
             continue
 
-        # F2: hidden SVG sprite containers
-        style = svg.get("style", "").replace(" ", "")
-        if "width:0" in style or "height:0" in style or "display:none" in style:
+        # Filter 2: known UI icon class patterns
+        cls = " ".join(svg.get("class") or [])
+        if _UI_ICON_CLASS.search(cls):
             svg.replace_with("")
             continue
 
-        # F3: small viewBox + no semantic label
-        viewbox = (svg.get("viewBox") or svg.get("viewbox") or "").strip()
-        if viewbox:
-            parts = viewbox.split()
-            if len(parts) == 4:
-                try:
-                    vb_w, vb_h = float(parts[2]), float(parts[3])
-                    has_label  = bool(svg.find(["title", "desc"]))
-                    if vb_w <= _SVG_ICON_VIEWBOX and vb_h <= _SVG_ICON_VIEWBOX and not has_label:
-                        svg.replace_with("")
-                        continue
-                except ValueError:
-                    pass
+        # Filter 3: tiny fixed pixel dimensions — UI icons
+        try:
+            w_raw = str(svg.get("width",  "") or "").replace("px", "").strip()
+            h_raw = str(svg.get("height", "") or "").replace("px", "").strip()
+            if w_raw.replace(".","").isdigit() and h_raw.replace(".","").isdigit():
+                if float(w_raw) <= _UI_ICON_SIZE and float(h_raw) <= _UI_ICON_SIZE:
+                    svg.replace_with("")
+                    continue
+        except Exception:
+            pass
 
-        # F4: explicit small px dimensions (fallback when no viewBox)
-        if not viewbox:
-            try:
-                w_raw = str(svg.get("width",  "") or "").replace("px", "").strip()
-                h_raw = str(svg.get("height", "") or "").replace("px", "").strip()
-                if w_raw.replace(".", "").isdigit() and h_raw.replace(".", "").isdigit():
-                    if float(w_raw) <= _SVG_ICON_PX and float(h_raw) <= _SVG_ICON_PX:
-                        svg.replace_with("")
-                        continue
-            except Exception:
-                pass
+        # Filter 4: hidden SVG sprite containers (width:0;height:0 in style)
+        style = svg.get("style", "")
+        if "width:0" in style or "height:0" in style or "display:none" in style.replace(" ", ""):
+            svg.replace_with("")
+            continue
 
         vis_index += 1
         vid       = make_visual_id(vis_index)
@@ -396,7 +329,6 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         placeholder = f"__VIS_{vid}__"
         vis_placeholder_map[placeholder] = visual_placeholder(vid)
         svg.replace_with(f" {placeholder} ")
-
     table_csv_map: dict = {}
     table_idx = 0
     for table in soup.find_all("table"):

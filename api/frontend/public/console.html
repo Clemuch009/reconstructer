@@ -1023,6 +1023,13 @@ let activeTab        = 'human';
 let curlOpen         = false;
 let devKeyMode       = false;
 
+// Input panel view state
+// rawContent     — original file bytes read as text, or file info stub for binary-only formats
+// previewContent — extracted text returned by /ingest/file/preview
+let rawContent     = null;
+let previewContent = null;
+let inputViewMode  = 'raw';   // 'raw' | 'preview'
+
 // ─── Progressive auth ───────────────────────────────────────────────
 // Anonymous visitor: no header → backend free-tier (10 requests).
 // Signed-in: Authorization: Bearer <id_token> → user's tier.
@@ -1146,8 +1153,12 @@ function updateInputStats() {
 }
 
 function clearInput() {
-  inputText.value = '';
+  inputText.value   = '';
   pendingBinaryFile = null;
+  rawContent        = null;
+  previewContent    = null;
+  inputViewMode     = 'raw';
+  setInputMode('raw');
   document.getElementById('drop-zone').classList.remove('has-file');
   document.getElementById('drop-prompt').textContent = '⬆ DROP FILE OR CLICK TO UPLOAD';
   document.getElementById('file-name').textContent = 'txt, csv, pdf, docx, xlsx, html';
@@ -1155,8 +1166,21 @@ function clearInput() {
 }
 
 function setInputMode(mode) {
+  inputViewMode = mode;
   document.getElementById('toggle-raw').classList.toggle('active', mode === 'raw');
   document.getElementById('toggle-preview').classList.toggle('active', mode === 'preview');
+
+  // Only switch content when we actually have both raw and preview stored
+  // (i.e. a binary file has been loaded). For plain text input, the textarea
+  // is the source of truth and toggling does nothing.
+  if (rawContent === null && previewContent === null) return;
+
+  if (mode === 'raw') {
+    inputText.value = rawContent || '';
+  } else {
+    inputText.value = previewContent || '[Preview not yet available]';
+  }
+  updateInputStats();
 }
 
 // Binary formats — sent to /ingest/file, not read as text
@@ -1237,21 +1261,42 @@ function handleFileSelection(file) {
   document.getElementById('file-name').textContent = file.name;
   document.getElementById('drop-zone').classList.add('has-file');
   document.getElementById('drop-prompt').textContent = '⬆ REPLACE';
+
+  // Reset stored content for new file
+  rawContent     = null;
+  previewContent = null;
+
   const ext = getExtension(file.name);
+
   if (BINARY_EXTENSIONS.has(ext)) {
-    // Binary — hold the file for processing, and fetch a PREVIEW of the
-    // extracted text so the user can verify the right file before consuming
-    // a processing request. Preview uses the same extractor as processing
-    // and does NOT consume a request.
+    // Binary/structured file — the raw bytes can't be shown as-is.
+    // RAW mode shows a human-readable file info stub.
+    // PREVIEW mode shows the extracted text from /ingest/file/preview.
     pendingBinaryFile = file;
-    inputText.value   = '';
+
+    const rawStub = `[Binary file — raw bytes not displayable]\nName:   ${file.name}\nSize:   ${file.size.toLocaleString()} bytes\nType:   ${file.type || ext.toUpperCase().slice(1)}\n\nSwitch to PREVIEW to see the extracted text.`;
+    rawContent = rawStub;
+
+    // Default to RAW (show the stub immediately, no network call yet)
+    inputViewMode = 'raw';
+    setInputMode('raw');
+    inputText.value = rawContent;
     document.getElementById('line-count').textContent = '—';
-    document.getElementById('char-count').textContent = file.size;
+    document.getElementById('char-count').textContent = file.size.toLocaleString();
     setStatus('idle', `FILE: ${file.name}`);
+
+    // Fetch preview in background — user can switch to PREVIEW tab when ready
     previewBinaryFile(file);
+
   } else {
-    // Text — read into textarea as before
+    // Plain text — read raw bytes as text and show directly.
+    // No preview endpoint needed; the textarea IS the raw content.
     pendingBinaryFile = null;
+    rawContent        = null;   // not needed — textarea holds it
+    previewContent    = null;
+    inputViewMode     = 'raw';
+    setInputMode('raw');
+
     const reader = new FileReader();
     reader.onload = e => {
       inputText.value = e.target.result;
@@ -1262,8 +1307,10 @@ function handleFileSelection(file) {
 }
 
 async function previewBinaryFile(file) {
-  inputText.value = `Extracting preview of ${file.name}...`;
-  inputText.setAttribute('readonly', 'readonly');
+  // Store a loading message in previewContent — only shown if user switches to PREVIEW
+  // before the request completes. Never touch the textarea here (it shows RAW by default).
+  previewContent = `Extracting preview of ${file.name}...`;
+
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -1272,44 +1319,46 @@ async function previewBinaryFile(file) {
       headers: await authHeaders(),
       body:    formData,
     });
+
     // The file the user is verifying may have changed while we awaited;
     // only apply the preview if this is still the pending file.
     if (pendingBinaryFile !== file) return;
 
     if (res.status === 429) {
       const err = await res.json().catch(() => ({}));
-      inputText.value = '[Sign in required]\nYou\'ve used your free requests.';
-      inputText.removeAttribute('readonly');
+      previewContent = '[Sign in required]\nYou\'ve used your free requests.';
+      if (inputViewMode === 'preview') inputText.value = previewContent;
       handleFreeTierWall(err.detail);
       return;
     }
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      inputText.value =
-        `[Preview unavailable]\n${err.detail?.message || err.detail || 'Could not extract preview.'}`;
+      previewContent = `[Preview unavailable]\n${err.detail?.message || err.detail || 'Could not extract preview.'}`;
+      if (inputViewMode === 'preview') inputText.value = previewContent;
       return;
     }
 
     const data = await res.json();
     if (data.has_text) {
-      inputText.value = data.text;
-      document.getElementById('line-count').textContent = data.line_count;
-      document.getElementById('char-count').textContent = data.char_count;
+      previewContent = data.text;
+      // Update stats only when showing preview
+      if (inputViewMode === 'preview') {
+        inputText.value = previewContent;
+        document.getElementById('line-count').textContent = data.line_count;
+        document.getElementById('char-count').textContent = data.char_count;
+      }
     } else {
       const reason = (data.warnings && data.warnings.length)
         ? data.warnings.join('\n')
         : 'No extractable text found in this file.';
-      inputText.value =
-        `[No extractable text — ${(data.source_format || 'file').toUpperCase()}]\n${reason}`;
+      previewContent = `[No extractable text — ${(data.source_format || 'file').toUpperCase()}]\n${reason}`;
+      if (inputViewMode === 'preview') inputText.value = previewContent;
     }
   } catch (e) {
     if (pendingBinaryFile !== file) return;
-    inputText.value = `[Preview failed]\n${e.message || e}`;
-  } finally {
-    if (pendingBinaryFile === file) {
-      inputText.removeAttribute('readonly');
-    }
+    previewContent = `[Preview failed]\n${e.message || e}`;
+    if (inputViewMode === 'preview') inputText.value = previewContent;
   }
 }
 
