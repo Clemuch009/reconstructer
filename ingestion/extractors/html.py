@@ -21,6 +21,34 @@ _RESIDUAL_TAG_RE = re.compile(
 # MIME types from data: URI prefix
 _DATA_MIME_RE = re.compile(r"^data:(image/[a-zA-Z0-9+\-.]+);base64,(.+)$", re.DOTALL)
 
+# UI chrome detection for <img> tags
+_UI_SRC_RE = re.compile(
+    r'/(profile_images|icons?|favicon|assets|static|ui|sprites?|thumbs?|'
+    r'buttons?|avatars?|badges?|emoji|glyph|toolbar)/',
+    re.IGNORECASE,
+)
+_UI_ALT_RE = re.compile(
+    r'^(avatar|icon|logo|button|emoji|badge|spinner|thumbnail|play|pause|'
+    r'close|menu|arrow|chevron|search|loading|verified|checkmark)$',
+    re.IGNORECASE,
+)
+_UI_MIN_SIZE = 100  # px — images smaller than this in both dimensions are chrome
+
+
+def _is_ui_chrome_img(src: str, alt: str, width, height) -> bool:
+    """Return True if an <img> tag looks like UI chrome rather than content."""
+    if src and not src.startswith("data:") and _UI_SRC_RE.search(src):
+        return True
+    if alt and _UI_ALT_RE.match(alt.strip()):
+        return True
+    if width and height:
+        try:
+            if int(width) <= _UI_MIN_SIZE and int(height) <= _UI_MIN_SIZE:
+                return True
+        except (ValueError, TypeError):
+            pass
+    return False
+
 
 def _strip_residual_html(text: str) -> Tuple[str, List[str]]:
     warnings: List[str] = []
@@ -122,6 +150,7 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
     2. Pre-parse: remove JS hydration blobs
     3. Strip noise tags (nav, aside, header, footer, script, style...)
     4. Extract visuals from <img> tags:
+       - UI chrome filtered out (src path, alt text, small dimensions, chrome parents)
        - data: URI → decode base64 → EmbeddedVisual with raw bytes
        - URL src  → EmbeddedVisual with empty bytes + src as warning
        - Insert [VISUAL: vis_N] placeholder at img position in flow
@@ -135,10 +164,12 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
     - data: URIs fully decoded to raw bytes
     - URL references: placeholder inserted, bytes=b'' (not fetched)
     - Width/height from width/height attributes if present
+    - UI chrome images (icons, avatars, buttons, tiny images) are discarded
     """
     warnings:  List[str] = []
     visuals:   List[EmbeddedVisual] = []
     vis_index: int = 0
+    chrome_discarded: int = 0
 
     try:
         from bs4 import BeautifulSoup
@@ -206,20 +237,40 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         tag.decompose()
 
     # Step 4 — extract visuals from <img> tags
+    # UI chrome images are discarded before creating EmbeddedVisuals.
+    # Chrome signals (any one is sufficient to discard):
+    #   - src path matches known UI/asset patterns (_UI_SRC_RE)
+    #   - alt text matches known chrome labels (_UI_ALT_RE)
+    #   - both width and height are <= _UI_MIN_SIZE px
+    #   - parent is a chrome structural element (nav/header/footer/button/aside)
+    #     Note: nav/header/footer/aside are already stripped in Step 3, so this
+    #     catches <button> and any that survive structural stripping.
     vis_placeholder_map: dict = {}
 
     for img in soup.find_all("img"):
         src = (img.get("src", "") or "").strip()
+        alt = (img.get("alt", "") or "").strip()
 
-        vis_index += 1
-        vid = make_visual_id(vis_index)
-
-        # Get dimensions from attributes
         try:
             width  = int(img.get("width",  0)) or None
             height = int(img.get("height", 0)) or None
         except (ValueError, TypeError):
             width = height = None
+
+        # Chrome filter: structural parent
+        if img.find_parent(["nav", "header", "footer", "button", "aside"]):
+            img.decompose()
+            chrome_discarded += 1
+            continue
+
+        # Chrome filter: src path, alt text, small dimensions
+        if _is_ui_chrome_img(src, alt, width, height):
+            img.decompose()
+            chrome_discarded += 1
+            continue
+
+        vis_index += 1
+        vid = make_visual_id(vis_index)
 
         img_bytes = b""
         mime_type = "image/png"
@@ -263,6 +314,9 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         placeholder = f"__VIS_{vid}__"
         vis_placeholder_map[placeholder] = visual_placeholder(vid)
         img.replace_with(f" {placeholder} ")
+
+    if chrome_discarded:
+        warnings.append(f"{chrome_discarded} UI chrome image(s) discarded (icon/avatar/small)")
 
     # Step 4b — extract SVG elements as visuals
     # Skip UI chrome SVGs: icons with role="presentation", tiny fixed sizes (<=32px),
@@ -327,6 +381,7 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         placeholder = f"__VIS_{vid}__"
         vis_placeholder_map[placeholder] = visual_placeholder(vid)
         svg.replace_with(f" {placeholder} ")
+
     table_csv_map: dict = {}
     table_idx = 0
     for table in soup.find_all("table"):
