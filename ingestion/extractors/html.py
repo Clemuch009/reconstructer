@@ -319,39 +319,54 @@ def extract_html(raw_bytes: bytes) -> ExtractionResult:
         warnings.append(f"{chrome_discarded} UI chrome image(s) discarded (icon/avatar/small)")
 
     # Step 4b — extract SVG elements as visuals
-    # Skip UI chrome SVGs: icons with role="presentation", tiny fixed sizes (<=32px),
-    # or known icon class patterns (ipc-icon, fa-, icon-, bi-)
-    _UI_ICON_CLASS = re.compile(r'\b(ipc-icon|ipc-progress|ipc-watchlist|fa-|icon-|bi-)\b')
-    _UI_ICON_SIZE  = 32  # px — icons at or below this size in both dimensions are UI chrome
+    # General chrome filters — no site-specific class patterns.
+    # An SVG is discarded if it looks like an icon/decoration by universal signals:
+    #   F1: role="presentation" or aria-hidden="true" — explicitly decorative
+    #   F2: hidden via inline style
+    #   F3: small viewBox (both w,h <= 32 units) AND no <title>/<desc> — icon heuristic
+    #       viewBox is checked because icons sized via CSS carry no width/height attrs.
+    #       Content SVGs (charts, diagrams) use large coordinate spaces (e.g. 400x300).
+    #   F4: fixed pixel width/height attributes both <= 32px (fallback for no viewBox)
+    _SVG_ICON_VIEWBOX = 32   # viewBox units threshold
+    _SVG_ICON_PX      = 32   # px attribute threshold
 
     for svg in soup.find_all("svg"):
-        # Filter 1: role="presentation" — decorative/icon SVG
-        if svg.get("role") == "presentation":
+        # F1: explicitly decorative
+        if svg.get("role") == "presentation" or svg.get("aria-hidden") == "true":
             svg.replace_with("")
             continue
 
-        # Filter 2: known UI icon class patterns
-        cls = " ".join(svg.get("class") or [])
-        if _UI_ICON_CLASS.search(cls):
+        # F2: hidden SVG sprite containers
+        style = svg.get("style", "").replace(" ", "")
+        if "width:0" in style or "height:0" in style or "display:none" in style:
             svg.replace_with("")
             continue
 
-        # Filter 3: tiny fixed pixel dimensions — UI icons
-        try:
-            w_raw = str(svg.get("width",  "") or "").replace("px", "").strip()
-            h_raw = str(svg.get("height", "") or "").replace("px", "").strip()
-            if w_raw.replace(".","").isdigit() and h_raw.replace(".","").isdigit():
-                if float(w_raw) <= _UI_ICON_SIZE and float(h_raw) <= _UI_ICON_SIZE:
-                    svg.replace_with("")
-                    continue
-        except Exception:
-            pass
+        # F3: small viewBox + no semantic label
+        viewbox = (svg.get("viewBox") or svg.get("viewbox") or "").strip()
+        if viewbox:
+            parts = viewbox.split()
+            if len(parts) == 4:
+                try:
+                    vb_w, vb_h = float(parts[2]), float(parts[3])
+                    has_label  = bool(svg.find(["title", "desc"]))
+                    if vb_w <= _SVG_ICON_VIEWBOX and vb_h <= _SVG_ICON_VIEWBOX and not has_label:
+                        svg.replace_with("")
+                        continue
+                except ValueError:
+                    pass
 
-        # Filter 4: hidden SVG sprite containers (width:0;height:0 in style)
-        style = svg.get("style", "")
-        if "width:0" in style or "height:0" in style or "display:none" in style.replace(" ", ""):
-            svg.replace_with("")
-            continue
+        # F4: explicit small px dimensions (fallback when no viewBox)
+        if not viewbox:
+            try:
+                w_raw = str(svg.get("width",  "") or "").replace("px", "").strip()
+                h_raw = str(svg.get("height", "") or "").replace("px", "").strip()
+                if w_raw.replace(".", "").isdigit() and h_raw.replace(".", "").isdigit():
+                    if float(w_raw) <= _SVG_ICON_PX and float(h_raw) <= _SVG_ICON_PX:
+                        svg.replace_with("")
+                        continue
+            except Exception:
+                pass
 
         vis_index += 1
         vid       = make_visual_id(vis_index)
