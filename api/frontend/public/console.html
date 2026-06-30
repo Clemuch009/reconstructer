@@ -490,6 +490,7 @@
     overflow-x: auto;
     display: block;
     margin: 8px 0;
+    max-width: 100%;
   }
 
   /* Visual rendering */
@@ -1157,8 +1158,8 @@ function clearInput() {
   pendingBinaryFile = null;
   rawContent        = null;
   previewContent    = null;
-  inputViewMode     = 'raw';
-  setInputMode('raw');
+  inputViewMode     = 'preview';
+  setInputMode('preview');
   document.getElementById('drop-zone').classList.remove('has-file');
   document.getElementById('drop-prompt').textContent = '⬆ DROP FILE OR CLICK TO UPLOAD';
   document.getElementById('file-name').textContent = 'txt, csv, pdf, docx, xlsx, html';
@@ -1183,9 +1184,14 @@ function setInputMode(mode) {
   updateInputStats();
 }
 
-// Binary formats — sent to /ingest/file, not read as text
-// All formats that support visual extraction must be in this set
-const BINARY_EXTENSIONS = new Set(['.pdf', '.docx', '.xlsx', '.html', '.htm', '.csv']);
+// All formats sent to /ingest/file (not the text /ingest endpoint)
+const FILE_INGEST_EXTENSIONS = new Set(['.pdf', '.docx', '.xlsx', '.html', '.htm', '.csv']);
+
+// Formats that cannot be meaningfully displayed as raw text (true binary)
+const TRUE_BINARY_EXTENSIONS  = new Set(['.pdf', '.docx', '.xlsx']);
+
+// Keep alias for any remaining references
+const BINARY_EXTENSIONS = FILE_INGEST_EXTENSIONS;
 
 function getExtension(filename) {
   const m = filename.toLowerCase().match(/\.[^.]+$/);
@@ -1268,25 +1274,57 @@ function handleFileSelection(file) {
 
   const ext = getExtension(file.name);
 
-  if (BINARY_EXTENSIONS.has(ext)) {
-    // Binary/structured file — the raw bytes can't be shown as-is.
-    // RAW mode shows a human-readable file info stub.
-    // PREVIEW mode shows the extracted text from /ingest/file/preview.
+  if (FILE_INGEST_EXTENSIONS.has(ext)) {
     pendingBinaryFile = file;
+    previewContent    = null;
+    rawContent        = null;
 
-    const rawStub = `[Binary file — raw bytes not displayable]\nName:   ${file.name}\nSize:   ${file.size.toLocaleString()} bytes\nType:   ${file.type || ext.toUpperCase().slice(1)}\n\nSwitch to PREVIEW to see the extracted text.`;
-    rawContent = rawStub;
+    if (TRUE_BINARY_EXTENSIONS.has(ext)) {
+      // True binary (PDF, DOCX, XLSX) — raw bytes not readable as text
+      // RAW tab: read as text anyway (shows binary noise but that's correct)
+      // PREVIEW tab: Qrynt extracted text via /ingest/file/preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (pendingBinaryFile !== file) return;
+        rawContent = e.target.result;
+        if (inputViewMode === 'raw') {
+          inputText.value = rawContent;
+          updateInputStats();
+        }
+      };
+      reader.readAsText(file);
 
-    // Default to RAW (show the stub immediately, no network call yet)
-    inputViewMode = 'raw';
-    setInputMode('raw');
-    inputText.value = rawContent;
+      // Default to PREVIEW for true binary — raw is unreadable
+      inputViewMode = 'preview';
+      setInputMode('preview');
+      inputText.value = `Extracting ${file.name}...`;
+      previewBinaryFile(file);
+
+    } else {
+      // Text-based structured file (HTML, CSV) — raw IS readable
+      // RAW tab: full raw file source
+      // PREVIEW tab: Qrynt extracted text via /ingest/file/preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (pendingBinaryFile !== file) return;
+        rawContent = e.target.result;
+        // Default to RAW — the raw source is meaningful
+        inputViewMode = 'raw';
+        setInputMode('raw');
+        inputText.value = rawContent;
+        updateInputStats();
+      };
+      reader.readAsText(file);
+
+      inputViewMode = 'raw';
+      setInputMode('raw');
+      inputText.value = `Loading ${file.name}...`;
+      previewBinaryFile(file);  // load preview in background
+    }
+
     document.getElementById('line-count').textContent = '—';
     document.getElementById('char-count').textContent = file.size.toLocaleString();
     setStatus('idle', `FILE: ${file.name}`);
-
-    // Fetch preview in background — user can switch to PREVIEW tab when ready
-    previewBinaryFile(file);
 
   } else {
     // Plain text — read raw bytes as text and show directly.
@@ -1562,7 +1600,7 @@ function renderHuman(text, visuals) {
     }
   }
 
-  const DIVIDER_RE = /^[─═\-]{10,}$/;
+  const DIVIDER_RE = /^[─═\- ]{10,}$/;
   const lines = text.split('\n');
   let html = '';
   let inTable = false;
@@ -1570,9 +1608,9 @@ function renderHuman(text, visuals) {
 
   function flushTable() {
     if (tableLines.length) {
-      html += '<span class="table-block">' +
+      html += '<div class="table-block">' +
               tableLines.map(l => escHtml(l)).join('\n') +
-              '</span>\n';
+              '</div>\n';
       tableLines = [];
     }
     inTable = false;
@@ -1622,10 +1660,14 @@ function renderHuman(text, visuals) {
         tableLines.push(line);
       } else {
         tableLines.push(line);
-        flushTable();
       }
     } else if (inTable) {
-      tableLines.push(line);
+      if (line.trim() === '') {
+        flushTable();
+        html += '\n';
+      } else {
+        tableLines.push(line);
+      }
     } else {
       html += escHtml(line) + '\n';
     }

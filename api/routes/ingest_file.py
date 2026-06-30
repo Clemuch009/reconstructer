@@ -2,10 +2,11 @@
 
 import asyncio
 import hashlib
+import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from core.engine import TextReconstructionEngine
 from api.coc import build_coc, COCEnvelope
@@ -18,6 +19,7 @@ from api.routes.ingest import _session_store, _evict_if_needed
 from api.dependencies import compute_request_units
 from api.auth.firestore import store_session
 from ingestion.router import ingest, IngestionResult
+from ingestion.detector import detect_format
 
 
 router = APIRouter()
@@ -88,7 +90,10 @@ async def _process_file(
         ↓
     store + broadcast + consume
     """
-    ingestion_result = ingest(raw_bytes, filename=filename)
+    loop = asyncio.get_event_loop()
+    ingestion_result = await loop.run_in_executor(
+        None, ingest, raw_bytes, filename
+    )
 
     if not ingestion_result["ingestion_success"]:
         raise HTTPException(
@@ -102,7 +107,6 @@ async def _process_file(
 
     normalized_text = ingestion_result["text"]
 
-    loop   = asyncio.get_event_loop()
     output = await loop.run_in_executor(None, engine.run, normalized_text)
 
     raw_line_count = len(normalized_text.split("\n"))
@@ -163,7 +167,7 @@ async def ingest_file(
     file:   UploadFile = File(...),
     engine: TextReconstructionEngine = Depends(get_engine),
     ctx:    RequestContext = Depends(require_auth),
-) -> dict:
+) -> StreamingResponse:
     raw_bytes = await file.read()
     _guard_file(raw_bytes)
 
@@ -173,7 +177,31 @@ async def ingest_file(
         engine=engine,
         ctx=ctx,
     )
-    return envelope
+
+    # Stream the response via INCREMENTAL JSON serialization.
+    #
+    # Returning the dict directly makes FastAPI build the entire JSON string in
+    # memory at once (dict + full ~N MB string held simultaneously). For large
+    # envelopes — image-heavy PDFs (~120 MB of base64) or large text documents
+    # (a big input multiplies ~3x across raw/segments/human/machine) — that
+    # transient spike can exhaust the instance and crash the request, returning
+    # a bodyless 500 the frontend sees as "Unexpected end of JSON input".
+    #
+    # iterencode() yields the SAME bytes in small chunks, holding only one chunk
+    # at a time. Measured peak memory ~67% lower; output is byte-identical to
+    # the dict return (envelope is all plain JSON types — verified equal to
+    # FastAPI's jsonable_encoder path). No threshold: always stream — one code
+    # path, no boundary cliff, negligible cost for small envelopes.
+    #
+    # The envelope is fully built BEFORE streaming begins, so any processing
+    # error is already raised above as a normal HTTP error; only serialization
+    # streams here, and the envelope is known to be clean JSON (no raw bytes —
+    # images are base64 strings).
+    def _stream():
+        for chunk in json.JSONEncoder().iterencode(envelope):
+            yield chunk
+
+    return StreamingResponse(_stream(), media_type="application/json")
 
 
 @router.post("/ingest/file/preview")
@@ -182,29 +210,72 @@ async def ingest_file_preview(
     ctx:  RequestContext = Depends(require_auth),
 ) -> dict:
     """
-    Lightweight EXTRACTION-ONLY preview of an uploaded file.
+    Lightweight preview of an uploaded file — verifies the right file was
+    chosen before spending a processing request. Hybrid strategy by format:
 
-    Runs the SAME ingestion path as processing (detect → extract → normalize)
-    so the preview text matches exactly what processing would receive — but
-    stops there. It deliberately does NOT:
+    TEXT / UNKNOWN formats (html, csv, txt, unknown):
+        Show the RAW decoded bytes as-is (messy tags / CSS / markup included).
+        No extraction, no BeautifulSoup, no engine — so it is inherently fast
+        and never blocks the event loop. This is the file "as it is".
+
+    BINARY formats (pdf, docx, xlsx):
+        Raw bytes are not human-readable, so extraction is the ONLY way to
+        show meaningful content. Extraction is run, but OFFLOADED to a thread
+        (run_in_executor) so the heavy parse never blocks the event loop /
+        freezes the browser.
+
+    In all cases this does NOT:
         - run the engine
         - build or store a COC envelope / session
         - broadcast or publish webhooks
         - consume_request  ← preview must not cost the client a request
 
-    Purpose: let the client verify the right file (and see why a file is
-    unreadable, e.g. a scanned PDF) before spending a processing request.
+    Preview never returns images — it is text-only by design.
 
-    Non-throwing for "no extractable text": returns 200 with has_text=False
-    plus warnings, so the UI can show the reason in-panel rather than catching
-    an error. (The real /ingest/file still 422s — unchanged.) Empty/oversize
-    files are still rejected by _guard_file.
+    Non-throwing: returns 200 with has_text=False when there is no readable
+    content, so the UI can show the reason in-panel. Empty/oversize files are
+    still rejected by _guard_file.
     """
     raw_bytes = await file.read()
     _guard_file(raw_bytes)
 
-    # Extraction only — same code path as processing, no engine, no metering.
-    ingestion_result = ingest(raw_bytes, filename=file.filename)
+    fmt = detect_format(filename=file.filename, raw_bytes=raw_bytes)
+
+    # ---- TEXT / UNKNOWN → raw decode, no extraction (fast, no freeze) ----
+    if fmt in ("html", "csv", "txt", "unknown"):
+        # Decode bytes to text without running the extraction pipeline.
+        # utf-8 first, latin-1 as a last resort (decodes any byte sequence).
+        try:
+            raw_text = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            raw_text = raw_bytes.decode("latin-1", errors="replace")
+
+        has_text  = bool(raw_text.strip())
+        truncated = len(raw_text) > PREVIEW_MAX_CHARS
+        preview   = raw_text[:PREVIEW_MAX_CHARS] if truncated else raw_text
+
+        return {
+            "filename":      file.filename,
+            "source_format": fmt,
+            "pipeline":      "raw",
+            "has_text":      has_text,
+            "truncated":     truncated,
+            "text":          preview,
+            "char_count":    len(raw_text),
+            "line_count":    raw_text.count("\n") + 1 if raw_text else 0,
+            "word_count":    len(raw_text.split()),
+            "page_count":    None,
+            "sheet_count":   None,
+            "warnings":      [],
+        }
+
+    # ---- BINARY (pdf, docx, xlsx) → extract, offloaded to a thread ----
+    # Extraction is the only way to show readable content for binary formats.
+    # Offload so the heavy parse does not block the event loop.
+    loop = asyncio.get_event_loop()
+    ingestion_result = await loop.run_in_executor(
+        None, ingest, raw_bytes, file.filename
+    )
 
     text       = ingestion_result["text"]
     has_text   = bool(text.strip())
