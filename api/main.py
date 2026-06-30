@@ -7,9 +7,8 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 
-from api.middleware.auth import rate_limit_headers_middleware
+from api.middleware.auth import RateLimitHeadersMiddleware
 from api.routes.health    import router as health_router
 from api.routes.process   import router as process_router
 from api.routes.document  import router as document_router
@@ -47,10 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(
-    BaseHTTPMiddleware,
-    dispatch=rate_limit_headers_middleware,
-)
+app.add_middleware(RateLimitHeadersMiddleware)
 
 
 # ---------------------------------

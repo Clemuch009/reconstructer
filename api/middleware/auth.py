@@ -220,3 +220,46 @@ async def rate_limit_headers_middleware(request: Request, call_next):
             response.headers[key] = value
 
     return response
+
+
+class RateLimitHeadersMiddleware:
+    """
+    Pure-ASGI replacement for the rate_limit_headers_middleware above.
+
+    Why ASGI instead of BaseHTTPMiddleware:
+    Starlette's BaseHTTPMiddleware buffers the ENTIRE response body before
+    forwarding it — which defeats StreamingResponse. With it in the chain, a
+    streamed /ingest/file response is collected in memory and re-exposed to the
+    platform's response-size cap (Cloud Run's 32 MiB HTTP/1 limit), truncating
+    large envelopes ("Unterminated string in JSON at position ~33554432").
+
+    This middleware injects the same rate-limit headers but does so by editing
+    only the `http.response.start` message (where headers live) and passes every
+    `http.response.body` chunk through UNTOUCHED — so streaming is preserved and
+    large responses are delivered in full.
+
+    It reads the same `ctx` the dependency sets via `request.state.ctx`, which is
+    backed by `scope["state"]["ctx"]`.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                ctx = (scope.get("state") or {}).get("ctx")
+                if ctx is not None:
+                    # message["headers"] is a list of (bytes, bytes) tuples.
+                    headers = message.setdefault("headers", [])
+                    for key, value in ctx.limit_result.headers.items():
+                        headers.append(
+                            (key.encode("latin-1"), str(value).encode("latin-1"))
+                        )
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
