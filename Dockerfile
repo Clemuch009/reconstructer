@@ -17,4 +17,4 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 EXPOSE 8080
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["hypercorn", "api.main:app", "--bind", "0.0.0.0:8080"]
