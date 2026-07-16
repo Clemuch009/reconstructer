@@ -93,6 +93,37 @@ async def require_auth(
     request: Request,
     api_key: Optional[str] = None,
 ) -> RequestContext:
+    # ─── LOCAL TESTING BYPASS ────────────────────────────────────────────
+    # When QRYNT_LOCAL_NO_AUTH=1 is set in the environment, skip all auth and
+    # the Firestore-backed limit check, returning an anonymous starter context.
+    # This exists ONLY so the app can run locally without GCP credentials
+    # (the limit check calls Firestore, which 500s with no credentials).
+    # It is gated on an environment variable — NOT a code constant — so it is
+    # off by default and cannot ship enabled unless the var is explicitly set
+    # in production (don't). Nothing to remember to flip back.
+    import os
+    if os.environ.get("QRYNT_LOCAL_NO_AUTH") == "1":
+        return RequestContext(
+            uid=None,
+            tier="starter",
+            workspace_id=None,
+            is_free_tier=False,
+            is_authenticated=False,
+            key_hash=None,
+            limit_result=LimitCheckResult(
+                allowed=True,
+                tier="starter",
+                uid=None,
+                workspace_id=None,
+                current_count=0,
+                limit=-1,
+                is_free_tier=False,
+                headers={},
+                request=request,
+            ),
+        )
+    # ─────────────────────────────────────────────────────────────────────
+
     api_key = request.headers.get("X-API-Key")
 
     # Web UI session auth: Authorization: Bearer <firebase_id_token>

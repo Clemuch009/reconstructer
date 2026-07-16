@@ -22,6 +22,7 @@ class RoutingSignals(TypedDict):
     pipe_density:         float
     hierarchy_step_ratio: float
     multi_space_ratio:    float
+    column_consistency:   float   # whitespace-separated data-table signal
     prose_score:          float
     is_hierarchy:         bool
     hierarchy_confidence: float
@@ -44,8 +45,38 @@ def _compute_csv_density(text: str) -> float:
 
     Uses csv.reader to handle quoted fields correctly.
     Minimum 3 non-empty, non-marker lines required.
-    All lines must parse to the same column count (>= 3).
+
+    Column-count rule:
+      • >= 3 consistent columns  → table (unchanged; broad and safe)
+      • exactly 2 consistent columns → table ONLY when guarded, because a bare
+        2-column check would misread ordinary prose. "Hello, world" and
+        "456 Freight Way, Chicago" both parse as two consistent columns.
+
+    The 2-column guards (both must hold) are deterministic:
+      1. At least one column below the header row is entirely numeric — real
+         data tables have an amount/qty/price column; prose does not.
+      2. No line uses ", " (space after the delimiter) — CSV writes "a,b";
+         prose writes "a, b".
+
+    This admits invoice line-items ("description,amount") while continuing to
+    reject comma-bearing prose and address lists.
     """
+    _NUMERIC_CELL_RE = re.compile(r"^-?[\d,]*\.?\d+$")
+
+    def _two_column_is_tabular(parsed, block_lines) -> bool:
+        # Guard 2: prose spacing after the delimiter.
+        if any(", " in l for l in block_lines):
+            return False
+        # Guard 1: a fully-numeric column beneath the header.
+        body = parsed[1:]
+        if not body:
+            return False
+        for ci in range(2):
+            vals = [r[ci].strip() for r in body if ci < len(r) and r[ci].strip()]
+            if vals and all(_NUMERIC_CELL_RE.match(v) for v in vals):
+                return True
+        return False
+
     _MARKER_RE = re.compile(
         r"^\[PAGE:\s*\d+\]$"
         r"|^\[WORKBOOK\]$"
@@ -70,7 +101,14 @@ def _compute_csv_density(text: str) -> float:
                 if len(parsed) < 3:
                     continue
                 col_counts = [len(row) for row in parsed]
-                if min(col_counts) >= 3 and max(col_counts) - min(col_counts) == 0:
+                if max(col_counts) - min(col_counts) != 0:
+                    continue
+                width = min(col_counts)
+                # 3+ columns: unchanged, broad and safe.
+                if width >= 3:
+                    return True
+                # Exactly 2 columns: admitted only under the guards above.
+                if width == 2 and delim == "," and _two_column_is_tabular(parsed, block_lines):
                     return True
             except Exception:
                 continue
@@ -150,13 +188,73 @@ VALID_INDENT_STEPS = {2, 4, 8}
 HIERARCHY_STEP_THRESHOLD = 0.50
 
 # KV line pattern — key ≤ 32 chars, colon or equals delimiter
-KV_LINE_RE = re.compile(r"^[\w\.\-]{2,32}\s*[:=]\s*.+")
+# A key-value line: a plausible key (1-3 words of identifier chars, so
+# "Invoice ID:" and "Date Created:" count, not just single-word keys) followed
+# by : or = and a value. This MUST stay consistent with the real kv detector's
+# key gate (KEY_IDENTIFIER_RE) — if the pre-classifier's regex is stricter than
+# the detector, it routes documents to prose that the detector could have
+# structured, discarding structure before the capable detector ever runs.
+KV_LINE_RE = re.compile(r"^[\w\.\-]{1,32}(?: [\w\.\-]{1,32}){0,2}(?: \([^)]{1,12}\))?\s*[:=]\s*.+")
 
 # Tree glyph pattern
 TREE_GLYPH_RE = re.compile(r"[└├─┌┐┘┤┬┴┼│]|^\s*[\+\|]\-\-")
 
 # Multi-space indicator
 MULTI_SPACE_RE = re.compile(r"\s{2,}")
+
+
+_NUM_TOKEN_RE = re.compile(r"^[\$£€¥]?\-?[\d,]+(?:\.\d+)?%?$")
+
+
+_HEADER_LABEL_WORDS = {
+    "description", "item", "items", "quantity", "qty", "price", "rate", "unit",
+    "amount", "total", "cost", "service", "charge", "value", "net", "sum",
+    "details", "line", "type", "volume", "activity", "resource",
+}
+
+def _has_label_header(texts):
+    """True if any line is a PURE-LABEL table header row (>=2 column-label words,
+    at least half the tokens, and no numeric/currency value). Its presence means
+    a following row with only ONE trailing numeric column is still a table row
+    (a 2-column Description|Amount table)."""
+    for t in texts[:6]:
+        toks = t.split()
+        if not toks or len(toks) > 8:
+            continue
+        if any(ch.isdigit() or ch in "$\u00a3\u20ac\u00a5" for ch in t):
+            continue
+        hits = sum(1 for tok in toks if tok.strip(":,").lower() in _HEADER_LABEL_WORDS)
+        if hits >= 2 and hits / len(toks) >= 0.5:
+            return True
+    return False
+
+def _column_consistency_ratio(lines: List[str]) -> float:
+    """Fraction of lines that look like a data-table row: a text description
+    followed by >=2 trailing numeric/currency tokens (quantity, price, amount).
+    Separator-width agnostic — detects single-space-separated tables that the
+    multi-space signal misses. A header row of column labels also counts if it
+    is followed by such rows.
+    """
+    min_nums = 1 if _has_label_header([l for l in lines if l.strip()]) else 2
+    data_like = 0
+    counted   = 0
+    for l in lines:
+        toks = l.split()
+        if len(toks) < 3:
+            continue
+        counted += 1
+        # count trailing numeric/currency tokens
+        trailing_nums = 0
+        for t in reversed(toks):
+            if _NUM_TOKEN_RE.match(t):
+                trailing_nums += 1
+            else:
+                break
+        if trailing_nums >= min_nums:
+            data_like += 1
+    if counted == 0:
+        return 0.0
+    return data_like / counted
 
 
 # ---------------------------------
@@ -271,6 +369,14 @@ def _extract_signals(text: str, lines: List[str]) -> RoutingSignals:
     multi_space_lines = sum(1 for l in lines if MULTI_SPACE_RE.search(l))
     multi_space_ratio = multi_space_lines / total_lines
 
+    # Column-consistency ratio — detects whitespace-separated DATA tables that
+    # single-space delimiters hide from multi_space_ratio. Signature of a data
+    # table: several consecutive lines that each END with one or more numeric /
+    # currency tokens (quantity, price, amount) after a text description —
+    # e.g. "Design Sprint 40 $100.00 $4,000.00". This is separator-width
+    # agnostic: it looks at the token TYPES per line, not the spacing.
+    column_consistency = _column_consistency_ratio(lines)
+
     # Hierarchy verdict — shared, field-agnostic definition (depth-based).
     # Authoritative signal for tree-ness; replaces glyph-character density,
     # which is blind to ascii "+--" trees.
@@ -296,6 +402,7 @@ def _extract_signals(text: str, lines: List[str]) -> RoutingSignals:
         pipe_density=round(pipe_density, 4),
         hierarchy_step_ratio=round(hierarchy_step_ratio, 4),
         multi_space_ratio=round(multi_space_ratio, 4),
+        column_consistency=round(column_consistency, 4),
         prose_score=round(prose_score, 4),
         is_hierarchy=hverdict["is_hierarchy"],
         hierarchy_confidence=round(hverdict["valid_fraction"], 4),
@@ -344,9 +451,10 @@ def _evaluate_candidates(
             signals["pipe_density"] >= TABLE_LOW_THRESHOLD and
             signals["multi_space_ratio"] >= 0.40
         ) or
-        signals["csv_density"] >= 1.0
+        signals["csv_density"] >= 1.0 or
+        signals["column_consistency"] >= 0.5
     ):
-        candidates.append(("TABLE", table_score))
+        candidates.append(("TABLE", max(table_score, signals["column_consistency"] * 0.8)))
         reason_codes.append("TABLE_SIGNATURE_MATCHED")
 
     # Evaluate TREE — independent block
@@ -401,6 +509,7 @@ def _decide_route(
         signals["kv_density"],
         signals["hierarchy_step_ratio"],
         signals["csv_density"],   # CSV/TSV column-consistency signal
+        signals["column_consistency"],  # whitespace-separated data tables
     )
 
     # A confirmed hierarchy (shared definition) always reaches Layer 3 —

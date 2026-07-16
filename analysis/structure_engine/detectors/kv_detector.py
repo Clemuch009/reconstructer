@@ -53,12 +53,24 @@ def _is_invalid_kv_line(normalized: str) -> bool:
 
 # A KV key must be a plausible identifier: bounded length, identifier-like
 # characters only (word chars, dots, dashes), and at least one word char.
-# Rejects keys containing spaces, brackets, or tree markers, and pure-symbol
-# runs — i.e. tree lines ("+-- NODE [Key"), separators ("---"), section labels
-# ("Config (nested madness)"), JSON fragments, and log prefixes that merely
-# happen to contain a colon. This is what stops non-KV lines from being
-# captured as KV pairs.
-KEY_IDENTIFIER_RE = re.compile(r"^(?=.*\w)[\w.\-]{1,40}$")
+# Allows realistic multi-word keys of up to THREE space-separated tokens
+# ("First Name", "Date of Birth", "Prepared by") — these are common in forms
+# and metadata and were previously misclassified as prose (and dropped from the
+# human rendering). The <=3-token bound is what still rejects full sentences
+# that merely precede a colon ("The results were surprising indeed:"), along
+# with brackets, tree markers, and pure-symbol runs — i.e. tree lines
+# ("+-- NODE [Key"), separators ("---"), section labels ("Config (nested
+# madness)"), JSON fragments, and log prefixes. Genuinely ambiguous 2-word
+# phrases ("For example:") are further disambiguated by the surrounding
+# block-level kv-density / value context, not by this key pattern alone.
+# A valid kv key: 1-3 words of identifier chars, optionally followed by a
+# single trailing parenthetical unit/qualifier — "Total Due (USD)", "Tax (0%)",
+# "Amount (net)" — which is a very common invoice/label pattern. The
+# parenthetical is optional and must be at the end; this does not admit
+# arbitrary prose (no internal punctuation runs, still <=3 words before it).
+KEY_IDENTIFIER_RE = re.compile(
+    r"^(?=.*\w)[\w.\-]+(?: [\w.\-]+){0,2}(?: \([^)]{1,12}\))?$"
+)
 
 def _is_valid_kv_key(key: str) -> bool:
     return bool(KEY_IDENTIFIER_RE.match(key))

@@ -404,6 +404,40 @@
 
   #file-input { display: none; }
 
+  /* Explicit profile selector — deliberately prominent */
+  .profile-bar {
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .profile-opt {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    padding: 5px 14px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .profile-opt:hover { color: var(--text); border-color: var(--text-dim); }
+  .profile-opt.active {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+  }
+  .profile-hint {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+
   .process-bar {
     padding: 12px 20px;
     border-top: 1px solid var(--border);
@@ -843,6 +877,16 @@ region: eu-west-1
     </div>
     <input type="file" id="file-input" accept=".txt,.log,.csv,.json,.yaml,.yml,.md,.pdf,.docx,.xlsx,.html,.htm">
 
+    <!-- Explicit profile selector — chooses how the document is interpreted -->
+    <div class="profile-bar">
+      <span class="label">PROCESS AS</span>
+      <button class="profile-opt active" data-profile="generic"
+              onclick="selectProfile('generic')">GENERIC</button>
+      <button class="profile-opt" data-profile="invoice"
+              onclick="selectProfile('invoice')">INVOICE</button>
+      <span class="profile-hint" id="profile-hint">Structure only</span>
+    </div>
+
     <div class="process-bar">
       <button class="btn btn-primary" id="process-btn" onclick="processText()">
         PROCESS →
@@ -867,6 +911,9 @@ region: eu-west-1
       <button class="tab active" onclick="switchTab('human')">HUMAN <span class="help-icon" data-term="human" title="What is HumanAdapter?">?</span></button>
       <button class="tab" onclick="switchTab('machine')">MACHINE <span class="help-icon" data-term="machine" title="What is MachineAdapter?">?</span></button>
       <button class="tab" onclick="switchTab('ai')">AI <span class="help-icon" data-term="ai" title="What is AIAdapter?">?</span></button>
+      <button class="tab" onclick="switchTab('filter')">FILTER</button>
+      <button class="tab" id="tab-btn-invoice" onclick="switchTab('invoice')"
+              style="display:none">INVOICE</button>
     </div>
 
     <!-- Human tab -->
@@ -898,6 +945,35 @@ region: eu-west-1
         <div class="empty-text">AWAITING INPUT</div>
       </div>
       <div class="output-area json" id="ai-output" style="display:none"></div>
+    </div>
+
+    <!-- Filter tab -->
+    <div class="tab-content" id="tab-filter">
+      <div class="empty-state" id="filter-empty">
+        <div class="empty-icon">◈</div>
+        <div class="empty-text">AWAITING INPUT</div>
+      </div>
+      <div id="filter-panel" style="display:none; flex:1; min-height:0; flex-direction:column;">
+        <div class="panel-header" style="gap:8px; flex-wrap:wrap; align-items:center; flex:0 0 auto;">
+          <span class="panel-title">SHOW TYPE:</span>
+          <button class="tab filter-type active" data-ftype="all"       onclick="applyTypeFilter('all')">ALL</button>
+          <button class="tab filter-type"        data-ftype="table"     onclick="applyTypeFilter('table')">TABLE</button>
+          <button class="tab filter-type"        data-ftype="kv"        onclick="applyTypeFilter('kv')">KV</button>
+          <button class="tab filter-type"        data-ftype="prose"     onclick="applyTypeFilter('prose')">PROSE</button>
+          <button class="tab filter-type"        data-ftype="context"   onclick="applyTypeFilter('context')">CONTEXT</button>
+          <button class="tab filter-type"        data-ftype="hierarchy" onclick="applyTypeFilter('hierarchy')">HIERARCHY</button>
+        </div>
+        <div class="output-area json" id="filter-output" style="flex:1; min-height:0;"></div>
+      </div>
+    </div>
+
+    <!-- Invoice tab: validation report from the Invoice Profile -->
+    <div class="tab-content" id="tab-invoice">
+      <div class="empty-state" id="invoice-empty">
+        <div class="empty-icon">◈</div>
+        <div class="empty-text">SELECT INVOICE PROFILE AND PROCESS</div>
+      </div>
+      <div class="output-area" id="invoice-output" style="display:none"></div>
     </div>
 
     <!-- Output footer -->
@@ -1014,7 +1090,17 @@ region: eu-west-1
 </script>
 
 <script>
-const API_BASE = '';
+// ═══════════════════════════════════════════════════════════════════════
+// ⚠️  LOCAL TESTING FLAG — MUST BE FALSE / '' BEFORE DEPLOYING TO PRODUCTION
+// When LOCAL_TESTING is true:
+//   • all API calls go to LOCAL_API_BASE (localhost) instead of same-origin
+//   • auth (signup / token) is bypassed for seamless testing
+// Set LOCAL_TESTING = false to restore normal production behavior.
+// ═══════════════════════════════════════════════════════════════════════
+const LOCAL_TESTING = true;
+const LOCAL_API_BASE = 'http://localhost:8000';
+
+const API_BASE = LOCAL_TESTING ? LOCAL_API_BASE : '';
 let currentSessionId = null;
 let currentResult    = null;
 let currentHuman     = null;
@@ -1037,6 +1123,8 @@ let inputViewMode  = 'raw';   // 'raw' | 'preview'
 // Developer mode: X-API-Key (manual key) overrides session.
 async function authHeaders(base = {}) {
   const headers = { ...base };
+  // LOCAL TESTING: skip all auth — no token, no dev key, no signup wall.
+  if (LOCAL_TESTING) return headers;
   if (devKeyMode) {
     const k = document.getElementById('api-key').value.trim();
     if (k) headers['X-API-Key'] = k;
@@ -1084,6 +1172,8 @@ window.onAuthReady = function() {
 
 // Handle HTTP 429 — adapts message based on whether user is signed in
 function handleFreeTierWall(detail) {
+  // LOCAL TESTING: never show the signup/limit wall.
+  if (LOCAL_TESTING) return;
   try { localStorage.setItem('qrynt_pending_input', inputText.value || ''); } catch (e) {}
 
   const isSignedIn = !!(window.__qryntAuth && window.__qryntAuth.user);
@@ -1403,12 +1493,210 @@ async function previewBinaryFile(file) {
 // Tabs
 function switchTab(tab) {
   activeTab = tab;
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['human','machine','ai'][i] === tab);
+  const tabs = ['human','machine','ai','filter','invoice'];
+  document.querySelectorAll('.tab').forEach((t) => {
+    // Only the main content tabs carry an onclick to switchTab(<name>);
+    // match by the name inside its onclick to avoid index fragility.
+    const oc = t.getAttribute('onclick') || '';
+    const m = oc.match(/switchTab\('(\w+)'\)/);
+    if (m) t.classList.toggle('active', m[1] === tab);
   });
-  document.querySelectorAll('.tab-content').forEach((c, i) => {
-    c.classList.toggle('active', ['human','machine','ai'][i] === tab);
+  tabs.forEach((name) => {
+    const el = document.getElementById('tab-' + name);
+    if (el) el.classList.toggle('active', name === tab);
   });
+  if (tab === 'filter')  renderFilterTab();
+  if (tab === 'invoice') renderInvoiceTab();
+}
+
+// ─── Explicit profile selection ─────────────────────────────────────────
+let currentProfile = 'generic';
+let invoiceResult  = null;
+
+const PROFILE_HINTS = {
+  generic: 'Structure only',
+  invoice: 'Extracts invoice fields + validates totals',
+};
+
+function selectProfile(profile) {
+  currentProfile = profile;
+  document.querySelectorAll('.profile-opt').forEach((b) => {
+    b.classList.toggle('active', b.getAttribute('data-profile') === profile);
+  });
+  document.getElementById('profile-hint').textContent =
+    PROFILE_HINTS[profile] || '';
+  // Show/hide the INVOICE tab to match the selection.
+  const btn = document.getElementById('tab-btn-invoice');
+  btn.style.display = (profile === 'invoice') ? '' : 'none';
+  if (profile !== 'invoice' && activeTab === 'invoice') switchTab('human');
+}
+
+// Fetch and render the profile report for the processed document.
+async function loadProfileReport() {
+  if (currentProfile === 'generic' || !currentSessionId) return;
+  try {
+    const res = await fetch(
+      `${API_BASE}/document/${currentSessionId}/profile/${currentProfile}`,
+      { headers: await authHeaders() }
+    );
+    if (!res.ok) throw new Error(`profile request failed (${res.status})`);
+    invoiceResult = await res.json();
+    renderInvoiceTab();
+  } catch (err) {
+    invoiceResult = null;
+    const out = document.getElementById('invoice-output');
+    out.style.display = '';
+    document.getElementById('invoice-empty').style.display = 'none';
+    out.textContent = `Could not load ${currentProfile} report: ${err.message}`;
+  }
+}
+
+function _esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>]/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function renderInvoiceTab() {
+  const empty = document.getElementById('invoice-empty');
+  const out   = document.getElementById('invoice-output');
+  if (!invoiceResult) { empty.style.display = ''; out.style.display = 'none'; return; }
+  empty.style.display = 'none';
+  out.style.display = '';
+
+  const f  = invoiceResult.fields || {};
+  const v  = invoiceResult.validation || { results: [], summary: {} };
+  const s  = v.summary || {};
+  const items = (invoiceResult.tables && invoiceResult.tables.line_items) || [];
+
+  const issues  = v.results.filter((r) => r.status === 'FAIL');
+  const skipped = v.results.filter((r) => r.status === 'SKIPPED');
+
+  let html = '';
+
+  // Header line: the document's identity
+  const ident = [f.invoice_number, f.vendor, f.invoice_date]
+    .filter(Boolean).map(_esc).join(' · ');
+  html += `<div style="font-size:13px;margin-bottom:14px;">${ident || 'Invoice'}</div>`;
+
+  // Verdict
+  if (issues.length === 0) {
+    html += `<div style="color:var(--green,#3fb950);margin-bottom:14px;">✓ All ${s.passed || 0} checks passed</div>`;
+  } else {
+    html += `<div style="color:var(--red,#f85149);margin-bottom:14px;">⚠ ${issues.length} issue${issues.length > 1 ? 's' : ''} found</div>`;
+  }
+
+  // Issues — the part that carries the value. Show the arithmetic evidence.
+  for (const r of issues) {
+    const e = r.evidence || {};
+    html += `<div style="margin:0 0 12px 0;padding-left:12px;border-left:2px solid var(--red,#f85149);">`;
+    html += `<div>✗ ${_esc(r.rule_id)}</div>`;
+    if (e.expected != null && e.actual != null) {
+      html += `<div style="color:var(--text-dim);font-size:11px;">computed ${_esc(e.actual)} · stated ${_esc(e.expected)}`;
+      if (e.difference != null) html += ` · off by ${_esc(e.difference)}`;
+      html += `</div>`;
+    } else if (e.field) {
+      html += `<div style="color:var(--text-dim);font-size:11px;">field: ${_esc(e.field)}</div>`;
+    } else if (r.reason) {
+      html += `<div style="color:var(--text-dim);font-size:11px;">${_esc(r.reason)}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Skipped — honest reporting: unevaluable, not wrong.
+  for (const r of skipped) {
+    const miss = (r.evidence && r.evidence.missing) || [];
+    html += `<div style="color:var(--text-dim);font-size:11px;margin-bottom:4px;">— ${_esc(r.rule_id)} skipped (missing ${_esc(miss.join(', '))})</div>`;
+  }
+
+  // Resolved fields
+  html += `<div style="margin-top:18px;font-size:11px;color:var(--text-dim);">FIELDS</div>`;
+  const keys = Object.keys(f);
+  if (!keys.length) html += `<div style="color:var(--text-dim);">(none resolved)</div>`;
+  for (const k of keys) {
+    html += `<div><span style="color:var(--text-dim);display:inline-block;min-width:140px;">${_esc(k)}</span>${_esc(f[k])}</div>`;
+  }
+
+  // Line items
+  if (items.length) {
+    html += `<div style="margin-top:18px;font-size:11px;color:var(--text-dim);">LINE ITEMS (${items.length})</div>`;
+    for (const it of items) {
+      const parts = [it.description, it.quantity, it.unit_price, it.amount]
+        .filter((x) => x != null).map(_esc);
+      html += `<div>${parts.join('  ·  ')}</div>`;
+    }
+  }
+
+  out.innerHTML = html;
+}
+
+// ─── Type filter (foundational segment filtering) ───────────────────────
+let currentFilterType = 'all';
+
+function renderFilterTab() {
+  const empty = document.getElementById('filter-empty');
+  const panel = document.getElementById('filter-panel');
+  if (!currentResult) {
+    empty.style.display = '';
+    panel.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  panel.style.display = 'flex';
+  applyTypeFilter(currentFilterType);
+}
+
+function applyTypeFilter(type) {
+  currentFilterType = type;
+  document.querySelectorAll('.filter-type').forEach((b) => {
+    b.classList.toggle('active', b.getAttribute('data-ftype') === type);
+  });
+
+  const segments = currentResult?.payload?.machine_readable?.segments || [];
+  const out = document.getElementById('filter-output');
+
+  // Client-side flatten mirroring analysis/segment_filter.py so testing needs
+  // no round-trip. (The /document/{id}/segments endpoint applies identical
+  // logic server-side.)
+  const canonical = (t) => {
+    if (!t) return t;
+    const n = String(t).toLowerCase();
+    for (const base of ['kv','table','context','hierarchy','prose']) {
+      if (n === base || n.startsWith(base + '_')) return base;
+    }
+    return n;
+  };
+
+  const matches = [];
+  for (const seg of segments) {
+    const segType = canonical(seg.type);
+    const content = seg.content || {};
+    const conf = seg.metadata?.confidence ?? null;
+    if (segType === 'mixed' && content.sub_blocks) {
+      if (type === 'all' || type === 'mixed') {
+        matches.push({ type: 'mixed', segment_id: seg.segment_id, confidence: conf, content });
+      }
+      for (const sub of content.sub_blocks) {
+        const subType = canonical(sub.type);
+        if (type === 'all' || subType === type) {
+          matches.push({ type: subType, segment_id: seg.segment_id, confidence: sub.confidence ?? conf, nested: true, content: sub.content || sub });
+        }
+      }
+    } else {
+      if (type === 'all' || segType === type) {
+        matches.push({ type: segType, segment_id: seg.segment_id, confidence: conf, content });
+      }
+    }
+  }
+
+  // Per-type summary so you can see the distribution at a glance.
+  const byType = {};
+  for (const m of matches) byType[m.type] = (byType[m.type] || 0) + 1;
+  const summary = Object.entries(byType).map(([t, n]) => `${t}:${n}`).join('  ');
+
+  const header =
+    `// ${matches.length} match(es) for type="${type}"\n` +
+    `// breakdown: ${summary || '(none)'}\n\n`;
+  out.textContent = header + JSON.stringify(matches, null, 2);
 }
 
 // Process
@@ -1537,6 +1825,12 @@ async function processText() {
 
     updateStats(currentResult);
     updateCurlSnippet(currentSessionId, document.getElementById('api-key').value.trim() || '<your-key>');
+
+    // If a profile is selected, fetch and show its report, and jump to that tab.
+    if (currentProfile !== 'generic') {
+      await loadProfileReport();
+      switchTab(currentProfile);
+    }
     setStatus('ready', 'READY');
 
   } catch (err) {

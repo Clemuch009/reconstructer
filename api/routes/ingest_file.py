@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -17,7 +18,15 @@ from api.streaming import broadcast_to_sse_clients, publish_webhook
 from api.routes.document import store_coc
 from api.routes.ingest import _session_store, _evict_if_needed
 from api.dependencies import compute_request_units
-from api.auth.firestore import store_session
+from api.auth.firestore import (
+    store_session,
+    create_job,
+    set_job_complete,
+    set_job_failed,
+    get_job,
+    get_user,
+)
+from api.storage import gcs_results
 from ingestion.router import ingest, IngestionResult
 from ingestion.detector import detect_format
 
@@ -107,7 +116,45 @@ async def _process_file(
 
     normalized_text = ingestion_result["text"]
 
-    output = await loop.run_in_executor(None, engine.run, normalized_text)
+    # ── Document partition ────────────────────────────────────────────────
+    # A single upload may contain multiple logical documents (a JSON array of
+    # invoices, a batched file). Partition BEFORE the structure engine so each
+    # logical document is processed independently — the kv/table detectors
+    # never see a blended multi-document blob.
+    #
+    # Backward-compatible by construction: a single-document file yields exactly
+    # one region and the envelope is built exactly as before. Only when >1
+    # region is found does the envelope gain a `documents` list; the primary
+    # (first) region remains the envelope body so every existing consumer keeps
+    # working unchanged.
+    from document_partition import partition
+    from document_partition.json_signals import emit_signals, render_single
+
+    signals = await loop.run_in_executor(None, emit_signals, normalized_text)
+    regions = partition(
+        signals,
+        fallback_content=render_single(normalized_text),
+        source=ingestion_result["source_format"],
+    )
+
+    async def _process_region(region_text: str):
+        out = await loop.run_in_executor(None, engine.run, region_text)
+        rlc = len(region_text.split("\n"))
+        st  = build_session_trace(out, rlc)
+        return out, st
+
+    if len(regions) == 1:
+        # Common case — unchanged behavior.
+        primary_text = regions[0].content if regions[0].content else normalized_text
+        output = await loop.run_in_executor(None, engine.run, primary_text)
+    else:
+        # Multi-document: process each region; primary = first region.
+        region_results = []
+        for reg in regions:
+            out, st = await _process_region(reg.content)
+            region_results.append((reg, out, st))
+        output = region_results[0][1]
+        primary_text = regions[0].content
 
     raw_line_count = len(normalized_text.split("\n"))
     session_trace  = build_session_trace(output, raw_line_count)
@@ -117,6 +164,22 @@ async def _process_file(
         session_trace,
         visuals=ingestion_result["extraction_result"].get("visuals", []),
     )
+
+    # Attach the per-document list ONLY when there is more than one logical
+    # document, so single-document envelopes are byte-for-byte as before.
+    if len(regions) > 1:
+        envelope["documents"] = [
+            {
+                "index":         i,
+                "region_id":     reg.id,
+                "confidence":    reg.confidence,
+                "reason":        reg.reason,
+                "payload":       out,
+                "session_trace": st,
+            }
+            for i, (reg, out, st) in enumerate(region_results)
+        ]
+        envelope["document_count"] = len(regions)
 
     envelope["ingestion_warnings"] = ingestion_result["all_warnings"]
     envelope["ingestion_metadata"] = {
@@ -167,41 +230,145 @@ async def ingest_file(
     file:   UploadFile = File(...),
     engine: TextReconstructionEngine = Depends(get_engine),
     ctx:    RequestContext = Depends(require_auth),
-) -> StreamingResponse:
+) -> dict:
+    """
+    Async file ingestion. Large files (image-heavy PDFs, big HTML) take longer
+    to process than a synchronous HTTP request can wait — the request would time
+    out or the container would be OOM-killed mid-response, severing the body
+    (which the client sees as truncated/invalid JSON, 500/502/503).
+
+    Instead: accept the file, start processing in the BACKGROUND, and return a
+    job_id immediately. The client polls GET /ingest/file/job/{job_id} until the
+    result is ready. The completed envelope is stored in GCS (any autoscaled
+    instance can serve the poll) and streamed back on retrieval.
+
+    Requires Cloud Run "--no-cpu-throttling" so the background task keeps running
+    after this response returns.
+    """
     raw_bytes = await file.read()
     _guard_file(raw_bytes)
 
-    envelope, _ = await _process_file(
-        raw_bytes=raw_bytes,
-        filename=file.filename,
-        engine=engine,
-        ctx=ctx,
+    job_id = uuid.uuid4().hex
+    create_job(job_id, ctx.uid)
+
+    # Fire-and-forget background processing. CPU stays allocated
+    # (--no-cpu-throttling), so this runs to completion after we return.
+    asyncio.create_task(
+        _background_process(
+            job_id=job_id,
+            raw_bytes=raw_bytes,
+            filename=file.filename,
+            engine=engine,
+            ctx=ctx,
+        )
     )
 
-    # Stream the response via INCREMENTAL JSON serialization.
-    #
-    # Returning the dict directly makes FastAPI build the entire JSON string in
-    # memory at once (dict + full ~N MB string held simultaneously). For large
-    # envelopes — image-heavy PDFs (~120 MB of base64) or large text documents
-    # (a big input multiplies ~3x across raw/segments/human/machine) — that
-    # transient spike can exhaust the instance and crash the request, returning
-    # a bodyless 500 the frontend sees as "Unexpected end of JSON input".
-    #
-    # iterencode() yields the SAME bytes in small chunks, holding only one chunk
-    # at a time. Measured peak memory ~67% lower; output is byte-identical to
-    # the dict return (envelope is all plain JSON types — verified equal to
-    # FastAPI's jsonable_encoder path). No threshold: always stream — one code
-    # path, no boundary cliff, negligible cost for small envelopes.
-    #
-    # The envelope is fully built BEFORE streaming begins, so any processing
-    # error is already raised above as a normal HTTP error; only serialization
-    # streams here, and the envelope is known to be clean JSON (no raw bytes —
-    # images are base64 strings).
-    def _stream():
-        for chunk in json.JSONEncoder().iterencode(envelope):
-            yield chunk
+    return {"job_id": job_id, "status": "processing"}
 
-    return StreamingResponse(_stream(), media_type="application/json")
+
+async def _background_process(
+    job_id:    str,
+    raw_bytes: bytes,
+    filename:  str,
+    engine:    TextReconstructionEngine,
+    ctx:       RequestContext,
+) -> None:
+    """
+    Run the full pipeline in the background, store the result in GCS, and update
+    the job's Firestore status. Never raises out — any failure is recorded as a
+    failed job so the client poll can surface it.
+    """
+    try:
+        envelope, _ = await _process_file(
+            raw_bytes=raw_bytes,
+            filename=filename,
+            engine=engine,
+            ctx=ctx,
+        )
+
+        # Retention honors the user's existing storage_settings (enabled /
+        # retention_days / auto_delete). Storage-disabled users (free/starter)
+        # get a short transient window just to retrieve their result.
+        storage_settings = None
+        if ctx.uid:
+            try:
+                user = get_user(ctx.uid)
+                if user:
+                    storage_settings = user.get("storage_settings")
+            except Exception:
+                storage_settings = None
+
+        gcs_path, expires_at = await asyncio.get_event_loop().run_in_executor(
+            None, gcs_results.store_result, job_id, envelope, storage_settings
+        )
+        set_job_complete(job_id, gcs_path, expires_at.isoformat())
+
+    except HTTPException as exc:
+        # Surface a clean processing failure (e.g. 422 unprocessable) to the poll.
+        detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+        set_job_failed(job_id, detail)
+    except Exception as exc:
+        set_job_failed(job_id, str(exc))
+
+
+@router.get("/ingest/file/job/{job_id}")
+async def ingest_file_job(
+    job_id: str,
+    ctx:    RequestContext = Depends(require_auth),
+):
+    """
+    Poll an async ingestion job.
+
+    - processing → {"status": "processing"}        (small, poll again)
+    - failed     → {"status": "failed", "error"}   (small)
+    - complete   → streams the full result envelope from GCS (any size)
+    - expired    → 410 Gone
+    - unknown    → 404
+    """
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job '{job_id}' not found.",
+        )
+
+    state = job.get("status", "processing")
+
+    if state == "processing":
+        return {"job_id": job_id, "status": "processing"}
+
+    if state == "failed":
+        return {
+            "job_id": job_id,
+            "status": "failed",
+            "error":  job.get("error", "unknown error"),
+        }
+
+    # complete — check expiry, then stream the result from GCS.
+    expires_at = job.get("expires_at")
+    if expires_at:
+        from datetime import datetime, timezone
+        try:
+            if datetime.now(timezone.utc) > datetime.fromisoformat(expires_at):
+                raise HTTPException(
+                    status_code=status.HTTP_410_GONE,
+                    detail="Result has expired.",
+                )
+        except ValueError:
+            pass  # malformed timestamp — do not block retrieval on it
+
+    stream = await asyncio.get_event_loop().run_in_executor(
+        None, gcs_results.get_result_stream, job_id
+    )
+    if stream is None:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Result is no longer available.",
+        )
+
+    # Stream the stored envelope straight from GCS — flat memory, any size,
+    # no processing clock (the data is already computed).
+    return StreamingResponse(stream, media_type="application/json")
 
 
 @router.post("/ingest/file/preview")

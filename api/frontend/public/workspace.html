@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qrynt — Invoice Workspace</title>
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Qrynt workspace. Design thesis: a finance ledger that points at
+   what's wrong. Ledger precision (tabular figures, hairline rules,
+   aligned columns) earns trust; the EXCEPTION is the hero — loud,
+   specific, evidenced — while everything reconciled recedes.
+   Palette: ink navy ground, warm paper panels, a single signal red
+   for exceptions and a restrained amber for "needs a look".
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --ink:#12161f;          /* ground */
+  --ink-2:#1a2030;        /* raised panel */
+  --ink-3:#232b3d;        /* hover / input */
+  --line:#2f3849;         /* hairline */
+  --paper:#f5f2ea;        /* document paper */
+  --paper-ink:#1b1b18;    /* text on paper */
+  --text:#e7e9ee;         /* primary on ink */
+  --text-dim:#8a93a6;     /* secondary */
+  --text-faint:#5a6270;   /* faint */
+  --signal:#e5484d;       /* exception red */
+  --signal-bg:#2a1518;    /* exception panel */
+  --amber:#e8a13a;        /* review */
+  --amber-bg:#2a2213;
+  --go:#3fb27f;           /* reconciled green, used sparingly */
+  --go-bg:#14251d;
+  --accent:#6ea8fe;       /* interactive accent (cool, not clay) */
+  --mono:'SF Mono',ui-monospace,'Cascadia Mono','Roboto Mono',Menlo,monospace;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--ink);color:var(--text);
+  font-family:var(--sans);font-size:14px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;height:100vh;overflow:hidden;
+}
+/* tabular figures everywhere numbers live */
+.tnum{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+/* ── top bar ─────────────────────────────────────────────── */
+.topbar{
+  display:flex;align-items:center;gap:20px;
+  padding:0 22px;height:56px;flex-shrink:0;
+  border-bottom:1px solid var(--line);background:var(--ink-2);
+}
+.brand{display:flex;align-items:baseline;gap:9px;font-weight:600;letter-spacing:-0.01em}
+.brand .mark{
+  font-family:var(--mono);font-weight:700;font-size:18px;
+  color:var(--ink);background:var(--text);padding:2px 7px;border-radius:3px;
+  letter-spacing:-0.03em;
+}
+.brand .sub{color:var(--text-dim);font-size:12px;font-weight:400;letter-spacing:0.02em}
+.modes{display:flex;gap:2px;margin-left:8px}
+.mode{
+  font-family:var(--mono);font-size:12px;letter-spacing:0.03em;
+  color:var(--text-dim);background:none;border:1px solid transparent;
+  padding:7px 15px;border-radius:5px;cursor:pointer;transition:all .12s;
+}
+.mode:hover{color:var(--text);background:var(--ink-3)}
+.mode.on{color:var(--ink);background:var(--text);font-weight:600}
+.mode.soon{opacity:.4;cursor:default}
+.mode.soon:hover{background:none;color:var(--text-dim)}
+.mode .tag{font-size:9px;opacity:.7;margin-left:5px}
+.spacer{flex:1}
+.conn{
+  font-family:var(--mono);font-size:11px;color:var(--text-dim);
+  border:1px dashed var(--line);border-radius:5px;padding:6px 12px;
+  display:flex;align-items:center;gap:7px;
+}
+.conn .dot{width:6px;height:6px;border-radius:50%;background:var(--text-faint)}
+
+/* ── layout ──────────────────────────────────────────────── */
+.stage{flex:1;display:flex;min-height:0}
+.inputs{
+  width:44%;min-width:380px;display:flex;flex-direction:column;
+  border-right:1px solid var(--line);
+}
+.results{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--ink)}
+
+/* dual input for reconcile */
+.slots{flex:1;display:flex;flex-direction:column;min-height:0}
+.slot{
+  flex:1;display:flex;flex-direction:column;min-height:0;
+  border-bottom:1px solid var(--line);
+}
+.slot:last-child{border-bottom:none}
+.slot-head{
+  display:flex;align-items:center;gap:10px;padding:11px 18px;flex-shrink:0;
+  border-bottom:1px solid var(--line);background:var(--ink-2);
+}
+.slot-label{
+  font-family:var(--mono);font-size:11px;letter-spacing:0.08em;
+  text-transform:uppercase;color:var(--text-dim);
+}
+.slot-role{
+  font-size:11px;color:var(--text-faint);
+}
+.slot-pick{margin-left:auto}
+.slot-pick select{
+  font-family:var(--mono);font-size:11px;color:var(--text);
+  background:var(--ink-3);border:1px solid var(--line);border-radius:4px;
+  padding:5px 8px;cursor:pointer;
+}
+textarea{
+  flex:1;width:100%;resize:none;border:none;outline:none;
+  background:var(--ink);color:var(--text);
+  font-family:var(--mono);font-size:12.5px;line-height:1.65;
+  padding:16px 18px;
+}
+textarea::placeholder{color:var(--text-faint)}
+.drop-hint{
+  padding:9px 18px;font-size:11px;color:var(--text-faint);
+  border-top:1px dashed var(--line);display:flex;gap:14px;align-items:center;
+}
+.drop-hint b{color:var(--text-dim);font-weight:500}
+
+.run-bar{
+  display:flex;align-items:center;gap:12px;padding:13px 18px;flex-shrink:0;
+  border-top:1px solid var(--line);background:var(--ink-2);
+}
+.run{
+  font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:0.04em;
+  color:var(--ink);background:var(--accent);border:none;border-radius:6px;
+  padding:10px 22px;cursor:pointer;transition:filter .12s;
+}
+.run:hover{filter:brightness(1.08)}
+.run:disabled{opacity:.4;cursor:default}
+.run-note{font-size:11px;color:var(--text-faint)}
+
+/* ── results ─────────────────────────────────────────────── */
+.res-head{
+  padding:15px 22px;border-bottom:1px solid var(--line);flex-shrink:0;
+  display:flex;align-items:center;gap:14px;
+}
+.verdict-chip{
+  font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:0.05em;
+  padding:5px 13px;border-radius:5px;text-transform:uppercase;
+}
+.v-exception{color:var(--signal);background:var(--signal-bg);border:1px solid #4a2226}
+.v-review{color:var(--amber);background:var(--amber-bg);border:1px solid #4a3a1a}
+.v-ok{color:var(--go);background:var(--go-bg);border:1px solid #1e3a2c}
+.v-empty{color:var(--text-dim);background:var(--ink-3);border:1px solid var(--line)}
+.res-sub{font-size:12px;color:var(--text-dim)}
+.res-body{flex:1;overflow-y:auto;padding:22px}
+
+.empty-state{
+  height:100%;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:14px;color:var(--text-faint);text-align:center;
+}
+.empty-state .big{
+  font-family:var(--mono);font-size:13px;letter-spacing:0.04em;color:var(--text-dim);
+}
+.empty-state .em{font-size:12px;max-width:280px;line-height:1.6}
+
+/* section headers in results */
+.sec{margin-bottom:26px}
+.sec-h{
+  font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--text-dim);
+  padding-bottom:9px;margin-bottom:13px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:9px;
+}
+.sec-h .count{
+  font-size:10px;color:var(--text-faint);
+  border:1px solid var(--line);border-radius:20px;padding:1px 8px;
+}
+
+/* EXCEPTION — the hero. loud, specific, evidenced. */
+.exc{
+  border:1px solid #3a1e22;border-left:3px solid var(--signal);
+  background:linear-gradient(90deg,var(--signal-bg),transparent 80%);
+  border-radius:7px;padding:15px 17px;margin-bottom:11px;
+}
+.exc.warn{border-color:#3a2f1a;border-left-color:var(--amber);
+  background:linear-gradient(90deg,var(--amber-bg),transparent 80%)}
+.exc-top{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.exc-tag{
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:0.08em;
+  text-transform:uppercase;color:var(--signal);
+}
+.exc.warn .exc-tag{color:var(--amber)}
+.exc-what{font-weight:600;font-size:13.5px}
+.exc-detail{
+  font-family:var(--mono);font-size:12px;color:var(--text-dim);
+  background:rgba(0,0,0,.22);border-radius:5px;padding:9px 12px;margin-top:8px;
+  line-height:1.7;
+}
+.exc-detail .k{color:var(--text-faint)}
+.exc-detail .diff{color:var(--signal);font-weight:600}
+
+/* dimension strip (reconcile verdict) */
+.dims{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:24px}
+.dim{
+  border:1px solid var(--line);border-radius:7px;padding:12px 12px;background:var(--ink-2);
+}
+.dim-name{
+  font-family:var(--mono);font-size:10px;letter-spacing:0.06em;
+  text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;
+}
+.dim-status{font-family:var(--mono);font-size:12px;font-weight:600}
+.s-pass{color:var(--go)}
+.s-fail{color:var(--signal)}
+.s-nc{color:var(--text-faint)}
+.dim .bar{height:3px;border-radius:2px;margin-top:9px;background:var(--line)}
+.dim.pass .bar{background:var(--go)}
+.dim.fail .bar{background:var(--signal)}
+.dim.nc .bar{background:repeating-linear-gradient(90deg,var(--text-faint) 0 3px,transparent 3px 6px)}
+
+/* recommendation banner */
+.rec{
+  border-radius:8px;padding:16px 18px;margin-bottom:24px;
+  display:flex;align-items:center;gap:15px;
+}
+.rec-never{background:var(--signal-bg);border:1px solid #4a2226}
+.rec-review{background:var(--amber-bg);border:1px solid #4a3a1a}
+.rec-go{background:var(--go-bg);border:1px solid #1e3a2c}
+.rec-icon{font-family:var(--mono);font-size:20px;font-weight:700}
+.rec-never .rec-icon{color:var(--signal)}
+.rec-review .rec-icon{color:var(--amber)}
+.rec-go .rec-icon{color:var(--go)}
+.rec-body .rec-title{font-weight:600;font-size:14px;margin-bottom:2px}
+.rec-body .rec-why{font-size:12px;color:var(--text-dim)}
+
+/* fields table (the extracted data — quiet, receding) */
+.fields{width:100%;border-collapse:collapse}
+.fields td{padding:7px 0;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}
+.fields td.k{color:var(--text-dim);width:150px;font-size:12px}
+.fields td.v{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.lines{width:100%;border-collapse:collapse;margin-top:8px;font-size:12.5px}
+.lines th{
+  font-family:var(--mono);font-size:10px;letter-spacing:0.05em;text-transform:uppercase;
+  color:var(--text-faint);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);
+}
+.lines th.r,.lines td.r{text-align:right}
+.lines td{padding:7px 10px;border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-variant-numeric:tabular-nums}
+.lines td.desc{font-family:var(--sans)}
+
+.check{color:var(--go);font-weight:600}
+.ok-line{display:flex;align-items:center;gap:9px;padding:7px 0;font-size:12.5px;color:var(--text-dim);border-bottom:1px solid var(--line)}
+.ok-line .check{flex-shrink:0}
+
+.foot{padding:11px 22px;border-top:1px solid var(--line);flex-shrink:0;
+  font-size:11px;color:var(--text-faint);font-family:var(--mono);
+  display:flex;gap:16px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="mark">Q</span><span>Qrynt</span><span class="sub">invoice workspace</span></div>
+  <div class="modes" id="modes">
+    <button class="mode on" data-mode="process" onclick="setMode('process')">Process</button>
+    <button class="mode" data-mode="reconcile" onclick="setMode('reconcile')">Reconcile</button>
+    <button class="mode soon" data-mode="dedupe">Deduplicate<span class="tag">soon</span></button>
+    <button class="mode soon" data-mode="queue">Queue<span class="tag">soon</span></button>
+  </div>
+  <div class="spacer"></div>
+  <div class="conn"><span class="dot"></span>Connect a source<span style="opacity:.6">· soon</span></div>
+</div>
+
+<div class="stage">
+  <div class="inputs">
+    <div class="slots" id="slots"><!-- slots injected by mode --></div>
+    <div class="run-bar">
+      <button class="run" id="runBtn" onclick="run()">Process invoice</button>
+      <span class="run-note" id="runNote">Paste an invoice, or load a sample</span>
+      <span class="spacer"></span>
+      <button class="mode" style="font-size:11px" onclick="loadSample()">Load sample</button>
+    </div>
+  </div>
+
+  <div class="results">
+    <div class="res-head">
+      <span class="verdict-chip v-empty" id="verdictChip">no run yet</span>
+      <span class="res-sub" id="resSub">Results appear here</span>
+    </div>
+    <div class="res-body" id="resBody">
+      <div class="empty-state">
+        <div class="big">Nothing processed yet</div>
+        <div class="em">Paste an invoice on the left and run it. Anything that needs your attention shows up first, with the numbers behind it.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <span>deterministic</span><span>evidence-first</span><span id="footMode">mode: process</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State & mode ─────────────────────────────────────────────
+let MODE = 'process';
+const PROFILES = {
+  process:  [{id:'invoice',name:'Invoice'},{id:'purchase_order',name:'Purchase Order'}],
+  reconcile:[{id:'invoice_vs_po',name:'Invoice vs Purchase Order'},{id:'cash_vs_ledger',name:'Cash vs Ledger'}],
+};
+
+function setMode(m){
+  if(m==='dedupe'||m==='queue') return;
+  MODE=m;
+  document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
+  document.getElementById('footMode').textContent='mode: '+m;
+  renderSlots();
+  resetResults();
+}
+
+function renderSlots(){
+  const slots=document.getElementById('slots');
+  if(MODE==='process'){
+    slots.innerHTML=slotHTML('DOCUMENT','the invoice or PO to check','A','invoice',PROFILES.process);
+    document.getElementById('runBtn').textContent='Process invoice';
+    document.getElementById('runNote').textContent='Paste an invoice, or load a sample';
+  }else{
+    slots.innerHTML=
+      slotHTML('SOURCE A','e.g. the invoice','A','invoice',PROFILES.process)+
+      slotHTML('SOURCE B','e.g. the purchase order','B','purchase_order',PROFILES.process);
+    document.getElementById('runBtn').textContent='Reconcile';
+    document.getElementById('runNote').textContent='Paste both documents, or load a sample';
+  }
+}
+
+function slotHTML(label,role,id,defProfile,profiles){
+  const opts=profiles.map(p=>`<option value="${p.id}"${p.id===defProfile?' selected':''}>${p.name}</option>`).join('');
+  return `<div class="slot">
+    <div class="slot-head">
+      <span class="slot-label">${label}</span>
+      <span class="slot-role">${role}</span>
+      <span class="slot-pick"><select id="prof-${id}">${opts}</select></span>
+    </div>
+    <textarea id="ta-${id}" placeholder="Paste ${label.toLowerCase()} here…"></textarea>
+  </div>`;
+}
+
+function resetResults(){
+  setChip('v-empty','no run yet');
+  document.getElementById('resSub').textContent='Results appear here';
+  document.getElementById('resBody').innerHTML=
+    `<div class="empty-state"><div class="big">Nothing processed yet</div>
+     <div class="em">${MODE==='process'
+       ?'Paste an invoice on the left and run it. Anything that needs your attention shows up first, with the numbers behind it.'
+       :'Paste two documents and reconcile them. If something doesn\\'t line up — a partial delivery, a missing line — it leads the results.'}</div></div>`;
+}
+function setChip(cls,txt){const c=document.getElementById('verdictChip');c.className='verdict-chip '+cls;c.textContent=txt;}
+
+// ── Samples (real shapes the engine produces) ────────────────
+function loadSample(){
+  if(MODE==='process'){
+    document.getElementById('ta-A').value=
+`Invoice Number: INV-2026-0042
+Vendor: Acme Supplies Ltd
+Invoice Date: 2026-06-15
+Currency: USD
+
+Description,Quantity,Unit Price,Amount
+Widget A,10,50.00,500.00
+Widget B,5,120.00,600.00
+
+Subtotal: 1100.00
+Tax: 110.00
+Total: 1250.00`;   // deliberately off: 1100+110=1210, not 1250
+  }else{
+    document.getElementById('ta-A').value=
+`Invoice Number: INV-777
+PO Number: PO-5000
+Vendor: Acme Supplies
+Currency: USD
+
+Description,Quantity,Unit Price,Amount
+Mouse,5,20.00,100.00
+Laptop,8,100.00,800.00
+
+Total: 900.00`;
+    document.getElementById('ta-B').value=
+`PO Number: PO-5000
+Vendor: Acme Supplies
+Currency: USD
+
+Description,Quantity,Unit Price,Amount
+Laptop,10,100.00,1000.00
+Mouse,5,20.00,100.00
+
+Total: 1100.00`;
+  }
+}
+
+// ── Run (client-side simulation of the engine output shape) ──
+// NOTE: in production these call the Qrynt API. Here we mirror the exact
+// shapes reconcile_documents() / evaluate() / recommend() return, so the
+// workspace renders real output structure.
+function run(){
+  if(MODE==='process') runProcess();
+  else runReconcile();
+}
+
+function parseDoc(text){
+  // tiny client parser → {fields, lines} mirroring the resolver's Document View
+  const fields={}, lines=[];
+  const num=s=>{const m=String(s).replace(/,/g,'').match(/-?\d*\.?\d+/);return m?parseFloat(m[0]):null;};
+  const aliases={invoice_number:['invoice number','inv ref','invoice no'],po_number:['po number','purchase order'],
+    vendor:['vendor','supplier','provider'],currency:['currency'],subtotal:['subtotal'],tax:['tax','vat'],
+    total:['total','amount due','grand total']};
+  let inTable=false,head=[];
+  text.split('\n').forEach(raw=>{
+    const line=raw.trim();if(!line){inTable=false;return;}
+    if(/^(description|item),/i.test(line)){inTable=true;head=line.split(',').map(s=>s.trim().toLowerCase());return;}
+    if(inTable&&line.includes(',')){
+      const c=line.split(',').map(s=>s.trim());const row={};
+      head.forEach((h,i)=>row[h]=c[i]);
+      lines.push({description:row.description||row.item,quantity:num(row.quantity||row.qty),
+        unit_price:num(row['unit price']||row.rate),amount:num(row.amount)});
+      return;
+    }
+    if(line.includes(':')){
+      const [k,...r]=line.split(':');const key=k.trim().toLowerCase();const val=r.join(':').trim();
+      for(const canon in aliases){if(aliases[canon].includes(key)){fields[canon]=val;break;}}
+    }
+  });
+  return {fields,lines};
+}
+
+function runProcess(){
+  const {fields,lines}=parseDoc(document.getElementById('ta-A').value);
+  // validation rules mirroring the Rules Engine
+  const exc=[],ok=[];
+  const n=s=>s==null?null:parseFloat(String(s).replace(/,/g,''));
+  const sub=n(fields.subtotal),tax=n(fields.tax),tot=n(fields.total);
+  if(sub!=null&&tax!=null&&tot!=null){
+    if(Math.abs((sub+tax)-tot)>0.01)
+      exc.push({tag:'financial',what:'Totals don\\'t balance',
+        detail:`<span class="k">subtotal</span> ${sub.toFixed(2)} <span class="k">+ tax</span> ${tax.toFixed(2)} = ${(sub+tax).toFixed(2)}<br><span class="k">stated total</span> ${tot.toFixed(2)} · <span class="diff">off by ${(tot-(sub+tax)).toFixed(2)}</span>`});
+    else ok.push('Subtotal + tax equals total');
+  }
+  if(lines.length){
+    const ls=lines.reduce((a,l)=>a+(l.amount||0),0);
+    if(sub!=null&&Math.abs(ls-sub)>0.01)
+      exc.push({tag:'financial',what:'Line items don\\'t sum to subtotal',
+        detail:`<span class="k">lines total</span> ${ls.toFixed(2)} · <span class="k">subtotal</span> ${sub.toFixed(2)} · <span class="diff">off by ${(ls-sub).toFixed(2)}</span>`});
+    else if(sub!=null) ok.push('Line items sum to subtotal');
+  }
+  ['invoice_number','vendor','total'].forEach(f=>{
+    if(!fields[f]) exc.push({tag:'missing',what:`${f.replace('_',' ')} is missing`,detail:''});
+    else ok.push(`${f.replace('_',' ')} present`);
+  });
+  renderProcess(fields,lines,exc,ok);
+}
+
+function renderProcess(fields,lines,exc,ok){
+  const has=exc.length>0;
+  setChip(has?'v-exception':'v-ok',has?`${exc.length} exception${exc.length>1?'s':''}`:'clean');
+  document.getElementById('resSub').textContent=
+    (fields.invoice_number||fields.po_number||'Document')+(fields.vendor?' · '+fields.vendor:'');
+  let h='';
+  if(has){
+    h+=`<div class="sec"><div class="sec-h">Needs your attention<span class="count">${exc.length}</span></div>`;
+    exc.forEach(e=>{h+=excHTML(e);});h+=`</div>`;
+  }
+  h+=`<div class="sec"><div class="sec-h">Extracted fields</div><table class="fields">`;
+  ['invoice_number','po_number','vendor','currency','subtotal','tax','total'].forEach(k=>{
+    if(fields[k]!=null)h+=`<tr><td class="k">${k.replace('_',' ')}</td><td class="v">${fields[k]}</td></tr>`;});
+  h+=`</table></div>`;
+  if(lines.length){
+    h+=`<div class="sec"><div class="sec-h">Line items<span class="count">${lines.length}</span></div>
+      <table class="lines"><thead><tr><th class="desc">Description</th><th class="r">Qty</th><th class="r">Unit</th><th class="r">Amount</th></tr></thead><tbody>`;
+    lines.forEach(l=>{h+=`<tr><td class="desc">${l.description||''}</td><td class="r">${l.quantity??''}</td><td class="r">${l.unit_price!=null?l.unit_price.toFixed(2):''}</td><td class="r">${l.amount!=null?l.amount.toFixed(2):''}</td></tr>`;});
+    h+=`</tbody></table></div>`;
+  }
+  if(ok.length){
+    h+=`<div class="sec"><div class="sec-h">Checks passed<span class="count">${ok.length}</span></div>`;
+    ok.forEach(o=>{h+=`<div class="ok-line"><span class="check">✓</span>${o}</div>`;});h+=`</div>`;
+  }
+  document.getElementById('resBody').innerHTML=h;
+}
+
+function runReconcile(){
+  const A=parseDoc(document.getElementById('ta-A').value);
+  const B=parseDoc(document.getElementById('ta-B').value);
+  const n=s=>s==null?null:parseFloat(String(s).replace(/,/g,''));
+  // Identity: po_number + vendor
+  let idPass = A.fields.po_number && B.fields.po_number &&
+    A.fields.po_number.replace(/[^0-9a-z]/gi,'').toLowerCase()===B.fields.po_number.replace(/[^0-9a-z]/gi,'').toLowerCase();
+  // Financial: invoice total <= PO total
+  const at=n(A.fields.total),bt=n(B.fields.total);
+  let finStatus = (at!=null&&bt!=null)?(at<=bt+0.01?'PASS':'FAIL'):'NOT_CHECKED';
+  // Structural: align lines by description
+  const exc=[];
+  let structStatus='NOT_CHECKED',bizStatus='NOT_CHECKED';
+  if(A.lines.length&&B.lines.length){
+    structStatus='PASS';bizStatus='PASS';
+    const bByDesc={};B.lines.forEach((l,j)=>bByDesc[(l.description||'').toLowerCase()]=l);
+    const matchedB=new Set();
+    A.lines.forEach(al=>{
+      const bl=bByDesc[(al.description||'').toLowerCase()];
+      if(!bl){structStatus='FAIL';exc.push({tag:'structural',what:`Invoice line "${al.description}" has no match on B`,detail:''});return;}
+      matchedB.add((al.description||'').toLowerCase());
+      if(al.quantity!=null&&bl.quantity!=null&&Math.abs(al.quantity-bl.quantity)>0.001){
+        bizStatus='FAIL';
+        exc.push({tag:'business',warn:false,what:`${al.description}: quantity discrepancy`,
+          detail:`<span class="k">billed</span> ${al.quantity} · <span class="k">ordered</span> ${bl.quantity} · <span class="diff">${(al.quantity-bl.quantity>0?'+':'')}${(al.quantity-bl.quantity)}</span> — possible partial fulfilment`});
+      }
+    });
+    B.lines.forEach(bl=>{if(!matchedB.has((bl.description||'').toLowerCase())){structStatus='FAIL';exc.push({tag:'structural',what:`PO line "${bl.description}" not billed`,detail:''});}});
+  }
+  if(finStatus==='FAIL')exc.unshift({tag:'financial',what:'Invoice exceeds the purchase order',
+    detail:`<span class="k">invoice</span> ${at?.toFixed(2)} · <span class="k">PO</span> ${bt?.toFixed(2)} · <span class="diff">over by ${(at-bt).toFixed(2)}</span>`});
+  if(!idPass)exc.unshift({tag:'identity',what:'Documents may not be the same transaction',detail:'PO numbers don\\'t match'});
+
+  const dims={identity:idPass?'PASS':'FAIL',financial:finStatus,structural:structStatus,business:bizStatus,compliance:'NOT_CHECKED'};
+  renderReconcile(dims,exc,A,B);
+}
+
+function renderReconcile(dims,exc,A,B){
+  const anyFail=Object.values(dims).includes('FAIL');
+  const anyNC=Object.values(dims).includes('NOT_CHECKED');
+  const overall=anyFail?'EXCEPTION':(anyNC?'INCOMPLETE':'RECONCILED');
+  setChip(anyFail?'v-exception':(anyNC?'v-review':'v-ok'),overall.toLowerCase());
+  document.getElementById('resSub').textContent=
+    (A.fields.invoice_number||'A')+'  ↔  '+(B.fields.po_number||'B');
+
+  // recommendation (mirrors approval engine: fail-closed)
+  let rec,recCls,recWhy;
+  if(anyFail){rec='Manual review';recCls='rec-review';recWhy='A checked dimension failed — a human should authorize.';}
+  else if(anyNC){rec='Manual review';recCls='rec-review';recWhy='Can\\'t establish full safety — some dimensions weren\\'t verified (fail-closed).';}
+  else{rec='Recommend approve';recCls='rec-go';recWhy='Every dimension positively passed with evidence.';}
+  const recIcon=recCls==='rec-go'?'✓':(recCls==='rec-never'?'✕':'▲');
+
+  let h=`<div class="rec ${recCls}"><span class="rec-icon">${recIcon}</span>
+    <div class="rec-body"><div class="rec-title">${rec}</div><div class="rec-why">${recWhy}</div></div></div>`;
+
+  h+=`<div class="dims">`;
+  ['identity','financial','structural','business','compliance'].forEach(d=>{
+    const s=dims[d];const cls=s==='PASS'?'pass':(s==='FAIL'?'fail':'nc');
+    const sc=s==='PASS'?'s-pass':(s==='FAIL'?'s-fail':'s-nc');
+    h+=`<div class="dim ${cls}"><div class="dim-name">${d}</div>
+      <div class="dim-status ${sc}">${s==='NOT_CHECKED'?'not checked':s.toLowerCase()}</div><div class="bar"></div></div>`;
+  });
+  h+=`</div>`;
+
+  if(exc.length){
+    h+=`<div class="sec"><div class="sec-h">Needs your attention<span class="count">${exc.length}</span></div>`;
+    exc.forEach(e=>{h+=excHTML(e);});h+=`</div>`;
+  }else{
+    h+=`<div class="sec"><div class="ok-line"><span class="check">✓</span>Every checked dimension aligned</div></div>`;
+  }
+  document.getElementById('resBody').innerHTML=h;
+}
+
+function excHTML(e){
+  return `<div class="exc${e.warn?' warn':''}">
+    <div class="exc-top"><span class="exc-tag">${e.tag}</span><span class="exc-what">${e.what}</span></div>
+    ${e.detail?`<div class="exc-detail">${e.detail}</div>`:''}
+  </div>`;
+}
+
+// init
+renderSlots();
+</script>
+</body>
+</html>

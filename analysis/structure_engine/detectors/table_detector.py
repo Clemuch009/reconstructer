@@ -408,6 +408,108 @@ def _score_csv(
 # Core
 # ---------------------------------
 
+def _parse_token_type_table(
+    lines: List[LineObject],
+) -> Tuple[Optional[List[str]], List[List[str]], int]:
+    """
+    Parse a whitespace-separated DATA table by TOKEN TYPE rather than column
+    position. A data row is: a text description followed by a run of trailing
+    numeric/currency tokens (quantity, price, amount). This handles single-space
+    separated tables ("Design Sprint 40 $100.00 $4,000.00") that positional
+    alignment can't split.
+
+    Row shape: [description, num1, num2, ...] — description is everything before
+    the first token of the trailing numeric run; the numeric tokens become the
+    remaining columns. The header row (leading line of non-numeric labels) is
+    used if its column count is compatible.
+    """
+    ne = _non_empty(lines)
+    if len(ne) < 2:
+        return None, [], 0
+
+    # A pure-label header row ("Description Amount") tells us this really is a
+    # table, which lets us accept rows with only ONE trailing numeric column
+    # (a 2-column Description|Amount table). Without a header we stay
+    # conservative and require >=2 numeric columns, so prose lines that happen
+    # to end in a number are not mistaken for table rows.
+    def _line_text(l):
+        return l["normalized"] if "normalized" in l else " ".join(l.get("tokens", []))
+
+    def _is_label_header(text: str) -> bool:
+        toks = text.split()
+        if not toks or len(toks) > 8:
+            return False
+        if _NUM_TOKEN_RE.search(text) or any(ch.isdigit() or ch in "$£€¥" for ch in text):
+            return False
+        hits = sum(1 for t in toks if t.strip(":,").lower() in _HEADER_LABEL_WORDS)
+        return hits >= 2 and hits / len(toks) >= 0.5
+
+    has_header = _is_label_header(_line_text(ne[0]))
+    min_nums = 1 if has_header else 2
+
+    def _split_row(text: str) -> Optional[List[str]]:
+        toks = text.split()
+        if len(toks) < (2 if has_header else 3):
+            return None
+        # find the trailing run of numeric/currency tokens
+        k = 0
+        for t in reversed(toks):
+            if _NUM_TOKEN_RE.match(t):
+                k += 1
+            else:
+                break
+        if k < min_nums:
+            return None
+        desc = " ".join(toks[:len(toks) - k])
+        nums = toks[len(toks) - k:]
+        if not desc:
+            return None
+        return [desc] + nums
+
+    rows: List[List[str]] = []
+    for line in ne:
+        text = line["normalized"] if "normalized" in line else " ".join(line.get("tokens", []))
+        r = _split_row(text)
+        if r is not None:
+            rows.append(r)
+
+    if len(rows) < 1:
+        return None, [], 0
+
+    # consistent column count across data rows (allow the description to hold
+    # varying words; the numeric column count must match)
+    num_counts = [len(r) - 1 for r in rows]
+    if len(set(num_counts)) != 1:
+        return None, [], 0
+    col_count = num_counts[0] + 1
+    if col_count < MIN_COLUMNS:
+        return None, [], 0
+
+    # header: first non-empty line whose tokens are mostly non-numeric labels
+    headers = None
+    first_text = ne[0]["normalized"] if "normalized" in ne[0] else " ".join(ne[0].get("tokens", []))
+    first_toks = first_text.split()
+    if first_toks and _split_row(first_text) is None:
+        # looks like a label row — map it to col_count columns:
+        # last (col_count-1) tokens are the numeric-column labels; the rest are
+        # the description label.
+        if len(first_toks) >= col_count:
+            nlabels = col_count - 1
+            headers = [" ".join(first_toks[:len(first_toks) - nlabels])] + first_toks[len(first_toks) - nlabels:]
+
+    return headers, rows, col_count
+
+
+_NUM_TOKEN_RE = re.compile(r"^[\$£€¥]?\-?[\d,]+(?:\.\d+)?%?$")
+
+# Column-label words used to recognise a pure-label table header row.
+_HEADER_LABEL_WORDS = {
+    "description", "item", "items", "quantity", "qty", "price", "rate", "unit",
+    "amount", "total", "cost", "service", "charge", "value", "net", "sum",
+    "details", "line", "type", "volume", "activity", "resource",
+}
+
+
 def detect_table(lines: List[LineObject]) -> Optional[TableResult]:
     """
     Detect and parse table from LineObjects.
@@ -440,9 +542,29 @@ def detect_table(lines: List[LineObject]) -> Optional[TableResult]:
 
     pipe = _pipe_density(lines)
 
-    # Parse both
+    # Parse candidates
     p_headers, p_rows, p_cols = _parse_pipe_table(lines)
     a_headers, a_rows, a_cols, align_q = _parse_aligned_table(lines)
+    # Token-type parse: splits single-space data rows by token type. Preferred
+    # when positional alignment produces a degenerate result (it often merges a
+    # whole single-space row into one cell, yielding too few columns) — OR when
+    # a pure-label header row tells us the TRUE column count and the token-type
+    # parse matches it. The latter matters because positional alignment can
+    # report MORE columns than really exist by splitting a phrase mid-way
+    # ("Cloud Architecture | None | Consulting (Phase | 1) $1,000.00"), which
+    # would otherwise beat a correct 2-column parse on column count alone.
+    t_headers, t_rows, t_cols = _parse_token_type_table(lines)
+    header_authoritative = bool(t_headers) and len(t_headers) == t_cols
+    if t_rows and (t_cols > max(a_cols, p_cols) or header_authoritative):
+        return TableResult(
+            region_type="table",
+            table_type="aligned",
+            headers=t_headers,
+            rows=t_rows,
+            col_count=t_cols,
+            row_count=len(t_rows),
+            confidence=0.72,
+        )
 
     pipe_score    = _score_pipe(p_cols, len(p_rows), p_headers is not None, pipe)
     aligned_score = _score_aligned(a_cols, len(a_rows), a_headers is not None, align_q)
@@ -467,6 +589,19 @@ def detect_table(lines: List[LineObject]) -> Optional[TableResult]:
         confidence = aligned_score
 
     if not rows or col_count < MIN_COLUMNS:
+        # Fallback: token-type parser for single-space data tables that
+        # positional alignment can't split ("Design Sprint 40 $100 $4,000").
+        t_headers, t_rows, t_cols = _parse_token_type_table(lines)
+        if t_rows and t_cols >= MIN_COLUMNS:
+            return TableResult(
+                region_type="table",
+                table_type="aligned",
+                headers=t_headers,
+                rows=t_rows,
+                col_count=t_cols,
+                row_count=len(t_rows),
+                confidence=0.7,
+            )
         return None
 
     return TableResult(

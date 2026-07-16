@@ -765,3 +765,61 @@ def delete_all_sessions(uid: str) -> int:
         count += 1
 
     return count
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Async file-ingestion jobs
+# ─────────────────────────────────────────────────────────────────────────
+#
+# File uploads are processed asynchronously: POST /ingest/file returns a
+# job_id immediately, a background task processes the file, and the client
+# polls GET /ingest/file/job/{job_id} until the job is complete or failed.
+# These four functions are the job's lifecycle in a top-level `jobs` collection.
+
+JOBS_COL = "jobs"
+
+# job status values
+JOB_PROCESSING = "processing"
+JOB_COMPLETE   = "complete"
+JOB_FAILED     = "failed"
+
+
+def create_job(job_id: str, uid: str) -> None:
+    """Record a new ingestion job as processing. Called immediately on upload,
+    before the background task starts, so the first client poll always finds it."""
+    db = _get_db()
+    db.collection(JOBS_COL).document(job_id).set({
+        "job_id":     job_id,
+        "uid":        uid,
+        "status":     JOB_PROCESSING,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def set_job_complete(job_id: str, result_path: str, expires_at: str) -> None:
+    """Mark a job complete and record where its result is stored and when that
+    result expires. Uses update() to preserve the created_at/uid fields."""
+    db = _get_db()
+    db.collection(JOBS_COL).document(job_id).update({
+        "status":       JOB_COMPLETE,
+        "result_path":  result_path,
+        "expires_at":   expires_at,
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def set_job_failed(job_id: str, detail: str) -> None:
+    """Mark a job failed with a human-readable reason (surfaced on poll)."""
+    db = _get_db()
+    db.collection(JOBS_COL).document(job_id).update({
+        "status":     JOB_FAILED,
+        "error":      detail,
+        "failed_at":  datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def get_job(job_id: str) -> Optional[dict]:
+    """Read a job's current state for polling. Returns None if unknown."""
+    db  = _get_db()
+    doc = db.collection(JOBS_COL).document(job_id).get()
+    return doc.to_dict() if doc.exists else None

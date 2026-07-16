@@ -1,5 +1,6 @@
 # core/rules.py
 
+import re
 from typing import Dict, Any, List, Optional
 from utils.context import get_local_window, compute_local_density
 
@@ -57,14 +58,67 @@ def rule_list_transition(
     return None
 
 
+def _looks_like_kv_line(line: str) -> bool:
+    """
+    Conservative, local test for a `key: value` line.
+
+    Deliberately mirrors (rather than imports) the kv detector's key rule: this
+    module sits below the structure engine, so importing from it would invert
+    the layering. Kept strict so prose that merely contains a colon
+    ("Note: the results were surprising and required further study") is NOT
+    treated as kv — the key must be a short identifier-like token sequence.
+    """
+    stripped = line.strip()
+    if not stripped or ":" not in stripped:
+        return False
+    key, _, value = stripped.partition(":")
+    key = key.strip()
+    value = value.strip()
+    if not key or not value:
+        return False
+    # Key: 1-3 word-ish tokens, no sentence punctuation.
+    return bool(_KV_KEY_RE.match(key))
+
+
+_KV_KEY_RE = re.compile(r"^(?=.*\w)[\w.\-#]+(?: [\w.\-#]+){0,2}$")
+
+
+def _neighbours_are_kv(text: str, pos: int) -> bool:
+    """
+    True when the non-empty line immediately before `pos` and the non-empty line
+    immediately after `pos` are both kv-shaped.
+
+    A blank line between two `key: value` lines is FORMATTING (an HTML <p> gap,
+    a DOCX paragraph gap), not a paragraph boundary. Splitting there fragments
+    a single logical kv block into per-line segments, which then classify as
+    prose/context and never cohere into a kv_block. Blank lines between prose
+    paragraphs, or between a kv line and a prose paragraph, still split.
+    """
+    before = text[:pos].split("\n")
+    after  = text[pos:].split("\n")
+
+    prev_line = next((l for l in reversed(before) if l.strip()), None)
+    next_line = next((l for l in after if l.strip()), None)
+    if prev_line is None or next_line is None:
+        return False
+    return _looks_like_kv_line(prev_line) and _looks_like_kv_line(next_line)
+
+
 def rule_empty_line(
     sig: Dict[str, Any],
-    #text: str,
-    #features: Dict[str, float],
+    text: str,
 ) -> Optional[RuleDecision]:
-
+    """
+    A blank line is normally a paragraph boundary. It is NOT a boundary when it
+    merely separates two key-value lines — a shape produced by every HTML <p>
+    and DOCX paragraph. Suppressing the split there lets adjacent kv lines
+    cohere into one kv_block instead of fragmenting into prose/context.
+    """
     if sig["type"] != "empty_line":
         return None
+
+    if _neighbours_are_kv(text, sig["end"]):
+        return RuleDecision(False, "empty_line_within_kv", PRIORITY["empty_line"])
 
     return RuleDecision(True, "empty_line", PRIORITY["empty_line"])
 
@@ -132,7 +186,7 @@ def evaluate_position(
     for rule in [
         lambda: rule_separator(sig),
         lambda: rule_list_transition(pos, boundary),
-        lambda: rule_empty_line(sig), #this block has been modified from rule_empty_line(sig, text, features), dering debugging
+        lambda: rule_empty_line(sig, text),
         lambda: rule_sentence_end(sig),
         lambda: rule_newline(sig),
     ]:

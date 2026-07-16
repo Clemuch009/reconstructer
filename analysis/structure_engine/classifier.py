@@ -73,6 +73,60 @@ def _block_score(
 # Evidence aggregation — bounded
 # ---------------------------------
 
+def _suppress_redundant_context(
+    blocks: List[StructuredBlock],
+) -> List[StructuredBlock]:
+    """
+    `context` is the generic fallback signal for line-structured content. The
+    context detector annotates each line (kv / log / telemetry / prose), so a
+    block of key-value lines is emitted BOTH as a specific `kv` block AND as a
+    generic `context` block covering the SAME lines. Downstream this reads as
+    two near-tied competing labels (kv_block vs context), tripping the
+    high-entropy / small-gap gate and forcing an otherwise-pure kv region to
+    `mixed`. Same shadowing can affect table/hierarchy regions.
+
+    Fix: drop a `context` block when its line span is substantially covered by a
+    more-specific block (kv, table, tree/hierarchy). The specific detector has
+    already claimed that content; the generic context copy is redundant and
+    should not compete. Genuinely-mixed regions are unaffected — a context block
+    that covers DIFFERENT lines than the specific blocks (real prose/log mixed
+    in) is kept, so multi-type regions still resolve to `mixed`.
+
+    Overlap is measured as the fraction of the context block's own lines that
+    fall inside any specific block's span; >= OVERLAP_SUPPRESS_RATIO means the
+    context block is redundant.
+    """
+    SPECIFIC_SOURCES = {"kv", "table", "tree_structure"}
+    OVERLAP_SUPPRESS_RATIO = 0.8
+
+    specific_spans = [
+        (b["start_line"], b["end_line"])
+        for b in blocks
+        if b["source"] in SPECIFIC_SOURCES
+    ]
+    if not specific_spans:
+        return blocks
+
+    def _covered_fraction(ctx_start: int, ctx_end: int) -> float:
+        ctx_lines = set(range(ctx_start, ctx_end + 1))
+        if not ctx_lines:
+            return 0.0
+        covered = set()
+        for s, e in specific_spans:
+            covered |= (ctx_lines & set(range(s, e + 1)))
+        return len(covered) / len(ctx_lines)
+
+    kept: List[StructuredBlock] = []
+    for b in blocks:
+        if b["source"] == "context":
+            frac = _covered_fraction(b["start_line"], b["end_line"])
+            if frac >= OVERLAP_SUPPRESS_RATIO:
+                # Redundant with a specific block — drop it.
+                continue
+        kept.append(b)
+    return kept
+
+
 def _aggregate_evidence(
     blocks:      List[StructuredBlock],
     total_lines: int,
@@ -274,6 +328,13 @@ def classify(
             evidence={},
             density_profile={},
         )
+
+    # Suppress redundant `context` blocks that merely shadow a specific-type
+    # block (kv/table/hierarchy) on the same lines, BEFORE computing evidence
+    # AND entropy — otherwise the shadow context inflates entropy and forces an
+    # otherwise-pure region to `mixed`. Genuinely-mixed regions keep their
+    # context (it covers different lines) and still resolve to `mixed`.
+    blocks = _suppress_redundant_context(blocks)
 
     evidence        = _aggregate_evidence(blocks, total_lines)
     density_profile = _build_density_profile(blocks)

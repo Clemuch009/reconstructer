@@ -123,7 +123,24 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                     except Exception:
                         page_text = page.extract_text() or ""
                 else:
-                    page_text = page.extract_text() or ""
+                    # Structure-preserving: recover reading order from word
+                    # coordinates BEFORE flattening. On a two-column layout,
+                    # extract_text() concatenates side-by-side columns onto one
+                    # line, burying key-values mid-line. reconstruct_reading_order
+                    # returns column-corrected text when it detects columns, else
+                    # None → fall back to normal extraction (single-column
+                    # unchanged, no regression).
+                    page_text = None
+                    try:
+                        from ingestion.extractors.pdf_columns import reconstruct_reading_order
+                        words = page.extract_words()
+                        recovered = reconstruct_reading_order(words, page.width)
+                        if recovered:
+                            page_text = recovered
+                    except Exception:
+                        page_text = None
+                    if page_text is None:
+                        page_text = page.extract_text() or ""
 
                 if page_text and page_text.strip():
                     page_parts.append(page_text.strip())
@@ -171,6 +188,18 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                 # A) Raster images
                 try:
                     for img in page.images:
+                        # Size gate: skip sub-32px fragments. PowerPoint/vector
+                        # PDFs emit many 6x6-style specks that are not real
+                        # content; extracting them inflates the visual count and
+                        # payload. Real figures/diagrams/matrices are far larger
+                        # (hundreds of px), so a 32px floor removes only noise.
+                        # Applied before any extraction work so skipped fragments
+                        # cost nothing and never consume a visual id.
+                        _w = int(img.get("width",  0) or 0)
+                        _h = int(img.get("height", 0) or 0)
+                        if _w < _MIN_VISUAL_DIM or _h < _MIN_VISUAL_DIM:
+                            continue
+
                         vis_index += 1
                         vid = make_visual_id(vis_index)
 

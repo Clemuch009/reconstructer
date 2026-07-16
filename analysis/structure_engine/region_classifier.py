@@ -66,6 +66,55 @@ def _multi_space_ratio(lines: List[LineObject]) -> float:
     return sum(1 for l in ne if MULTI_SPACE_RE.search(l["normalized"])) / len(ne)
 
 
+_NUM_TOKEN_RE = __import__("re").compile(r"^[\$£€¥]?\-?[\d,]+(?:\.\d+)?%?$")
+
+
+_HEADER_LABEL_WORDS = {
+    "description", "item", "items", "quantity", "qty", "price", "rate", "unit",
+    "amount", "total", "cost", "service", "charge", "value", "net", "sum",
+    "details", "line", "type", "volume", "activity", "resource",
+}
+
+def _has_label_header(texts):
+    """True if any line is a PURE-LABEL table header row (>=2 column-label words,
+    at least half the tokens, and no numeric/currency value). Its presence means
+    a following row with only ONE trailing numeric column is still a table row
+    (a 2-column Description|Amount table)."""
+    for t in texts[:6]:
+        toks = t.split()
+        if not toks or len(toks) > 8:
+            continue
+        if any(ch.isdigit() or ch in "$\u00a3\u20ac\u00a5" for ch in t):
+            continue
+        hits = sum(1 for tok in toks if tok.strip(":,").lower() in _HEADER_LABEL_WORDS)
+        if hits >= 2 and hits / len(toks) >= 0.5:
+            return True
+    return False
+
+def _numeric_column_ratio(lines: List[LineObject]) -> float:
+    """Fraction of non-empty lines that look like a data-table row: >=3 tokens
+    ending in a run of >=2 numeric/currency tokens. Separator-width agnostic —
+    detects single-space line-item tables the multi-space gate misses."""
+    ne = _non_empty(lines)
+    if not ne:
+        return 0.0
+    min_nums = 1 if _has_label_header([l["normalized"] for l in ne]) else 2
+    data_like = 0
+    for l in ne:
+        toks = l["normalized"].split()
+        if len(toks) < 3:
+            continue
+        trailing = 0
+        for t in reversed(toks):
+            if _NUM_TOKEN_RE.match(t):
+                trailing += 1
+            else:
+                break
+        if trailing >= min_nums:
+            data_like += 1
+    return data_like / len(ne)
+
+
 # ---------------------------------
 # Signal extractors
 # ---------------------------------
@@ -311,6 +360,15 @@ def _classify(lines: List[LineObject]) -> Tuple[str, float]:
     if glyph >= 0.30 and len(ne) >= MIN_TABLE_LINES:
         conf = round(glyph, 2)
         return "structured_block", conf
+
+    # --- numeric-column data table (single-space separated) ---
+    # A data table whose rows end in a consistent run of numeric/currency tokens
+    # (quantity, price, amount) is a table even with SINGLE-space separation,
+    # which the multi_space gate below misses. This is the signature of invoice
+    # / PO line-item tables extracted from PDFs: "Design Sprint 40 $100 $4,000".
+    num_col = _numeric_column_ratio(lines)
+    if num_col >= 0.5 and len(ne) >= MIN_TABLE_LINES:
+        return "table_candidate", round(max(0.6, num_col), 2)
 
     # --- space-aligned table candidate ---
     # Detects thread dumps, metrics tables, and docx/extracted tables that use
