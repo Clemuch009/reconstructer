@@ -105,6 +105,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import hashlib
 import json
+import uuid
 
 # Bump when canonicalisation semantics change, so stored beliefs can be spotted
 # as stale and re-derived from raw. (This session alone would have bumped it 5x.)
@@ -169,6 +170,31 @@ def fields_checksum(raw_fields: Dict[str, Any]) -> str:
     a stable hash of the asserted values."""
     blob = json.dumps(raw_fields, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode()).hexdigest()
+
+
+def new_assertion_id(label: str = "") -> str:
+    """A fresh identity for ONE assertion.
+
+    Identity is per SUBMISSION, not per content and not per filename:
+
+      * Per filename is broken. "1·invoice.pdf" repeats every month, and a
+        Firestore write keyed on it OVERWRITES the previous assertion —
+        append-only violated, history destroyed, silently. (InMemoryRegistry
+        appends to a list, so local runs never show this.)
+
+      * Per content (a checksum) is also broken, and worse. The same file
+        submitted twice IS the duplicate we exist to catch. Key on the checksum
+        and the second submission collides with the first, gets skipped as
+        "self", and the duplicate becomes invisible.
+
+    So: unique per assertion. The checksum still travels on the record as a
+    FIELD and is indexed as a key, which is what actually matches a re-submitted
+    file — two assertions, one checksum, correctly flagged.
+
+    The label is kept as a prefix purely so ids are legible in evidence output.
+    """
+    slug = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in (label or "doc"))[:40]
+    return f"{slug}·{uuid.uuid4().hex[:10]}"
 
 
 def build_record(

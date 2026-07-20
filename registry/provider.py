@@ -44,6 +44,95 @@ from registry.keys import registry_keys
 from relationship_engine.candidates import InvoiceRecord
 
 
+class DryRunOverlay:
+    """A registry you can write to, whose writes never land.
+
+    ── Why a dry run needs this at all ───────────────────────────────────
+    "Would this invoice create a duplicate?" is a real question a finance team
+    asks before they commit to anything, and it must be answerable WITHOUT the
+    document entering history. But the answer has to be the one a real run would
+    give, or the simulation is worthless — and a real run commits the assertion
+    BEFORE evaluating it, precisely so that siblings in the same submission are
+    visible to each other. Three identical invoices submitted together must see
+    one another; if a dry run skipped the write, each would be evaluated against
+    a world where the other two do not exist and cheerfully report "no
+    duplicate" three times.
+
+    So a dry run cannot mean "don't write". It means "write, evaluate, and then
+    make it as if you never had".
+
+    ── Why an overlay rather than a transaction ──────────────────────────
+    Firestore has transactions; the in-process registry does not, and a rollback
+    that only works on one backend is a rollback you cannot trust. An overlay
+    needs neither: reads see the real registry PLUS whatever this run appended,
+    writes accumulate only here, and when the request ends the whole thing is
+    garbage. Identical answers, nothing persisted, same code path on both
+    backends.
+
+    The base registry is only ever READ through this class. That is the
+    guarantee, and it is structural rather than remembered: there is no call
+    that reaches base.append().
+    """
+
+    def __init__(self, base):
+        self._base = base
+        self._pending: List[RegistryRecord] = []
+
+    # ── writes go nowhere ────────────────────────────────────────────────
+    def append(self, rec: RegistryRecord) -> None:
+        self._pending.append(rec)
+
+    def all_records(self) -> List[RegistryRecord]:
+        base = list(self._base.all_records()) if hasattr(self._base, "all_records") else []
+        return base + list(self._pending)
+
+    # ── reads see the real history AND this run's uncommitted records ────
+    def candidates_for(self, query, doc_type=None):
+        try:
+            out = list(self._base.candidates_for(query, doc_type=doc_type))
+        except TypeError:
+            out = list(self._base.candidates_for(query))
+        seen = {getattr(c, "id", None) for c in out}
+        # Match the pending records the same way the base does — through the
+        # same keys — so a dry run cannot be more or less sensitive than the
+        # real thing.
+        qkeys = set(getattr(query, "keys", {}).values() if isinstance(getattr(query, "keys", None), dict)
+                    else getattr(query, "keys", []) or [])
+        for rec in self._pending:
+            if doc_type is not None and rec.doc_type != doc_type:
+                continue
+            cand = rehydrate(rec)
+            if cand.id in seen or cand.id == getattr(query, "id", None):
+                continue
+            ckeys = set(cand.keys.values() if isinstance(cand.keys, dict) else cand.keys or [])
+            if qkeys & ckeys:
+                out.append(cand)
+        return out
+
+    def by_reference(self, doc_type: str, reference: str) -> List[RegistryRecord]:
+        out = list(self._base.by_reference(doc_type, reference))
+        ids = {r.doc_id for r in out}
+        for rec in self._pending:
+            if rec.doc_id in ids:
+                continue
+            c = rec.canonical or {}
+            ref = (c.get("po_number_canon") if rec.doc_type == "purchase_order"
+                   else c.get("invoice_number_canon"))
+            if rec.doc_type == doc_type and ref == reference:
+                out.append(rec)
+            elif c.get("po_number_canon") == reference:
+                out.append(rec)
+        return out
+
+    def vendor_history(self, vendor_canon: str, limit: int = 200) -> List[RegistryRecord]:
+        out = list(self._base.vendor_history(vendor_canon, limit=limit))
+        ids = {r.doc_id for r in out}
+        for rec in self._pending:
+            if rec.doc_id not in ids and (rec.canonical or {}).get("vendor_canon") == vendor_canon:
+                out.append(rec)
+        return out[:limit]
+
+
 class EvidenceProvider(Protocol):
     """Anything that can answer questions about business events: the current
     batch, Qrynt's registry, or an ERP."""
@@ -84,11 +173,10 @@ def rehydrate(rec: RegistryRecord) -> InvoiceRecord:
     changes; beliefs get recomputed. A registry that stored only canonical
     values would silently rot with every improvement.
     """
-    if rec.is_stale() or not rec.canonical:
-        # InvoiceRecord canonicalises from raw on construction — current engine
-        return InvoiceRecord(rec.doc_id, dict(rec.raw_fields))
-    inv = InvoiceRecord(rec.doc_id, dict(rec.raw_fields))
-    return inv
+    # doc_type travels with the record: cross-type documents share identity keys
+    # by design (an invoice, its PO, its payment), and pairing them would BLOCK
+    # an invoice for matching its own payment.
+    return InvoiceRecord(rec.doc_id, dict(rec.raw_fields), doc_type=rec.doc_type)
 
 
 class InMemoryRegistry:

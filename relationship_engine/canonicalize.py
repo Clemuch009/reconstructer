@@ -92,6 +92,85 @@ _CURRENCY_STRIP_RE = re.compile(r"[\s$£€¥]")
 
 _TAXID_STRIP = __import__("re").compile(r"[^A-Za-z0-9]")
 
+# Documents that RESTATE obligations rather than create them. A statement is a
+# presentation of invoices — it does not make a new claim, it re-presents an
+# existing one. So an invoice and a statement bearing the same number are the
+# SAME obligation shown twice.
+#
+# This distinction is load-bearing and cost us a real regression to find:
+# treating every instrument mismatch as a conflict downgraded the disguised
+# duplicate (an invoice relabelled "BILLING STATEMENT") from BLOCK to REVIEW —
+# handing an adversary the exact evasion the engine exists to stop. Relabelling
+# must never weaken a verdict.
+RESTATING_TYPES = {"STATEMENT"}
+
+# Instruments that CREATE an obligation. Two DIFFERENT ones sharing a reference
+# are genuinely different claims — a debit memo and an invoice for the same
+# $40,000 may both be payable, or neither, and nothing in the documents says
+# which. That is a collision, not a duplicate.
+OBLIGATING_TYPES = {"INVOICE", "DEBIT MEMO", "DEBIT NOTE", "CREDIT NOTE",
+                    "CREDIT MEMO", "PURCHASE ORDER"}
+
+
+def canon_doc_type(value: Any) -> Optional[str]:
+    """Canonical accounting instrument.
+
+    Only the instrument matters, not its qualifier: "ALLOCATION DEBIT MEMO" and
+    "DEBIT MEMO" are the same KIND, while "ALLOCATION INVOICE" is a different
+    kind. Comparing raw headings would call every pair different and make the
+    signal noise.
+
+    Ordered longest-first so "CREDIT NOTE" is not read as "NOTE", and so
+    presentation formats collapse onto the instrument they present: an "ACCOUNT
+    TRANSACTION RECORD" is a statement wearing a creative name.
+    """
+    if value is None:
+        return None
+    s = str(value).strip().upper()
+    if not s:
+        return None
+    for base, canon in (
+        ("ACCOUNT TRANSACTION RECORD", "STATEMENT"),
+        ("TRANSACTION RECORD",         "STATEMENT"),
+        ("BILLING STATEMENT",          "STATEMENT"),
+        ("REMITTANCE ADVICE",          "REMITTANCE"),
+        ("CREDIT NOTE",                "CREDIT NOTE"),
+        ("CREDIT MEMO",                "CREDIT NOTE"),
+        ("DEBIT NOTE",                 "DEBIT MEMO"),
+        ("DEBIT MEMO",                 "DEBIT MEMO"),
+        ("PURCHASE ORDER",             "PURCHASE ORDER"),
+        ("GOODS RECEIPT",              "GOODS RECEIPT"),
+        ("DELIVERY NOTE",              "DELIVERY NOTE"),
+        ("STATEMENT",                  "STATEMENT"),
+        ("INVOICE",                    "INVOICE"),
+        ("RECEIPT",                    "RECEIPT"),
+        ("QUOTATION",                  "QUOTE"),
+        ("QUOTE",                      "QUOTE"),
+        ("ESTIMATE",                   "QUOTE"),
+    ):
+        if base in s:
+            return canon
+    return s
+
+
+def instruments_conflict(a: Optional[str], b: Optional[str]) -> bool:
+    """True only when two documents are DIFFERENT OBLIGATING instruments.
+
+    Fails closed in every other case:
+      * either side missing        → absence is not contradiction
+      * same instrument            → no conflict
+      * either side RESTATING      → a statement re-presents an invoice; the
+                                     same number means the same obligation, and
+                                     calling that a conflict would let a
+                                     relabelled invoice dodge an auto-block
+    """
+    if not a or not b or a == b:
+        return False
+    if a in RESTATING_TYPES or b in RESTATING_TYPES:
+        return False
+    return a in OBLIGATING_TYPES and b in OBLIGATING_TYPES
+
+
 def canon_tax_id(value: Any) -> Optional[str]:
     """Canonical tax/VAT id: strip punctuation and case.
     'DE 123 456 789', 'DE-123456789' and 'de123456789' are the same
@@ -112,6 +191,74 @@ def canon_recipient(value: Any) -> Optional[str]:
     return canon_vendor(value)
 
 
+def _amount_shape_ok(s: str) -> bool:
+    """Is this currency-stripped string actually a number, or is it damage?
+
+    canon_amount used to strip the separators out and hand whatever fell out to
+    float(). That is not parsing, it is salvage, and it manufactures figures:
+
+        ',500.00'    -> 500.0      the document said $1,500.00
+        '1,,500'     -> 1500.0
+        '1,50,0.00'  -> 1500.0
+        '$,00'       -> 0.0
+
+    A real invoice arrived whose PDF was generated with a broken template — every
+    "$1,500.00" written to the text layer as ",500.00", the '$' and the digit
+    after it eaten by what looks like a `$1` backreference in the generator. The
+    characters are genuinely absent from the file; there is nothing to extract.
+    Reading it faithfully is correct. Turning ',500.00' into 500.0 is not: it
+    invents a figure two-thirds smaller than the real one, and that figure is an
+    IDENTITY KEY — it decides what counts as a duplicate.
+
+    A leading comma means digits are missing. That is information. The honest
+    output is None — a loud absence the caller can see and the rules can SKIP on —
+    not a confident wrong number that propagates silently into matching.
+
+    Checks, all of them things no valid amount can violate:
+      * something numeric is present
+      * nothing but digits and separators after the sign
+      * a separator never leads (a thousands mark cannot come before a digit)
+      * separators are never adjacent
+      * thousands groups are exactly 3 digits ('1,50,0' is not a number)
+
+    Deliberately NOT rejected: a lone leading '.' ('.50' = 50 cents is real), or
+    a trailing separator. Only shapes that cannot be produced by any convention.
+    """
+    if not s:
+        return False
+    core = s.strip().lstrip("+-").strip()
+    if core.startswith("(") and core.endswith(")"):     # (500.00) = negative
+        core = core[1:-1].strip()
+    if not core or not any(ch.isdigit() for ch in core):
+        return False
+    if any(ch not in "0123456789,." for ch in core):
+        return False
+    if core[0] == ",":
+        return False                                     # ',500.00' — digits lost
+    for i in range(len(core) - 1):
+        if core[i] in ",." and core[i + 1] in ",.":
+            return False                                 # '1,,500'
+    # Thousands grouping: whichever separator is NOT the decimal one must split
+    # the integer part into groups of exactly 3 (after the first).
+    has_comma, has_dot = "," in core, "." in core
+    if has_comma and has_dot:
+        thou = "," if core.rfind(",") < core.rfind(".") else "."
+        int_part = core.rsplit("." if thou == "," else ",", 1)[0]
+    elif has_comma and core.count(",") > 1:
+        thou, int_part = ",", core
+    elif has_dot and core.count(".") > 1:
+        thou, int_part = ".", core
+    else:
+        return True                                      # single separator: fine
+    groups = int_part.split(thou)
+    if len(groups) > 1:
+        if not groups[0] or len(groups[0]) > 3:
+            return False
+        if any(len(g) != 3 for g in groups[1:]):
+            return False                                 # '1,50,0'
+    return True
+
+
 def canon_amount(value: Any) -> Optional[float]:
     """Numeric amount, currency stripped. Handles BOTH conventions:
       US/UK:    1,850.00   (comma = thousands, period = decimal)
@@ -127,6 +274,9 @@ def canon_amount(value: Any) -> Optional[float]:
     s = _CURRENCY_STRIP_RE.sub("", str(value).strip())
     s = _ISO_RE.sub("", s).strip()
     if s == "":
+        return None
+    # Refuse damage rather than salvage a number out of it.
+    if not _amount_shape_ok(s):
         return None
 
     has_comma = "," in s
@@ -251,10 +401,28 @@ def canonicalize_invoice(fields: Dict[str, Any], dayfirst: bool = False) -> Dict
     amount = canon_amount(fields.get("total") if fields.get("total") is not None
                           else fields.get("amount"))
     amount_derived = False
-    # If no stated total/amount, recover it by summing line items — the same
-    # arithmetic the reconcile/process modes do. Flagged as derived so the
-    # evidence trail shows the amount was computed, not stated.
-    if amount is None:
+    # If no stated total, recover it by summing the line items — but ONLY when
+    # the line items are the whole story.
+    #
+    # The sum of line items is the SUBTOTAL, not the total. Deriving the amount
+    # from it while a tax line sits on the page is not an approximation, it is
+    # provably the wrong number: an invoice reading
+    #
+    #     Subtotal 9,120   VAT 1,824   Balance Payable 10,944
+    #
+    # whose total label the profile does not know would be recorded as 9,120.
+    # That is silent and it is corrosive twice over — the amount is an IDENTITY
+    # KEY used to match duplicates, and the engine then reports the document as
+    # internally inconsistent for failing to equal a figure the engine itself
+    # invented. It made a false accusation from its own fabricated input.
+    #
+    # So: derive only when nothing else is on the page to add. When tax IS
+    # stated, refuse and leave the amount absent — a missing key is a loud
+    # absence the caller can see, while a wrong key is a silent error that
+    # propagates into matching and findings. Callers holding a resolved VIEW can
+    # do better: the role verifier SEARCHES for the real composition (see
+    # registry/ingest.py), and that answer is preferred where it exists.
+    if amount is None and canon_amount(fields.get("tax")) is None:
         li_sum = _sum_line_items(fields.get("_line_items"))
         if li_sum is not None:
             amount = li_sum
@@ -263,6 +431,7 @@ def canonicalize_invoice(fields: Dict[str, Any], dayfirst: bool = False) -> Dict
         "invoice_number_canon": canon_invoice_number(fields.get("invoice_number")),
         "recipient_canon":      canon_recipient(fields.get("recipient")),
         "tax_id_canon":         canon_tax_id(fields.get("tax_id")),
+        "doc_type_canon":       canon_doc_type(fields.get("document_type")),
         "subtotal_canon":       canon_amount(fields.get("subtotal")),
         "tax_canon":            canon_amount(fields.get("tax")),
         "po_number_canon":      canon_invoice_number(fields.get("po_number")),

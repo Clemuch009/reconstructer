@@ -37,13 +37,14 @@ def make_records(
     {"id": ..., "fields": {...}} or just {...fields...} (id auto-assigned)."""
     records: List[InvoiceRecord] = []
     for i, inv in enumerate(invoices):
+        dt = inv.get("doc_type", "invoice") if isinstance(inv, dict) else "invoice"
         if "fields" in inv and "id" in inv:
             rid, fields = inv["id"], inv["fields"]
         elif "fields" in inv:
             rid, fields = f"doc_{i}", inv["fields"]
         else:
             rid, fields = inv.get("id", f"doc_{i}"), inv
-        records.append(InvoiceRecord(str(rid), fields, dayfirst=dayfirst))
+        records.append(InvoiceRecord(str(rid), fields, dayfirst=dayfirst, doc_type=dt))
     return records
 
 

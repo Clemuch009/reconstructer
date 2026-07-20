@@ -310,10 +310,36 @@ async def apply_profile(
     kv_pairs = extract_kv_pairs(segments)
     tables   = [m["content"] for m in filter_segments(segments, types=["table"])]
 
-    view   = resolve_document_view(kv_pairs, tables, profile, metadata={})
+    # Resolve with the SOURCE LINES when they are still cached.
+    #
+    # Without them this endpoint quietly did less than /process-*: no
+    # line-level key/value recovery, and no role verification — so an invoice
+    # whose subtotal and tax contradict its stated total came back looking
+    # clean. Same document, same profile, weaker answer, no indication why.
+    #
+    # The lines are read from the in-process session cache rather than added to
+    # the persisted envelope: the envelope carries structure and a hash of the
+    # source, never the source itself, and widening that changes what the
+    # product retains about a customer's documents.
+    # Imported inside the handler: ingest.py already imports store_coc from this
+    # module, so a top-level import here is a cycle that stops the app booting.
+    # Same lazy pattern as the Firestore client.
+    from api.routes.ingest import raw_text_for
+    raw   = raw_text_for(source_id)
+    lines = raw.split("\n") if raw else None
+    view   = resolve_document_view(kv_pairs, tables, profile, metadata={},
+                                   lines=lines)
     report = evaluate(view, profile.get("rules", []))
 
     return {
+        # The caller must be able to tell a check that PASSED from one that
+        # never RAN. Absence of evidence is not evidence of absence.
+        "source_lines_available": lines is not None,
+        "verification_note": (
+            None if lines is not None else
+            "the source text is no longer cached, so line-level recovery and "
+            "arithmetic verification did not run — re-ingest the document for "
+            "the full check"),
         "source_id": source_id,
         "timestamp": envelope["timestamp"],
         "profile": {
@@ -324,6 +350,10 @@ async def apply_profile(
         "fields":     view["fields"],
         "tables":     view["tables"],
         "resolution": view["_resolution"],
+        # The verifier's verdict, surfaced. Computing it and dropping it is how
+        # /process-* used to hide an INCONSISTENT total: the engine knew the
+        # document contradicted itself and said nothing.
+        "verification": view.get("verification", {}),
         "validation": report,
     }
 

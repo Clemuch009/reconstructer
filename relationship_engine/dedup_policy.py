@@ -27,6 +27,7 @@ from typing import Any, Dict, List
 from relationship_engine.classify import (
     EXACT_DUPLICATE, NORMALIZED_DUPLICATE, VENDOR_VARIANT_DUPLICATE,
     CORRECTED_INVOICE, RECURRING_INVOICE, SPLIT_INVOICE_SUSPECT, LOW_CONFIDENCE,
+    IDENTITY_COLLISION,
 )
 
 
@@ -46,6 +47,10 @@ DEFAULT_POLICY: Dict[str, str] = {
     CORRECTED_INVOICE:        REVIEW,
     RECURRING_INVOICE:        ALLOW,
     SPLIT_INVOICE_SUSPECT:    ESCALATE,
+    # Never auto-anything. Blocking B silently elects A as the authoritative
+    # VCG-4040 on no evidence; allowing B risks paying twice. The only honest
+    # action is to hold both and have a human establish which is real.
+    IDENTITY_COLLISION:       REVIEW,
     LOW_CONFIDENCE:           REVIEW,
 }
 
@@ -78,10 +83,18 @@ def decide_action(
 
     auto_blockable = (action == BLOCK and bool(relationship.get("provable_identity")))
 
+    supporting, conflicts = structure_evidence(relationship)
     return {**relationship,
             "action": action,
             "auto_blockable": auto_blockable,
-            "action_reason": action_reason}
+            "action_reason": action_reason,
+            # the finding explains WHY this is in the queue; the action says what
+            # the workflow does about it. Keeping them separate means new
+            # findings never require new workflow states.
+            "finding": rtype,
+            "risk": RISK_STATEMENTS.get(rtype, ""),
+            "supporting": supporting,
+            "conflicts": conflicts}
 
 
 def _default_action_reason(rtype: str, action: str) -> str:
@@ -91,6 +104,72 @@ def _default_action_reason(rtype: str, action: str) -> str:
         ALLOW:    "not a duplicate — may proceed (still subject to other approval checks)",
         ESCALATE: "possible split-invoice / fraud pattern — route to investigation",
     }[action]
+
+
+# Plain-language risk statements, keyed by FINDING. The action tells the workflow
+# what to do; the finding and this statement tell the reviewer WHY it landed in
+# their queue. Without this, "Review" is just a bucket for "not sure" — which is
+# what makes review queues untrusted and ignored.
+RISK_STATEMENTS = {
+    IDENTITY_COLLISION:
+        "Two documents claim to represent the same invoice but disagree on "
+        "critical business facts. One of them is not what it says it is — "
+        "paying either without resolving which is authoritative risks paying "
+        "the wrong party, or paying twice.",
+    EXACT_DUPLICATE:
+        "The same invoice appears twice. Paying both would double-pay this "
+        "vendor for one obligation.",
+    NORMALIZED_DUPLICATE:
+        "The same invoice appears twice in different formats. Paying both would "
+        "double-pay this vendor for one obligation.",
+    VENDOR_VARIANT_DUPLICATE:
+        "Same invoice number and amount under vendor names that differ. Either "
+        "one vendor is spelt two ways, or two entities are claiming one charge.",
+    CORRECTED_INVOICE:
+        "Same invoice number, different amount — likely a re-issue. Paying both "
+        "would over-pay; paying neither would leave the obligation unmet.",
+    SPLIT_INVOICE_SUSPECT:
+        "Charges against one PO have been billed under separate invoice "
+        "numbers. This is how approval thresholds are evaded.",
+    RECURRING_INVOICE:
+        "A recurring charge for a new period — not a duplicate.",
+    LOW_CONFIDENCE:
+        "These invoices share an identifying detail but the evidence does not "
+        "form a recognised pattern.",
+}
+
+
+def structure_evidence(relationship):
+    """Split a relationship's raw signals into what SUPPORTS and what CONFLICTS.
+
+    The signals already carry polarity; this presents them as a reviewer reads
+    them — "these agree, these do not" — rather than as a scored blob. The point
+    is that the queue item is actionable on sight.
+    """
+    sigs = (relationship.get("evidence") or {}).get("signals") or []
+    label = {
+        "invoice_number_exact": "Same invoice number",
+        "vendor_canon":         "Same vendor",
+        "amount_exact":         "Same total",
+        "currency_match":       "Same currency",
+        "po_match":             "Same PO",
+        "date_within_3d":       "Same invoice date",
+        "different_amount":     "Different total",
+        "different_currency":   "Different currency",
+        "different_recipient":  "Different bill-to entity",
+        "composition_differs":  "Different subtotal/tax composition",
+        "different_document_type": "Different accounting instrument",
+        "different_date_month": "Different billing month",
+    }
+    supporting, conflicts = [], []
+    for s in sigs:
+        text = label.get(s["name"], s["name"].replace("_", " "))
+        detail = (f"{s['a']}" if s["a"] == s["b"] else f"{s['a']} vs {s['b']}")
+        entry = {"signal": s["name"], "text": text, "detail": detail}
+        if s.get("derived"):
+            entry["note"] = "total computed from line items, not stated"
+        (supporting if s["polarity"] == "+" else conflicts).append(entry)
+    return supporting, conflicts
 
 
 def summarize_for_approval(decisions: List[Dict[str, Any]]) -> Dict[str, Any]:

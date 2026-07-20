@@ -196,6 +196,23 @@ HIERARCHY_STEP_THRESHOLD = 0.50
 # structured, discarding structure before the capable detector ever runs.
 KV_LINE_RE = re.compile(r"^[\w\.\-]{1,32}(?: [\w\.\-]{1,32}){0,2}(?: \([^)]{1,12}\))?\s*[:=]\s*.+")
 
+# Space-separated known-label KV (no colon) — "Invoice No. INV-2026-0158",
+# "Due Date 02 Aug 2026". Without this, a colon-less invoice header scores as
+# prose and is bypassed before the detector runs, so its fields (invoice number,
+# dates, terms) never get extracted. Anchored to a curated label set so ordinary
+# prose does not inflate kv_density.
+_SPACE_KV_LABELS = (
+    "invoice number", "invoice no", "invoice #", "invoice id", "invoice date",
+    "due date", "payment terms", "terms", "currency", "po number", "po no",
+    "purchase order", "order number", "order no", "reference", "ref",
+    "account number", "account name", "account manager", "routing",
+    "bill to", "ship to", "sold to", "vendor", "supplier", "customer",
+    "tax id", "vat no", "vat number", "gst no", "date",
+)
+_SPACE_KV_LINE_RE = re.compile(
+    r"^(" + "|".join(re.escape(l) for l in _SPACE_KV_LABELS) + r")\b\.?\s+\S.*",
+    re.IGNORECASE)
+
 # Tree glyph pattern
 TREE_GLYPH_RE = re.compile(r"[└├─┌┐┘┤┬┴┼│]|^\s*[\+\|]\-\-")
 
@@ -349,7 +366,9 @@ def _extract_signals(text: str, lines: List[str]) -> RoutingSignals:
     pipe_density = pipe_lines / total_lines
 
     # KV density — line-normalized
-    kv_lines   = sum(1 for l in lines if KV_LINE_RE.match(l.strip()))
+    kv_lines   = sum(1 for l in lines
+                     if KV_LINE_RE.match(l.strip())
+                     or _SPACE_KV_LINE_RE.match(l.strip()))
     kv_density = kv_lines / total_lines
 
     # Hierarchy step ratio — structural indent delta tracking

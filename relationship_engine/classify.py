@@ -21,6 +21,8 @@
 #   CORRECTED_INVOICE       same invoice#, changed amount           → review (NOT dup)
 #   RECURRING_INVOICE       same vendor+amount, different period     → allow (NOT dup)
 #   SPLIT_INVOICE_SUSPECT   different invoice#s, same PO/vendor       → investigate (fraud)
+#   IDENTITY_COLLISION      one invoice number, two documents that      → investigate
+#                           disagree on who/what it bills
 #   LOW_CONFIDENCE          shares a key but no clear pattern         → review
 #
 # The one invariant: NEVER auto-block without provable identity. Only the two
@@ -38,6 +40,7 @@ VENDOR_VARIANT_DUPLICATE = "VENDOR_VARIANT_DUPLICATE"
 CORRECTED_INVOICE        = "CORRECTED_INVOICE"
 RECURRING_INVOICE        = "RECURRING_INVOICE"
 SPLIT_INVOICE_SUSPECT    = "SPLIT_INVOICE_SUSPECT"
+IDENTITY_COLLISION       = "IDENTITY_COLLISION"
 LOW_CONFIDENCE           = "LOW_CONFIDENCE"
 
 # which relationships actually mean "this is the same invoice already seen"
@@ -104,6 +107,36 @@ def classify_relationship(
             "reason": reason,
             "evidence": evidence,
         }
+
+    # ── 0. Identity collision — checked BEFORE the duplicate branch ────────
+    # Same invoice number + vendor, but the documents disagree on a fact that a
+    # duplicate cannot disagree on: WHO is billed, or HOW the total is composed.
+    #
+    # This is not a duplicate and it is not a correction:
+    #   * a duplicate is a repetition of one event — suppressing the copy is safe;
+    #   * a correction has a benign story (vendor reissued; later supersedes).
+    # Neither story survives a changed bill-to: you do not "correct" an invoice
+    # by re-addressing it to a different company. Two documents are wearing one
+    # identity and cannot both be authoritative.
+    #
+    # Deliberately ordered ahead of branch 1: these pairs DO satisfy provable
+    # identity (same number/vendor/amount/currency), so without this they would
+    # be auto-blocked as EXACT_DUPLICATE — silently electing one document as the
+    # real one on no evidence.
+    if invnum and vendor and (evidence["facts"].get("recipient_differs")
+                              or evidence["facts"].get("composition_differs")
+                              or evidence["facts"].get("doc_type_differs")):
+        why = []
+        if evidence["facts"].get("doc_type_differs"):
+            why.append("different accounting instruments")
+        if evidence["facts"].get("recipient_differs"):
+            why.append("addressed to different customers")
+        if evidence["facts"].get("composition_differs"):
+            why.append("different subtotal/tax composition for the same total")
+        return result(IDENTITY_COLLISION,
+                      "two documents claim the same invoice number from the same "
+                      "vendor but disagree on critical business facts (" +
+                      "; ".join(why) + ") — they cannot both be authoritative")
 
     # ── 1. Provable identity → a genuine duplicate (auto-block candidates) ──
     # invoice number + vendor + amount + currency all match.

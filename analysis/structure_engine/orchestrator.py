@@ -98,11 +98,21 @@ def _run_fallback_engine(
     total_lines: int,
 ) -> List[StructuredBlock]:
     """
-    Fallback engine path — context only.
-    Receives unstructured regions.
+    Fallback engine path — context + KV.
+    Receives unstructured regions. Still runs KV detection: a region routed here
+    (prose-dominant, low structure) can nonetheless carry labelled fields —
+    invoice number, dates, payment terms on a space-separated header. Skipping
+    KV here silently dropped those fields (they never reached extraction), which
+    is why small invoices reported "missing invoice number" while the data was
+    plainly present.
     """
-    context_result = detect_context(lines)
-    blocks = build_all_blocks(context_result=context_result)
+    patterns   = extract_all_patterns(lines)
+    kv_results = detect_all_kv(lines, patterns)
+    context_result = detect_context(lines, kv_results if kv_results else None)
+    blocks = build_all_blocks(
+        kv_results=kv_results if kv_results else None,
+        context_result=context_result,
+    )
     return blocks
 
 

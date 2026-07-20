@@ -218,6 +218,33 @@ def _p_match(rule, view):
     return (PASS if ok else FAIL), {"field": field, "actual": val, "format": fmt, "fields": [field]}
 
 
+_MONTHS = {m: i for i, m in enumerate(
+    ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"], 1)}
+
+
+def _to_date(value: Any):
+    """Parse a date value to a comparable (year, month, day) tuple, or None.
+    Handles ISO (2026-08-02), "02 Aug 2026", "Aug 02 2026", "02/08/2026" is
+    ambiguous and deliberately NOT parsed here (left to string compare)."""
+    if not isinstance(value, str):
+        return None
+    import re as _re
+    s = value.strip()
+    # ISO YYYY-MM-DD
+    m = _re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", s)
+    if m:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    # DD Mon YYYY  ("02 Aug 2026")
+    m = _re.match(r"^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$", s)
+    if m and m.group(2)[:3].lower() in _MONTHS:
+        return (int(m.group(3)), _MONTHS[m.group(2)[:3].lower()], int(m.group(1)))
+    # Mon DD YYYY  ("Aug 02 2026", "Aug 2, 2026")
+    m = _re.match(r"^([A-Za-z]{3,})\s+(\d{1,2}),?\s+(\d{4})$", s)
+    if m and m.group(1)[:3].lower() in _MONTHS:
+        return (int(m.group(3)), _MONTHS[m.group(1)[:3].lower()], int(m.group(2)))
+    return None
+
+
 def _p_compare(rule, view):
     op = rule.get("op")
     if op not in _COMPARATORS:
@@ -239,6 +266,12 @@ def _p_compare(rule, view):
     # Ordering on non-numeric values: allow when both are strings. This is
     # correct for ISO dates (YYYY-MM-DD sorts lexicographically) and other
     # sortable strings. Mismatched types (e.g. str vs None) still fail clearly.
+    # Dates first — "19 Jul 2026" style is not ISO, so string ordering is wrong.
+    ld, rd = _to_date(left), _to_date(right)
+    if ld is not None and rd is not None:
+        ok = _COMPARATORS[op](ld, rd)
+        return (PASS if ok else FAIL), {"left": left, "right": right, "op": op,
+                                        "compared_as": "date"}
     if isinstance(left, str) and isinstance(right, str):
         ok = _COMPARATORS[op](left, right)
         return (PASS if ok else FAIL), {"left": left, "right": right, "op": op,

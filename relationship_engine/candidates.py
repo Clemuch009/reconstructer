@@ -33,13 +33,20 @@ class InvoiceRecord:
     """A thin wrapper pairing a caller's record id with its canonical identity.
     Precomputes canonical fields and keys once, so lookups are pure dict work."""
 
-    __slots__ = ("id", "fields", "canon", "keys")
+    __slots__ = ("id", "fields", "canon", "keys", "doc_type")
 
-    def __init__(self, record_id: str, fields: Dict[str, Any], dayfirst: bool = False):
-        self.id     = record_id
-        self.fields = fields
-        self.canon  = canonicalize_invoice(fields, dayfirst=dayfirst)
-        self.keys   = present_keys(identity_keys(self.canon))
+    def __init__(self, record_id: str, fields: Dict[str, Any], dayfirst: bool = False,
+                 doc_type: str = "invoice"):
+        self.id       = record_id
+        self.fields   = fields
+        # The KIND of document this is. A duplicate is the same document twice —
+        # a payment and the invoice it settles share invoice number, vendor,
+        # amount and currency by DESIGN, and without this they score as a
+        # NORMALIZED_DUPLICATE and BLOCK a legitimate invoice because its own
+        # remittance advice was uploaded alongside it.
+        self.doc_type = doc_type or "invoice"
+        self.canon    = canonicalize_invoice(fields, dayfirst=dayfirst)
+        self.keys     = present_keys(identity_keys(self.canon))
 
 
 class CandidateProvider(Protocol):
@@ -105,6 +112,14 @@ def generate_candidate_pairs(
     pairs: List[Tuple[InvoiceRecord, InvoiceRecord]] = []
     for rec in records:
         for cand in provider.candidates_for(rec):
+            # Same-type only. Cross-type documents legitimately share identity
+            # keys — an invoice, the PO it cites and the payment that settles it
+            # all carry the same reference, vendor and amount. That is a
+            # RELATIONSHIP, not a duplication, and the consistency engine reads
+            # it as such. Pairing them here would BLOCK an invoice for matching
+            # its own payment.
+            if getattr(cand, "doc_type", "invoice") != getattr(rec, "doc_type", "invoice"):
+                continue
             key = tuple(sorted((rec.id, cand.id)))
             if key in seen:
                 continue

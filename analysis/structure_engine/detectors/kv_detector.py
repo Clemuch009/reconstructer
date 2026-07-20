@@ -25,6 +25,73 @@ class KVResult(TypedDict):
 
 ALLOWED_DELIMITERS = [":", "="]
 
+# Space-separated label prefixes common on invoices/POs where no colon is used
+# ("Invoice No. INV-2026-0158", "Due Date 02 Aug 2026", "Payment Terms Net 14").
+# Longest-first so "Invoice No." wins over "Invoice". Matched case-insensitively
+# at the START of the line; the remainder is the value.
+_SPACE_KV_PREFIXES = sorted([
+    "Invoice Number", "Invoice No.", "Invoice No", "Invoice #", "Invoice ID",
+    "Invoice Date", "Due Date", "Payment Terms", "Terms", "Currency",
+    "PO Number", "PO No.", "PO No", "Purchase Order", "P.O. Number",
+    "Order Number", "Order No.", "Reference", "Ref", "Ref.",
+    "Account Manager", "Account Number", "Account Name", "Routing",
+    "Bill To", "Ship To", "Sold To", "Vendor", "Supplier", "Customer",
+    "Tax ID", "VAT No.", "VAT Number", "PIN", "GST No.",
+    "Date", "Number", "No.",
+], key=len, reverse=True)
+
+
+# A KV VALUE looks like a value, not a sentence: it is short and typically
+# carries an identifier, number, code, date, currency, or a small number of
+# capitalized/technical tokens ("INV-2026-0158", "02 Aug 2026", "Net 14",
+# "USD", "PO-90417"). Prose ("and conditions apply to all purchases") is none of
+# these — long, lowercase, sentence-like — and must NOT be split.
+_VALUE_LIKE_RE = re.compile(
+    r"^("
+    r"[A-Z0-9][A-Z0-9\-/#.]*"                 # code/ID: INV-2026-0158, PO-90417
+    r"|\$?[\d,]+(?:\.\d+)?"                   # a number/amount
+    r"|\d{1,2}[ /\-][A-Za-z0-9]+[ /\-]\d{2,4}" # a date: 02 Aug 2026, 02/08/2026
+    r"|[A-Za-z]{3,}\s+\d"                      # "Net 14", "Aug 2026"
+    r"|[A-Z]{2,4}"                              # currency/code: USD, GBP
+    r")",
+)
+
+
+def _looks_like_value(value: str) -> bool:
+    """True when the RHS of a space-KV split looks like a field value rather
+    than prose. Guards against splitting sentences that merely begin with a
+    label word ("Terms and conditions apply...")."""
+    v = value.strip()
+    if not v:
+        return False
+    # short values are almost always real; long ones must be value-shaped
+    words = v.split()
+    if len(words) <= 3 and _VALUE_LIKE_RE.match(v):
+        return True
+    if len(words) <= 5 and _VALUE_LIKE_RE.match(v) and any(ch.isdigit() for ch in v):
+        return True
+    # a value that is a short proper-noun phrase (all Titlecase, <=5 words) is a
+    # plausible name value ("Harbor & Pine Design Studio" as Account Name)
+    if len(words) <= 5 and all(w[0].isupper() or not w[0].isalpha() for w in words):
+        return True
+    return False
+
+
+def _split_space_kv(normalized: str):
+    """Split a space-separated 'Label Value' line when the label is a known
+    invoice/PO field prefix AND the remainder looks like a value (not prose).
+    Returns (key, value) or None. Precise by design: only recognised labels with
+    value-like RHS split, so ordinary prose is never mis-split."""
+    low = normalized.lower()
+    for prefix in _SPACE_KV_PREFIXES:
+        pl = prefix.lower()
+        # must match at start, followed by a space and a non-empty value
+        if low.startswith(pl + " "):
+            value = normalized[len(prefix):].strip()
+            if value and _looks_like_value(value):
+                return prefix, value
+    return None
+
 
 # ---------------------------------
 # Pre-validation rejection gates
@@ -219,7 +286,22 @@ def detect_kv(
     ]
 
     if not positions:
-        return None
+        # No colon/equals — try a space-separated known-label split before giving
+        # up ("Invoice No. INV-2026-0158").
+        sk = _split_space_kv(normalized)
+        if sk is None:
+            return None
+        key, value = sk
+        if not _is_valid_kv_key(key):
+            return None
+        return {
+            "line_index": line.get("line_index", -1),
+            "key": key, "value": value,
+            "delimiter": " ",
+            "confidence": 0.75,
+            "patterns_used": ["space_kv"],
+            "nested": None,
+        }
 
     delimiter_found, _ = min(positions, key=lambda x: x[1])
 

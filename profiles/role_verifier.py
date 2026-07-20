@@ -56,7 +56,8 @@ from itertools import combinations
 from typing import Any, Dict, List, Optional, Tuple
 
 from relationship_engine.canonicalize import canon_amount
-from profiles.resolver import _LINE_KV_RE, _EMBEDDED_LABEL_RE, _norm
+from profiles.resolver import (_LINE_KV_RE, _EMBEDDED_LABEL_RE, _LABEL_ONLY_RE,
+                               _BARE_LABEL_RE, _BARE_MONEY_RE, _norm)
 
 CONFIRM      = "CONFIRM"
 FILL         = "FILL"
@@ -83,7 +84,17 @@ def _looks_money(raw: Any) -> bool:
     return bool(_BARE_MONEY.match(s))
 
 
-_LABEL_ONLY = re.compile(r"^\s*([A-Za-z][\w .\-#/]{0,40}?(?:\s*\([^)]{1,12}\))?)\s*[:=]\s*$")
+# The label-only pattern is the RESOLVER's, imported rather than restated.
+#
+# This file used to carry its own copy, and the copy silently went stale: when
+# the resolver learned to read "VAT @ 20%:" (@ and % added to the key charset),
+# this one did not. The resolver then extracted the tax correctly while the
+# verifier could not see it, concluded "no tax or adjustment present", and
+# reported CONFLICT on a clean invoice — the engine contradicting itself because
+# two copies of one rule disagreed.
+#
+# Two definitions of the same thing will always drift. One definition cannot.
+_LABEL_ONLY = _LABEL_ONLY_RE
 
 
 def money_kv_values(lines: List[str]) -> Dict[str, float]:
@@ -119,6 +130,17 @@ def money_kv_values(lines: List[str]) -> Dict[str, float]:
                 nxt = clean[i + 1]
                 if nxt and ":" not in nxt and not nxt.startswith("["):
                     label, raw = lm.group(1).strip(), nxt
+            if label is None and i + 1 < len(clean):
+                # "Total" / "$29.00" — no colon anywhere. The resolver reads this
+                # shape (see _merge_line_kv shape 3); the verifier must read it
+                # too or it will insist a document has "too few summary figures"
+                # while the resolver is reading its subtotal, tax and total
+                # perfectly well. The engine then contradicts itself, which is
+                # exactly what happened when this file kept its own stale copy of
+                # the label-only pattern.
+                bl = _BARE_LABEL_RE.match(line)
+                if bl and _BARE_MONEY_RE.match(clean[i + 1]):
+                    label, raw = bl.group(1).strip(), clean[i + 1]
         if not (label and raw and _looks_money(raw)):
             continue
         amt = canon_amount(raw)

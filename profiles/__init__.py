@@ -12,12 +12,14 @@ from typing import Any, Dict, List, Optional
 
 from profiles.invoice import INVOICE_PROFILE
 from profiles.purchase_order import PURCHASE_ORDER_PROFILE
+from profiles.payment import PAYMENT_PROFILE
 
 
 # name → declarative profile data
 _REGISTRY: Dict[str, Dict[str, Any]] = {
     INVOICE_PROFILE["metadata"]["id"]:        INVOICE_PROFILE,
     PURCHASE_ORDER_PROFILE["metadata"]["id"]: PURCHASE_ORDER_PROFILE,
+    PAYMENT_PROFILE["metadata"]["id"]:        PAYMENT_PROFILE,
 }
 
 

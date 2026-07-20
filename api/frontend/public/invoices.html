@@ -188,6 +188,69 @@ textarea::placeholder{color:var(--text-faint)}
 .ev-pos .ev-sig{color:var(--go)}
 .ev-neg .ev-sig{color:var(--signal)}
 .ev-vals{color:var(--text-dim)}
+.ev-grp{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);margin:6px 0 3px}
+.dup-risk{margin-top:10px;padding:9px 11px;border-left:2px solid var(--amber);background:var(--amber-bg);border-radius:0 4px 4px 0;font-size:11.5px;line-height:1.5;color:var(--text)}
+.reg-warn{margin:0 0 10px;padding:8px 11px;border-left:2px solid var(--text-dim);background:var(--ink-2);border-radius:0 4px 4px 0;font-size:11px;line-height:1.5;color:var(--text-dim)}
+.reg-warn b{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text);display:block;margin-bottom:2px}
+.unres{margin-top:8px;padding:8px 11px;border-left:2px solid var(--text-dim);background:var(--ink-2);border-radius:0 4px 4px 0;font-size:11px;line-height:1.5;color:var(--text-dim)}
+.unres b{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);display:block;margin-bottom:2px}
+.ev-from{margin-top:7px;font-family:var(--mono);font-size:9.5px;color:var(--text-dim);opacity:.75}
+.ver{padding:9px 11px;border-radius:0 4px 4px 0;font-size:11.5px;line-height:1.55}
+.ver b{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.ver-bad{border-left:2px solid var(--signal);background:var(--signal-bg)}
+.ver-bad b{color:var(--signal)}
+.ver-good{border-left:2px solid var(--go);background:var(--ink-2)}
+.ver-good b{color:var(--go)}
+.ver-info{border-left:2px solid var(--text-dim);background:var(--ink-2);color:var(--text-dim)}
+.ver-info b{color:var(--text)}
+.ver-note{margin-top:5px;font-size:10.5px;color:var(--text-dim)}
+.report{border:1px solid var(--line);border-radius:9px;padding:14px 16px;margin-bottom:16px;background:rgba(255,255,255,.02)}
+.report.rep-clear{border-left:3px solid var(--ok,#3ba55d)}
+.report.rep-review{border-left:3px solid #d9a441}
+.report.rep-blocked{border-left:3px solid var(--bad,#dc5050)}
+.rep-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.rep-badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.rep-headline{font-size:14px;margin-bottom:10px;color:var(--text)}
+.rep-findings{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
+.rep-find{padding:7px 9px;border-radius:6px;background:rgba(255,255,255,.02)}
+.rep-find.sev-high{background:rgba(220,80,80,.08)}
+.rep-find.sev-medium{background:rgba(217,164,65,.08)}
+.rep-find-head{display:flex;align-items:baseline;gap:8px}
+.rep-sev{font-size:9.5px;font-weight:700;text-transform:uppercase;flex:none;width:52px;color:var(--text-dim)}
+.rep-find.sev-high .rep-sev{color:var(--bad,#dc5050)}
+.rep-what{font-size:13px;color:var(--text);font-weight:500}
+.rep-quiet{opacity:.62}
+.rep-quiet .rep-what{font-weight:400}
+.rep-detail{font-size:11.5px;color:var(--text-dim);margin:4px 0 0 0;line-height:1.45}
+.rep-source{font-size:10px;color:var(--text-dim);opacity:.7;margin:2px 0 0 60px;font-family:var(--mono)}
+.rep-rec{font-size:12px;padding-top:8px;border-top:1px solid var(--line);color:var(--text)}
+.regions{margin-top:8px;display:flex;flex-direction:column;gap:3px}
+.reg-row{display:flex;align-items:baseline;gap:7px;font-size:11.5px;padding:3px 7px;border-radius:5px;background:rgba(255,255,255,.02)}
+.reg-mark{font-weight:700;width:12px;flex:none}
+.reg-ok .reg-mark{color:var(--ok,#3ba55d)}
+.reg-bad{background:rgba(220,80,80,.08)}
+.reg-bad .reg-mark{color:var(--bad,#dc5050)}
+.reg-name{flex:1;color:var(--text)}
+.k-in{width:100%;background:var(--ink-2);border:1px solid var(--line);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;padding:9px 10px;outline:none}
+.k-in:focus{border-color:var(--go)}
+.kv-row{display:flex;justify-content:space-between;gap:14px;padding:5px 0;border-bottom:1px solid var(--line);font-size:11.5px}
+.kv-row:last-child{border-bottom:0}
+.kv-k{color:var(--text-dim);flex:0 0 auto;font-family:var(--mono);font-size:10.5px}
+.kv-v{color:var(--text);text-align:right}
+.dry{display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:11px;
+     color:var(--text-dim);cursor:pointer;user-select:none}
+.dry input{accent-color:var(--go);cursor:pointer}
+.dry-note{margin-bottom:12px;padding:8px 11px;border-left:2px solid var(--text-dim);
+     background:var(--ink-2);border-radius:0 4px 4px 0;font-size:11px;color:var(--text-dim)}
+.prec{margin-top:9px;padding:8px 11px;border-left:2px solid var(--go);background:var(--ink-2);border-radius:0 4px 4px 0;font-size:11px;line-height:1.5}
+.prec b{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--go);display:block;margin-bottom:3px}
+.prec-d{color:var(--text)}
+.prec-w{color:var(--text-dim);margin-top:2px}
+.resolve{margin-top:11px;padding-top:10px;border-top:1px solid var(--line)}
+.rin{width:100%;margin-bottom:6px;padding:7px 9px;background:var(--ink-2);border:1px solid var(--line);border-radius:4px;color:var(--text);font-family:inherit;font-size:11.5px}
+.rrow{display:flex;gap:8px;align-items:center}
+.rsel{flex:1;padding:6px 8px;background:var(--ink-2);border:1px solid var(--line);border-radius:4px;color:var(--text-dim);font-size:11px}
+.dup-risk b{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--amber);display:block;margin-bottom:3px}
 
 /* section headers in results */
 .sec{margin-bottom:26px}
@@ -227,6 +290,12 @@ textarea::placeholder{color:var(--text-faint)}
 
 /* dimension strip (reconcile verdict) */
 .dims{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:24px}
+.techdetail{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+.techdetail>summary{cursor:pointer;font-size:12px;color:var(--text-dim);user-select:none;list-style:none;padding:4px 0}
+.techdetail>summary::-webkit-details-marker{display:none}
+.techdetail>summary::before{content:"▸ ";color:var(--text-dim)}
+.techdetail[open]>summary::before{content:"▾ "}
+.techdetail[open]>summary{margin-bottom:12px}
 .dim{
   border:1px solid var(--line);border-radius:7px;padding:12px 12px;background:var(--ink-2);
 }
@@ -290,7 +359,8 @@ textarea::placeholder{color:var(--text-faint)}
     <button class="mode on" data-mode="process" onclick="setMode('process')">Process</button>
     <button class="mode" data-mode="reconcile" onclick="setMode('reconcile')">Reconcile</button>
     <button class="mode" data-mode="dedupe" onclick="setMode('dedupe')">Deduplicate</button>
-    <button class="mode soon" data-mode="queue">Queue<span class="tag">soon</span></button>
+    <button class="mode" data-mode="queue" onclick="setMode('queue')">Queue</button>
+    <button class="mode" data-mode="knowledge" onclick="setMode('knowledge')">Knowledge</button>
   </div>
   <div class="spacer"></div>
   <div class="conn"><span class="dot"></span>Connect a source<span style="opacity:.6">· soon</span></div>
@@ -301,6 +371,9 @@ textarea::placeholder{color:var(--text-faint)}
     <div class="slots" id="slots"><!-- slots injected by mode --></div>
     <div class="run-bar">
       <button class="run" id="runBtn" onclick="run()">Process invoice</button>
+      <label class="dry" id="dryWrap" title="Evaluate against your history without adding to it">
+        <input type="checkbox" id="dryRun"> <span>Dry run</span>
+      </label>
       <span class="run-note" id="runNote">Paste an invoice, or load a sample</span>
       <span class="spacer"></span>
       <button class="mode" style="font-size:11px" onclick="loadSample()">Load sample</button>
@@ -328,13 +401,16 @@ textarea::placeholder{color:var(--text-faint)}
 // ── State & mode ─────────────────────────────────────────────
 let MODE = 'process';
 const PROFILES = {
-  process:  [{id:'invoice',name:'Invoice'},{id:'purchase_order',name:'Purchase Order'}],
+  process:  [{id:'invoice',name:'Invoice'},{id:'purchase_order',name:'Purchase Order'},{id:'payment',name:'Payment / Remittance'}],
   reconcile:[{id:'invoice_vs_po',name:'Invoice vs Purchase Order'},{id:'cash_vs_ledger',name:'Cash vs Ledger'}],
 };
 
 function setMode(m){
-  if(m==='queue') return;
   MODE=m;
+  // Only the modes that WRITE can be simulated. Offering a dry run on Reconcile
+  // or the Queue would imply they change something.
+  const dw=document.getElementById('dryWrap');
+  if(dw) dw.style.display=(m==='process'||m==='dedupe')?'inline-flex':'none';
   document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
   document.getElementById('footMode').textContent='mode: '+m;
   renderSlots();
@@ -345,13 +421,33 @@ let DEDUPE_IDS=['A','B'];  // dynamic set of invoice slots for dedupe mode
 
 function renderSlots(){
   const slots=document.getElementById('slots');
+  if(MODE==='knowledge'){
+    // One question, one subject. The registry assembles the answer; this page
+    // joins nothing.
+    slots.innerHTML=`<div class="slot"><div class="slot-h"><span class="slot-t">VENDOR</span>
+      <span class="slot-s">ask the registry what it knows</span></div>
+      <input id="kSubject" class="k-in" placeholder="e.g. Horizon IT Solutions Ltd"
+             onkeydown="if(event.key==='Enter')runKnowledge()">
+      </div>
+      <div class="em" style="padding:8px 0">Everything shown is derived from documents you processed. No score is invented — where a number would have to be guessed, the facts behind it are shown instead.</div>`;
+    document.getElementById('runBtn').textContent='Ask registry';
+    document.getElementById('runNote').textContent='Tell me everything you know about…';
+    return;
+  }
+  if(MODE==='queue'){
+    // The queue has no inputs. It is the list of findings that needed a person.
+    slots.innerHTML=`<div class="em" style="padding:14px 0">Findings that need a decision. Each one shows what was checked, what conflicts, and what could not be determined from the documents alone.</div>`;
+    document.getElementById('runBtn').textContent='Refresh queue';
+    document.getElementById('runNote').textContent='Cases open when a check needs a human';
+    return;
+  }
   if(MODE==='process'){
     slots.innerHTML=slotHTML('DOCUMENT','the invoice or PO to check','A','invoice',PROFILES.process);
     document.getElementById('runBtn').textContent='Process invoice';
     document.getElementById('runNote').textContent='Paste an invoice, or load a sample';
   }else if(MODE==='dedupe'){
     slots.innerHTML=
-      DEDUPE_IDS.map((id,i)=>slotHTML('INVOICE '+(i+1),'one of the set to check','D'+id,'invoice',PROFILES.process)).join('')+
+      DEDUPE_IDS.map((id,i)=>slotHTML('DOCUMENT '+(i+1),'invoice, PO — checked against your history','D'+id,'invoice',PROFILES.process)).join('')+
       `<div style="margin-top:6px"><button class="mode" style="font-size:11px" onclick="addDedupeSlot()">+ add another invoice</button></div>`;
     document.getElementById('runBtn').textContent='Find duplicates';
     document.getElementById('runNote').textContent='Paste 2+ invoices (or load a sample) to check for duplicates among them';
@@ -384,7 +480,7 @@ function slotHTML(label,role,id,defProfile,profiles){
         <select id="prof-${id}">${opts}</select>
       </span>
     </div>
-    <textarea id="ta-${id}" placeholder="Paste ${label.toLowerCase()} here, or ⤒ Upload a file…"></textarea>
+    <textarea id="ta-${id}" placeholder="Paste ${label.toLowerCase()} here, or ⤒ Upload a file…" oninput="if(_uploadedFiles['${id}']){_uploadedFiles['${id}']=null;document.getElementById('filename-${id}').textContent='';}"></textarea>
     <div class="slot-file" id="filename-${id}"></div>
   </div>`;
 }
@@ -410,9 +506,11 @@ async function handleUpload(slotId, file){
     _uploadedFiles[slotId]=file;
     // don't put placeholder text in the textarea in dedupe mode (runDedupe reads
     // the tracked file, not the textarea); show the filename chip instead.
-    if(MODE!=='dedupe'){
-      document.getElementById('ta-'+slotId).value='(binary file '+file.name+' — will be processed on the server)';
-    }
+    // Deliberately do NOT put placeholder text in the textarea. It used to read
+    // "(binary file …)", and runProcess would then send THAT string to the
+    // server as if it were the document. Show the filename chip instead (set
+    // above); the textarea stays empty so nothing can leak from it.
+    document.getElementById('ta-'+slotId).value='';
     // in process mode, process it right away
     if(MODE==='process'){ processUploadedFile(slotId, file); }
   }
@@ -425,7 +523,7 @@ async function processUploadedFile(slotId, file){
   fd.append('file', file);
   fd.append('profile', prof);
   try{
-    const res=await fetch(API_BASE+'/process-file',{method:'POST',body:fd});
+    const res=await fetch(API_BASE+'/process-file'+dryQS(),{method:'POST',body:fd});
     if(!res.ok){const b=await res.text();throw new Error('API '+res.status+': '+b.slice(0,200));}
     renderProcessFromApi(await res.json());
   }catch(err){ showApiError(err,'process-file'); }
@@ -519,10 +617,218 @@ Total: 1100.00`;
 const API_BASE = new URLSearchParams(location.search).get('api')
               || (location.protocol==='file:' ? 'http://localhost:8000' : '');
 
+function isDry(){const b=document.getElementById('dryRun');return !!(b&&b.checked&&(MODE==='process'||MODE==='dedupe'));}
+function dryQS(){return isDry()?'?dry_run=true':'';}
+
 function run(){
   if(MODE==='process') runProcess();
   else if(MODE==='dedupe') runDedupe();
+  else if(MODE==='queue') runQueue();
+  else if(MODE==='knowledge') runKnowledge();
   else runReconcile();
+}
+
+async function runKnowledge(){
+  const id=(document.getElementById('kSubject')||{}).value||'';
+  if(!id.trim()){ setChip('v-warn','no subject'); return; }
+  setChip('v-run','asking…');
+  try{
+    const r=await fetch(API_BASE+'/knowledge?subject=vendor&id='+encodeURIComponent(id.trim()));
+    const d=await r.json();
+    if(!r.ok){ setChip('v-exception', d.detail||'failed'); 
+      document.getElementById('res').innerHTML=`<div class="reg-warn">${d.detail||'failed'}</div>`; return; }
+    renderKnowledge(d);
+  }catch(e){ setChip('v-exception','error'); 
+    document.getElementById('res').innerHTML=`<div class="reg-warn">${e}</div>`; }
+}
+
+// Cards, not tabs. Each is independent and every one is derived from stored
+// facts. Deliberately absent: Risk, Confidence, Approved/Rejected, bank
+// accounts, ERP state — there is no model or store behind any of them, so a
+// value there would be invented, and an invented number is exactly what a
+// reviewer would (rightly) challenge first.
+function renderKnowledge(k){
+  if(k.available===false){
+    setChip('v-warn','no history');
+    document.getElementById('res').innerHTML=
+      `<div class="reg-warn"><b>History not available</b> ${k.reason||''}</div>`;
+    return;
+  }
+  if(!k.known){
+    setChip('v-ok','nothing known');
+    document.getElementById('res').innerHTML=
+      `<div class="sec"><div class="sec-h">Nothing known</div>
+       <div class="em">No documents from <b>${k.query?k.query.asked:''}</b> have been processed.
+       That is an absence of evidence, not a clean record.</div></div>`;
+    document.getElementById('resSub').textContent='';
+    return;
+  }
+  const i=k.identity||{}, d=k.documents||{}, p=k.patterns||{}, cs=k.cases||{open:[],resolved:[]};
+  const nOpen=(cs.open||[]).length, nRes=(cs.resolved||[]).length;
+  setChip(nOpen?'v-exception':'v-ok', nOpen?`${nOpen} open case${nOpen>1?'s':''}`:'no open cases');
+  document.getElementById('resSub').textContent=
+    `${k.basis.documents} document${k.basis.documents>1?'s':''} · first processed ${(k.basis.first_processed||'').slice(0,10)}`;
+
+  let h='';
+  h+=`<div class="sec"><div class="sec-h">${i.display||i.canonical}</div>
+      <div class="kv-row"><span class="kv-k">Known as</span><span class="kv-v">${(i.aliases||[]).join(' · ')||'—'}</span></div>
+      <div class="kv-row"><span class="kv-k">Documents</span><span class="kv-v">${d.total} (${Object.entries(d.by_type||{}).map(([t,n])=>n+' '+t.replace('_',' ')).join(', ')})</span></div>
+      </div>`;
+
+  if((i.tax_ids||[]).length){
+    h+=`<div class="sec"><div class="sec-h">Tax IDs${i.tax_id_changed?'<span class="count" style="background:var(--amber-bg);color:var(--amber)">changed</span>':''}</div>`;
+    i.tax_ids.forEach(t=>{
+      h+=`<div class="kv-row"><span class="kv-k">${t.value}</span>
+          <span class="kv-v">${t.status} · ${t.documents} document${t.documents>1?'s':''}${t.earliest_document_date?' · earliest dated '+t.earliest_document_date:''}</span></div>`;
+    });
+    h+=`</div>`;
+  }
+
+  const pf=p.invoice_number_format;
+  if(pf||p.tax_rate||p.currencies){
+    h+=`<div class="sec"><div class="sec-h">What is normal for this vendor</div>`;
+    if(pf) h+=`<div class="kv-row"><span class="kv-k">Invoice number</span><span class="kv-v">${pf.established?pf.signature+' — established over '+pf.observations+' invoices':'no consistent format ('+(pf.variants||[]).join(', ')+') — no baseline'}</span></div>`;
+    if(p.tax_rate) h+=`<div class="kv-row"><span class="kv-k">Tax rate</span><span class="kv-v">${p.tax_rate.established?(p.tax_rate.rate*100).toFixed(1)+'% over '+p.tax_rate.observations+' documents':'varies — no baseline'}</span></div>`;
+    if(p.currencies) h+=`<div class="kv-row"><span class="kv-k">Currency</span><span class="kv-v">${Object.entries(p.currencies).map(([c,n])=>c+' ('+n+')').join(', ')}</span></div>`;
+    h+=`<div class="em" style="padding:6px 0 0">A pattern needs at least 3 observations. Below that it fails closed — and a fraudster's first invoices could set it.</div></div>`;
+  }
+
+  if(nOpen||nRes){
+    h+=`<div class="sec"><div class="sec-h">Cases<span class="count">${nOpen+nRes}</span></div>`;
+    [...(cs.open||[]),...(cs.resolved||[])].forEach(c=>{
+      const w=c.why||{};
+      h+=`<div class="dup-card">
+        <div class="dup-head"><span class="dup-type">${FIND_LABEL[c.kind]||c.kind.replace(/_/g,' ')}</span>
+        <span class="dup-action" style="color:${c.status==='resolved'?'var(--green)':'var(--amber)'}">${c.status.toUpperCase()}</span></div>
+        <div class="dup-reason">${c.summary||''}</div>
+        <div class="dup-ev">
+          ${(w.supporting||[]).length?'<div class="ev-grp">Why — evidence</div>':''}
+          ${(w.supporting||[]).map(s=>`<div class="ev-row ev-pos"><span class="ev-sig">✓ ${s.text}</span><span class="ev-vals">${s.detail||''}</span></div>`).join('')}
+          ${(w.conflicts||[]).length?'<div class="ev-grp">Why — conflicts</div>':''}
+          ${(w.conflicts||[]).map(s=>`<div class="ev-row ev-neg"><span class="ev-sig">✗ ${s.text}</span><span class="ev-vals">${s.detail||''}</span></div>`).join('')}
+        </div>
+        ${w.unresolved?`<div class="unres"><b>Cannot determine from the documents</b> ${w.unresolved}</div>`:''}
+        ${(c.resolutions||[]).map(r=>`<div class="prec"><b>Decided</b> ${r.decision}${r.rationale?' — '+r.rationale:''}<span class="prec-by"> · ${(r.resolved_at||'').slice(0,10)}</span></div>`).join('')}
+      </div>`;
+    });
+    h+=`</div>`;
+  }
+
+  if((k.known_behaviour||[]).length){
+    h+=`<div class="sec"><div class="sec-h">What we have learned about this vendor</div>`;
+    k.known_behaviour.forEach(b=>{
+      h+=`<div class="prec"><b>${b.decision}</b> — ${b.behaviour}
+          <span class="prec-by"> · established ${(b.at||'').slice(0,10)} by ${b.by||'a reviewer'}</span></div>`;
+    });
+    h+=`<div class="em" style="padding:6px 0 0">Recorded from reviewers' own reasons. Read as evidence next time — never as a rule that switches a check off.</div></div>`;
+  }
+
+  if((k.timeline||[]).length){
+    h+=`<div class="sec"><div class="sec-h">Timeline<span class="count">${k.timeline.length}</span></div>`;
+    k.timeline.slice().reverse().forEach(t=>{
+      h+=`<div class="kv-row"><span class="kv-k">${(t.at||'').slice(0,10)}</span>
+          <span class="kv-v">${t.kind==='document'?'processed':t.kind}: ${t.what}${t.document_date?' <span class="em">(dated '+t.document_date+')</span>':''}</span></div>`;
+    });
+    h+=`<div class="em" style="padding:6px 0 0">Dates on the left are when Qrynt saw the document, not when it was issued.</div></div>`;
+  }
+
+  h+=`<div class="sec"><div class="sec-h">What this rests on</div>
+      <div class="kv-row"><span class="kv-k">Documents</span><span class="kv-v">${k.basis.documents}</span></div>
+      <div class="kv-row"><span class="kv-k">First processed</span><span class="kv-v">${(k.basis.first_processed||'').slice(0,10)}</span></div>
+      <div class="em" style="padding:6px 0 0">${k.basis.note}</div></div>`;
+
+  document.getElementById('res').innerHTML=h;
+}
+
+async function runQueue(){
+  setChip('v-empty','loading queue…');
+  try{
+    const res=await fetch(API_BASE+'/cases?status=open');
+    if(!res.ok){const b=await res.text();throw new Error('API '+res.status+': '+b.slice(0,200));}
+    renderQueue(await res.json());
+  }catch(err){ showApiError(err,'cases'); }
+}
+
+const CASE_LABEL={
+  DUPLICATE:'Duplicate', EXACT_DUPLICATE:'Exact duplicate',
+  NORMALIZED_DUPLICATE:'Duplicate (reformatted)',
+  VENDOR_VARIANT_DUPLICATE:'Duplicate (vendor spelling differs)',
+  IDENTITY_COLLISION:'Invoice identity collision',
+  SPLIT_INVOICE_SUSPECT:'Split-invoice suspect',
+  CORRECTED_INVOICE:'Corrected invoice',
+  INTERNAL_INCONSISTENCY:'Incorrect data — document contradicts itself',
+  PO_MISMATCH:'Purchase order mismatch', PO_NOT_FOUND:'Purchase order not found',
+  MISSING_TAX_ID:'Missing tax ID', TAX_ID_CHANGED:'Tax ID changed — possible impersonation',
+  TAX_RATE_DEVIATION:'Tax rate deviates from vendor norm',
+  PAYMENT_CONFLICT:'Payment conflict — may already be settled',
+  LOW_CONFIDENCE:'Unclear — needs review'};
+
+function renderQueue(data){
+  if(!data.available){
+    setChip('v-empty','queue unavailable');
+    document.getElementById('resSub').textContent='';
+    document.getElementById('resBody').innerHTML=`<div class="em">${data.reason||'The queue is not available.'}</div>`;
+    return;
+  }
+  const cs=data.cases||[];
+  setChip(cs.length?'v-exception':'v-ok', cs.length?`${cs.length} open`:'queue clear');
+  document.getElementById('resSub').textContent=cs.length?`${cs.length} case${cs.length>1?'s':''} awaiting a decision`:'nothing needs a decision';
+  if(!cs.length){
+    document.getElementById('resBody').innerHTML=`<div class="em">No open cases. Findings that need a person appear here.</div>`;
+    return;
+  }
+  document.getElementById('resBody').innerHTML=cs.map(c=>{
+    const f=c.finding||{};
+    const sup=f.supporting||[], con=f.conflicts||[];
+    const row=(s,cls)=>`<div class="ev-row ${cls}"><span class="ev-sig">${cls==='ev-pos'?'✓':'✗'} ${s.text}</span><span class="ev-vals">${s.detail||''}</span></div>`;
+    // Precedent is EVIDENCE the reviewer reads — the case is here precisely
+    // because it was NOT skipped. It shortens the decision; it never makes it.
+    const pre=(c.precedent||[]).map(p=>`
+      <div class="prec">
+        <b>Precedent · decided ${(p.at||'').slice(0,10)}${p.by?' by '+p.by:''}</b>
+        <div class="prec-d">${p.decision}</div>
+        ${p.rationale?`<div class="prec-w">${p.rationale}</div>`:''}
+      </div>`).join('');
+    return `<div class="dup-card">
+      <div class="dup-head">
+        <span class="dup-type">${CASE_LABEL[c.kind]||c.kind.replace(/_/g,' ')}</span>
+        <span class="dup-action" style="color:var(--amber)">OPEN</span>
+      </div>
+      <div class="dup-reason">${c.summary||''}</div>
+      <div class="dup-ev">
+        ${sup.length?'<div class="ev-grp">Evidence</div>':''}${sup.map(s=>row(s,'ev-pos')).join('')}
+        ${con.length?'<div class="ev-grp">Conflicts</div>':''}${con.map(s=>row(s,'ev-neg')).join('')}
+      </div>
+      ${f.risk?`<div class="dup-risk"><b>Risk</b> ${f.risk}</div>`:''}
+      ${f.unresolved?`<div class="unres"><b>Cannot determine from the documents</b> ${f.unresolved}</div>`:''}
+      ${pre}
+      <div class="resolve">
+        <input id="dec-${c.case_id}" class="rin" placeholder="What did you decide?"/>
+        <input id="rat-${c.case_id}" class="rin" placeholder="Why? (the next reviewer reads this)"/>
+        <div class="rrow">
+          <select id="scp-${c.case_id}" class="rsel">
+            <option value="this_pair">applies to these documents</option>
+            <option value="vendor_pattern">normal for this vendor</option>
+          </select>
+          <button class="mode" onclick="submitResolve('${c.case_id}')">Resolve</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function submitResolve(id){
+  const dec=document.getElementById('dec-'+id).value.trim();
+  if(!dec){ showApiError(new Error('A decision is required.'),'cases'); return; }
+  const rat=document.getElementById('rat-'+id).value.trim();
+  const scp=document.getElementById('scp-'+id).value;
+  try{
+    const res=await fetch(API_BASE+'/cases/'+id+'/resolve',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({decision:dec,rationale:rat,scope:scp})});
+    if(!res.ok){const b=await res.text();throw new Error('API '+res.status+': '+b.slice(0,200));}
+    runQueue();
+  }catch(err){ showApiError(err,'cases/resolve'); }
 }
 
 async function runDedupe(){
@@ -530,12 +836,16 @@ async function runDedupe(){
   // file stashed in _uploadedFiles. If ANY slot holds a binary file, use the
   // multipart /dedupe/files endpoint so the server ingests them; otherwise use
   // the JSON /dedupe endpoint with the pasted text.
-  const binaries=[];   // {id, file}
+  const binaries=[];   // {id, file, profile}
   const texts=[];      // {id, text, profile}
   DEDUPE_IDS.forEach((id,i)=>{
-    const label='Invoice '+(i+1);
+    const label='Document '+(i+1);
+    const prof0=document.getElementById('prof-D'+id);
     const bin=_uploadedFiles['D'+id];
-    if(bin){ binaries.push({id:label, file:bin}); return; }
+    // Carry EACH slot's own profile. Sending one profile for every upload makes
+    // the per-slot dropdowns a lie, and stores a purchase order as an invoice —
+    // which hides it from the invoice that cites it.
+    if(bin){ binaries.push({id:label, file:bin, profile:(prof0?prof0.value:'invoice')}); return; }
     const ta=document.getElementById('ta-D'+id);
     const prof=document.getElementById('prof-D'+id);
     const text=ta?ta.value.trim():'';
@@ -543,7 +853,9 @@ async function runDedupe(){
   });
 
   const total=binaries.length+texts.length;
-  if(total<2){ showApiError(new Error('Provide at least 2 invoices (paste or upload) to check for duplicates.'),'dedupe'); return; }
+  // One invoice is a valid check: "have I seen this before?" — duplicates
+  // arrive weeks apart, so history is usually the other side of the comparison.
+  if(total<1){ showApiError(new Error('Provide at least 1 invoice (paste or upload) to check.'),'dedupe'); return; }
   setChip('v-empty','checking for duplicates…');
 
   try{
@@ -551,13 +863,11 @@ async function runDedupe(){
     if(binaries.length>0){
       // multipart path: send binary files (and any pasted text wrapped as .txt)
       const fd=new FormData();
-      binaries.forEach(b=> fd.append('files', b.file, b.file.name));
-      texts.forEach((t,i)=> fd.append('files', new Blob([t.text],{type:'text/plain'}), 'pasted_'+(i+1)+'.txt'));
-      const prof=document.getElementById('prof-D'+DEDUPE_IDS[0]);
-      fd.append('profile', prof?prof.value:'invoice');
-      res=await fetch(API_BASE+'/dedupe/files',{method:'POST',body:fd});
+      binaries.forEach(b=>{ fd.append('files', b.file, b.file.name); fd.append('profiles', b.profile); });
+      texts.forEach((t,i)=>{ fd.append('files', new Blob([t.text],{type:'text/plain'}), 'pasted_'+(i+1)+'.txt'); fd.append('profiles', t.profile); });
+      res=await fetch(API_BASE+'/dedupe/files'+dryQS(),{method:'POST',body:fd});
     }else{
-      res=await fetch(API_BASE+'/dedupe',{
+      res=await fetch(API_BASE+'/dedupe'+dryQS(),{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({documents:texts})
       });
@@ -567,41 +877,99 @@ async function runDedupe(){
   }catch(err){ showApiError(err,'dedupe'); }
 }
 
+// Findings a person must act on. Shared by Process and Deduplicate so both
+// speak the same vocabulary — a tax-ID change looks identical wherever it
+// surfaces. Each card carries what was checked, what conflicts, what is at
+// stake, and what CANNOT be known from the documents alone.
+const FIND_LABEL={
+  DUPLICATE:'Duplicate of something already processed',
+  INTERNAL_INCONSISTENCY:'Incorrect data — the document contradicts itself',
+  PO_MISMATCH:'Purchase order mismatch', PO_NOT_FOUND:'Purchase order not found',
+  MISSING_TAX_ID:'Missing tax ID', TAX_ID_CHANGED:'Tax ID changed — possible impersonation',
+  TAX_RATE_DEVIATION:'Tax rate deviates from this vendor\'s norm',
+  NUMBER_FORMAT_DEVIATION:'Invoice number format differs from vendor norm',
+  PAYMENT_CONFLICT:'Payment conflict — may already be settled'};
+
+function findingsHtml(list){
+  return (list||[]).map(f=>`
+    <div class="dup-card">
+      <div class="dup-head">
+        <span class="dup-type">${FIND_LABEL[f.kind]||f.kind.replace(/_/g,' ')}</span>
+        <span class="dup-action" style="color:var(--amber)">FINDING</span>
+      </div>
+      <div class="dup-reason">${f.summary||''}</div>
+      <div class="dup-ev">
+        ${(f.supporting||[]).length?'<div class="ev-grp">Evidence</div>':''}
+        ${(f.supporting||[]).map(s=>`<div class="ev-row ev-pos"><span class="ev-sig">✓ ${s.text}</span><span class="ev-vals">${s.detail||''}</span></div>`).join('')}
+        ${(f.conflicts||[]).length?'<div class="ev-grp">Conflicts</div>':''}
+        ${(f.conflicts||[]).map(s=>`<div class="ev-row ev-neg"><span class="ev-sig">✗ ${s.text}</span><span class="ev-vals">${s.detail||''}</span></div>`).join('')}
+      </div>
+      ${f.risk?`<div class="dup-risk"><b>Risk</b> ${f.risk}</div>`:''}
+      ${f.unresolved?`<div class="unres"><b>Cannot determine from the documents</b> ${f.unresolved}</div>`:''}
+      ${(f.evidence_from||[]).length?`<div class="ev-from">established by: ${f.evidence_from.join(', ')}</div>`:''}
+    </div>`).join('');
+}
+
 function renderDedupeFromApi(data){
+  const _u=unwrap(data); window.__lastReport=_u.report; data=_u.raw;
   const rels=data.relationships||[];
   const fields=data.resolved_fields||{};
   const dd0=data.approval&&data.approval.duplicate_detected;
   setChip(dd0?'v-exception':'v-ok', dd0?'duplicates found':'no blocking duplicates');
-  document.getElementById('resSub').textContent=
-    data.summary.records+' invoices · '+data.summary.candidate_pairs+' candidate pair(s)';
+  const reg=data.registry||{};
+  let scope=data.summary.records+' invoices · '+data.summary.candidate_pairs+' candidate pair(s)';
+  if(reg.consulted) scope+=' · checked against history'+(reg.priors_found?` (${reg.priors_found} prior match${reg.priors_found>1?'es':''})`:'');
+  document.getElementById('resSub').textContent=scope;
+  // If history could NOT be consulted, say so plainly — an absence of evidence
+  // must never be presented as evidence of absence.
+  const regNote = reg.consulted ? '' :
+    `<div class="reg-warn"><b>History not checked</b> ${reg.reason||''} — this result covers only the documents in this request.</div>`;
   const actionColor={BLOCK:'var(--signal)',ESCALATE:'var(--signal)',REVIEW:'var(--amber)',ALLOW:'var(--go)'};
   const typeLabel={
     EXACT_DUPLICATE:'Exact duplicate',NORMALIZED_DUPLICATE:'Duplicate (reformatted)',
     VENDOR_VARIANT_DUPLICATE:'Duplicate (vendor spelling differs)',
     CORRECTED_INVOICE:'Corrected invoice — not a duplicate',
     RECURRING_INVOICE:'Recurring invoice — not a duplicate',
-    SPLIT_INVOICE_SUSPECT:'Split-invoice suspect',LOW_CONFIDENCE:'Unclear — needs review'};
+    SPLIT_INVOICE_SUSPECT:'Split-invoice suspect',LOW_CONFIDENCE:'Unclear — needs review',
+    IDENTITY_COLLISION:'Invoice identity collision'};
 
   const dd=data.approval&&data.approval.duplicate_detected;
+  const scopeTxt = reg.consulted
+    ? `${data.summary.records} invoices · checked against your history${reg.priors_found?` · ${reg.priors_found} prior match${reg.priors_found>1?'es':''}`:''}`
+    : `${data.summary.records} invoices · this request only`;
   let head=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
      <span class="verdict-chip ${dd?'v-exception':'v-ok'}">${dd?'DUPLICATES FOUND':'NO BLOCKING DUPLICATES'}</span>
-     <span class="res-sub">${data.summary.records} invoices · ${data.summary.candidate_pairs} candidate pair(s) examined</span>
-   </div>`;
+     <span class="res-sub">${scopeTxt}</span>
+   </div>`+regNote;
 
-  if(!rels.length){
+  if(!rels.length && !allFindings.length){
     document.getElementById('resBody').innerHTML=head+
-      `<div class="em">No candidate pairs — none of these invoices share an identity key, so there are no possible duplicates among them.</div>`;
+      (reg.consulted
+        ? `<div class="em">No duplicates found — this invoice shares no identity key with anything in this request or in your processed history.</div>`
+        : `<div class="em">No duplicates <b>among the documents in this request</b>. Your history was not checked (${reg.reason||'unavailable'}), so this does not rule out an earlier submission.</div>`);
     return;
   }
 
-  const rows=rels.map(r=>{
+  const allFindings=[];
+  Object.keys(data.findings||{}).forEach(id=>(data.findings[id]||[]).forEach(f=>allFindings.push(f)));
+  const findHtml=findingsHtml(allFindings);
+    const rows=rels.map(r=>{
     const fa=fields[r.a_id]||{}, fb=fields[r.b_id]||{};
-    const ev=(r.evidence&&r.evidence.signals)||[];
-    const evHtml=ev.map(s=>{
-      const cls=s.polarity==='+'?'ev-pos':'ev-neg';
-      return `<div class="ev-row ${cls}"><span class="ev-sig">${s.polarity} ${s.name.replace(/_/g,' ')}</span>
-              <span class="ev-vals">${s.a} ${s.a!==s.b?'vs '+s.b:''}</span></div>`;
-    }).join('');
+    // Structured evidence: what AGREES vs what CONFLICTS. A review item has to be
+    // actionable on sight — 'possible duplicate' tells a reviewer nothing.
+    const sup=r.supporting||[], con=r.conflicts||[];
+    const row=(s,cls)=>`<div class="ev-row ${cls}"><span class="ev-sig">${cls==='ev-pos'?'✓':'✗'} ${s.text}</span>
+              <span class="ev-vals">${s.detail}${s.note?' · '+s.note:''}</span></div>`;
+    let evHtml='';
+    if(sup.length) evHtml+=`<div class="ev-grp">Evidence</div>`+sup.map(s=>row(s,'ev-pos')).join('');
+    if(con.length) evHtml+=`<div class="ev-grp">Conflicts</div>`+con.map(s=>row(s,'ev-neg')).join('');
+    if(!sup.length&&!con.length){
+      const ev=(r.evidence&&r.evidence.signals)||[];
+      evHtml=ev.map(s=>`<div class="ev-row ${s.polarity==='+'?'ev-pos':'ev-neg'}">
+        <span class="ev-sig">${s.polarity} ${s.name.replace(/_/g,' ')}</span>
+        <span class="ev-vals">${s.a}${s.a!==s.b?' vs '+s.b:''}</span></div>`).join('');
+    }
+    const riskHtml=r.risk?`<div class="dup-risk"><b>Risk</b> ${r.risk}</div>`:'';
     const fld=(f,k)=>f[k]!=null?f[k]:'—';
     return `<div class="dup-card">
       <div class="dup-card-head">
@@ -626,10 +994,11 @@ function renderDedupeFromApi(data){
         </div>
       </div>
       <div class="dup-ev">${evHtml}</div>
+      ${riskHtml}
     </div>`;
   }).join('');
 
-  document.getElementById('resBody').innerHTML=head+rows;
+  document.getElementById('resBody').innerHTML=reportHtml(window.__lastReport)+head+findHtml+rows;
 }
 
 async function runReconcile(){
@@ -702,6 +1071,7 @@ function showApiError(err, where){
 
 // Render directly from the API's verdict + recommendation shape.
 function renderFromApi(data){
+  const _u=unwrap(data); window.__lastReport=_u.report; data=_u.raw;
   const dims={};
   for(const [k,v] of Object.entries(data.verdict.dimensions)) dims[k]=v.status;
   const exc=[];
@@ -764,16 +1134,24 @@ function renderFromApi(data){
 
   const A={fields:(data.view_a&&data.view_a.fields)||{}};
   const B={fields:(data.view_b&&data.view_b.fields)||{}};
-  renderReconcile(dims,exc,A,B,data.recommendation);
+  renderReconcile(dims,exc,A,B,data.recommendation,data);
 }
 
 async function runProcess(){
-  const text=document.getElementById('ta-A').value;
   const prof=document.getElementById('prof-A')?.value||'invoice';
+  // A staged binary file ALWAYS wins over the textarea. The textarea may hold a
+  // "(binary file …)" placeholder we put there for display, and sending that as
+  // text is how Process ended up reporting a vendor of "CORPORATE" — a token
+  // from the placeholder/stale text — while ignoring the actual PDF. The file is
+  // the document; the textarea is only the document when nothing was uploaded.
+  if(_uploadedFiles['A']){
+    return processUploadedFile('A', _uploadedFiles['A']);
+  }
+  const text=document.getElementById('ta-A').value;
   if(!text.trim()){ resetResults(); return; }
   setChip('v-empty','processing…');
   try{
-    const res=await fetch(API_BASE+'/process-text',{
+    const res=await fetch(API_BASE+'/process-text'+dryQS(),{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({source:text,profile:prof})
     });
@@ -786,7 +1164,32 @@ async function runProcess(){
 }
 
 // Render Process results from the real API (fields + validation).
+function unwrap(data){
+  if(data && data.report && data.results) return {report:data.report, raw:data.results};
+  return {report:null, raw:data};
+}
+function reportHtml(report){
+  if(!report) return '';
+  const sevOrder={high:0,medium:1,low:2,info:3};
+  const badge=({needs_review:'Needs review',clear:'Clear',blocked:'Block payment',derived:'Review',error:'Error'})[report.status]||report.status;
+  const cls=({clear:'rep-clear',blocked:'rep-blocked',needs_review:'rep-review',derived:'rep-review',error:'rep-blocked'})[report.status]||'rep-review';
+  // Findings show WHAT (title) and WHY (detail) in plain language. No severity
+  // tag or confidence number in the human view — the order already reflects
+  // importance, and a percentage is engine-speak, not a decision aid. `info`
+  // findings render quieter (routine context, not problems).
+  const findings=(report.findings||[]).slice().sort((a,b)=>(sevOrder[a.severity]??9)-(sevOrder[b.severity]??9)).map(f=>{
+    const quiet=(f.severity==='info'||f.severity==='low')?' rep-quiet':'';
+    return `<div class="rep-find${quiet}"><div class="rep-what">${esc(f.what)}</div>`+
+      (f.detail?`<div class="rep-detail">${esc(f.detail)}</div>`:'')+`</div>`;
+  }).join('');
+  const rec=report.recommendation?`<div class="rep-rec"><b>Recommended:</b> ${esc(report.recommendation.reason||report.recommendation.action)}</div>`:'';
+  return `<div class="report ${cls}"><div class="rep-top"><span class="rep-badge">${esc(badge)}</span></div>`+
+         `<div class="rep-headline">${esc(report.headline||'')}</div>`+
+         (findings?`<div class="rep-findings">${findings}</div>`:'')+rec+`</div>`;
+}
+
 function renderProcessFromApi(data){
+  const _u=unwrap(data); window.__lastReport=_u.report; data=_u.raw;
   // Multi-document batch (e.g. a JSON array of invoices): render each.
   if(data.documents && data.documents.length>1){
     renderMultiDoc(data.documents);
@@ -823,7 +1226,7 @@ function renderMultiDoc(docs){
     const fieldStr=Object.entries(f).filter(([k,v])=>v).map(([k,v])=>`${k.replace('_',' ')}: ${v}`).join(' · ');
     h+=`<div style="font-size:12px;color:var(--text-dim);font-family:var(--mono);padding:4px 0">${fieldStr}</div></div>`;
   });
-  document.getElementById('resBody').innerHTML=h;
+  document.getElementById('resBody').innerHTML=reportHtml(window.__lastReport)+h;
 }
 
 function renderSingleDoc(data){
@@ -841,9 +1244,14 @@ function renderSingleDoc(data){
       exc.push({tag:'financial',what:(r.message||r.rule_id||'Check failed'),detail});
     }else if(r.status==='PASS'){
       ok.push(r.message||r.rule_id);
+    }else if(r.status==='SUPERSEDED'){
+      // The check ran and was answered by stronger evidence. Show it as handled
+      // rather than hiding it — the user should be able to see that the
+      // subtotal+tax question was asked and resolved, not silently skipped.
+      ok.push((r.message||r.rule_id)+' — resolved by the arithmetic check');
     }
   });
-  renderProcess(fields,lines,exc,ok);
+  renderProcess(fields,lines,exc,ok,(data.verification||{}).total,data);
 }
 
 function parseDoc(text){
@@ -872,42 +1280,95 @@ function parseDoc(text){
   return {fields,lines};
 }
 
-function runProcessLocal(){
-  const {fields,lines}=parseDoc(document.getElementById('ta-A').value);
-  // validation rules mirroring the Rules Engine
-  const exc=[],ok=[];
-  const n=s=>s==null?null:parseFloat(String(s).replace(/,/g,''));
-  const sub=n(fields.subtotal),tax=n(fields.tax),tot=n(fields.total);
-  if(sub!=null&&tax!=null&&tot!=null){
-    if(Math.abs((sub+tax)-tot)>0.01)
-      exc.push({tag:'financial',what:'Totals don\'t balance',
-        detail:`<span class="k">subtotal</span> ${sub.toFixed(2)} <span class="k">+ tax</span> ${tax.toFixed(2)} = ${(sub+tax).toFixed(2)}<br><span class="k">stated total</span> ${tot.toFixed(2)} · <span class="diff">off by ${(tot-(sub+tax)).toFixed(2)}</span>`});
-    else ok.push('Subtotal + tax equals total');
-  }
-  if(lines.length){
-    const ls=lines.reduce((a,l)=>a+(l.amount||0),0);
-    if(sub!=null&&Math.abs(ls-sub)>0.01)
-      exc.push({tag:'financial',what:'Line items don\'t sum to subtotal',
-        detail:`<span class="k">lines total</span> ${ls.toFixed(2)} · <span class="k">subtotal</span> ${sub.toFixed(2)} · <span class="diff">off by ${(ls-sub).toFixed(2)}</span>`});
-    else if(sub!=null) ok.push('Line items sum to subtotal');
-  }
-  ['invoice_number','vendor','total'].forEach(f=>{
-    if(!fields[f]) exc.push({tag:'missing',what:`${f.replace('_',' ')} is missing`,detail:''});
-    else ok.push(`${f.replace('_',' ')} present`);
-  });
-  renderProcess(fields,lines,exc,ok);
-}
+// runProcessLocal removed: Process renders ONLY from the server response
+// (renderProcessFromApi). A client-side textarea parse existed here and, when a
+// binary file was staged, produced a bogus vendor like "CORPORATE" from the
+// placeholder while the real /process-file result was discarded. The server is
+// the single source of truth.
 
-function renderProcess(fields,lines,exc,ok){
-  const has=exc.length>0;
-  setChip(has?'v-exception':'v-ok',has?`${exc.length} exception${exc.length>1?'s':''}`:'clean');
+// Render the money-tree's per-region results: one line per money area with a
+// pass/fail mark, plus the Qrynt-computed note when a total was derived. This is
+// the "math on every money area, not just the total" made visible.
+function moneyRegionsHtml(verify){
+  if(!verify||!verify.regions||!verify.regions.length) return '';
+  const rows=verify.regions.map(r=>{
+    const mark=r.ok?'✓':'✗';
+    const cls=r.ok?'reg-ok':'reg-bad';
+    const nums=(r.stated!=null&&r.expected!=null&&!r.derived)
+      ? ` <span class="k">stated</span> ${fmtMoney(r.stated)} <span class="k">expected</span> ${fmtMoney(r.expected)}`
+      : '';
+    return `<div class="reg-row ${cls}"><span class="reg-mark">${mark}</span>`+
+           `<span class="reg-name">${esc(r.region)}</span>${nums}</div>`;
+  }).join('');
+  const note = verify.total_note
+    ? `<div class="ver-note">${esc(verify.total_note)}</div>` : '';
+  return `<div class="regions">${rows}</div>${note}`;
+}
+function fmtMoney(v){ if(v==null) return '—'; const n=typeof v==='number'?v:parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):String(v); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function renderProcess(fields,lines,exc,ok,verify,data){
+  // Role verification: the total established from the document's own ARITHMETIC,
+  // independent of what any label calls it. This is the one check an adversary
+  // cannot rename away, so it is shown even when every label-based rule passes.
+  let vHtml='';
+  if(verify && verify.verdict){
+    const V=verify.verdict;
+    if(V==='INCONSISTENT'||V==='CONFLICT'){
+      vHtml=`<div class="sec"><div class="sec-h">Arithmetic check</div>
+        <div class="ver ver-bad"><b>${V==='CONFLICT'?'Stated total contradicts the arithmetic':'The document does not add up'}</b>
+        ${verify.evidence||''}${verify.claimed!=null?` <span class="k">stated</span> ${verify.claimed}`:''}${verify.identified!=null?` · <span class="k">arithmetic gives</span> ${verify.identified}`:''}
+        <div class="ver-note">Found without reading any label — renaming the fields would not hide this.</div>
+        ${moneyRegionsHtml(verify)}</div></div>`;
+    }else if(V==='FILL'){
+      vHtml=`<div class="sec"><div class="sec-h">Arithmetic check</div>
+        <div class="ver ver-info"><b>Total was not stated — computed from the document</b>
+        ${verify.identified!=null?`<span class="k">computed</span> ${fmtMoney(verify.identified)}. `:''}${verify.evidence||''}
+        ${moneyRegionsHtml(verify)}</div></div>`;
+    }else if(V==='CONFIRM'){
+      vHtml=`<div class="sec"><div class="sec-h">Arithmetic check</div>
+        <div class="ver ver-good"><b>Total confirmed by the document's own arithmetic</b> ${verify.evidence||''}
+        ${moneyRegionsHtml(verify)}</div></div>`;
+    }else if(V==='UNVERIFIABLE'){
+      vHtml=`<div class="sec"><div class="sec-h">Arithmetic check</div>
+        <div class="ver ver-info"><b>Not checkable</b> ${verify.evidence||'too few figures to verify the total arithmetically'}. The total rests on its label alone.</div></div>`;
+    }
+  }
+  // Findings from the registry: what this document means in the light of
+  // everything already processed. Absent for an anonymous caller, which the
+  // banner says plainly rather than showing a clean result built on no history.
+  const d=data||{}; const reg=d.registry||{};
+  const finds=[];
+  Object.keys(d.findings||{}).forEach(id=>(d.findings[id]||[]).forEach(f=>finds.push(f)));
+  const fHtml=finds.length
+    ? `<div class="sec"><div class="sec-h">Checked against your history<span class="count">${finds.length}</span></div>${findingsHtml(finds)}</div>`
+    : '';
+  // Two different silences to break. Either history was not consulted, or this
+  // document was not added to it — both mean a clean result is narrower than it
+  // looks, and neither should pass unmentioned.
+  let regNote='';
+  if(d.dry_run){
+    regNote=`<div class="dry-note"><b>Dry run</b> — evaluated against your history, nothing was added to it.
+      ${reg.would_record?`Would have recorded ${reg.would_record} document${reg.would_record>1?'s':''}.`:''}
+      ${(d.case_store&&d.case_store.would_open)?`Would have raised ${d.case_store.would_open} case${d.case_store.would_open>1?'s':''}.`:''}</div>`;
+  }else if(reg.consulted===false){
+    regNote=`<div class="reg-warn"><b>History not checked</b> ${reg.reason||''} — this document was not compared against anything you processed before.</div>`;
+  }else if(reg.not_recorded){
+    regNote=`<div class="reg-warn"><b>Not added to your history</b> ${reg.reason||''}</div>`;
+  }
+  const has=exc.length>0||finds.length>0;
+  setChip(has?'v-exception':'v-ok',
+    has?`${exc.length+finds.length} to review`:'clean');
   document.getElementById('resSub').textContent=
     (fields.invoice_number||fields.po_number||'Document')+(fields.vendor?' · '+fields.vendor:'');
   let h='';
-  if(has){
+  h+=regNote;
+  if(exc.length){
     h+=`<div class="sec"><div class="sec-h">Needs your attention<span class="count">${exc.length}</span></div>`;
     exc.forEach(e=>{h+=excHTML(e);});h+=`</div>`;
   }
+  h+=fHtml;
+  h+=vHtml;
   h+=`<div class="sec"><div class="sec-h">Extracted fields</div><table class="fields">`;
   ['invoice_number','po_number','vendor','currency','subtotal','tax','total'].forEach(k=>{
     if(fields[k]!=null)h+=`<tr><td class="k">${k.replace('_',' ')}</td><td class="v">${fields[k]}</td></tr>`;});
@@ -915,14 +1376,14 @@ function renderProcess(fields,lines,exc,ok){
   if(lines.length){
     h+=`<div class="sec"><div class="sec-h">Line items<span class="count">${lines.length}</span></div>
       <table class="lines"><thead><tr><th class="desc">Description</th><th class="r">Qty</th><th class="r">Unit</th><th class="r">Amount</th></tr></thead><tbody>`;
-    lines.forEach(l=>{h+=`<tr><td class="desc">${l.description||''}</td><td class="r">${l.quantity??''}</td><td class="r">${l.unit_price!=null?l.unit_price.toFixed(2):''}</td><td class="r">${l.amount!=null?l.amount.toFixed(2):''}</td></tr>`;});
+    lines.forEach(l=>{h+=`<tr><td class="desc">${l.description||''}</td><td class="r">${l.quantity??''}</td><td class="r">${l.unit_price!=null?fmtMoney(l.unit_price):''}</td><td class="r">${l.amount!=null?fmtMoney(l.amount):''}</td></tr>`;});
     h+=`</tbody></table></div>`;
   }
   if(ok.length){
     h+=`<div class="sec"><div class="sec-h">Checks passed<span class="count">${ok.length}</span></div>`;
     ok.forEach(o=>{h+=`<div class="ok-line"><span class="check">✓</span>${o}</div>`;});h+=`</div>`;
   }
-  document.getElementById('resBody').innerHTML=h;
+  document.getElementById('resBody').innerHTML=reportHtml(window.__lastReport)+h;
 }
 
 function runReconcileLocal(){
@@ -962,7 +1423,7 @@ function runReconcileLocal(){
   renderReconcile(dims,exc,A,B);
 }
 
-function renderReconcile(dims,exc,A,B,apiRec){
+function renderReconcile(dims,exc,A,B,apiRec,data){
   const anyFail=Object.values(dims).includes('FAIL');
   const anyNC=Object.values(dims).includes('NOT_CHECKED');
   const overall=anyFail?'EXCEPTION':(anyNC?'INCOMPLETE':'RECONCILED');
@@ -986,6 +1447,11 @@ function renderReconcile(dims,exc,A,B,apiRec){
   let h=`<div class="rec ${recCls}"><span class="rec-icon">${recIcon}</span>
     <div class="rec-body"><div class="rec-title">${rec}</div><div class="rec-why">${recWhy}</div></div></div>`;
 
+  // Machine-facing evidence (dimension grid + per-line exceptions) is now
+  // secondary: the report above states every conclusion in human terms. Keep it
+  // available under a collapsed "Technical detail" block rather than in the
+  // default view, per the report/results contract.
+  h+=`<details class="techdetail"><summary>Technical detail (engine evidence)</summary>`;
   h+=`<div class="dims">`;
   ['identity','financial','structural','business','compliance'].forEach(d=>{
     const s=dims[d];const cls=s==='PASS'?'pass':(s==='FAIL'?'fail':'nc');
@@ -995,13 +1461,31 @@ function renderReconcile(dims,exc,A,B,apiRec){
   });
   h+=`</div>`;
 
+  // Reconcile is an ingestion event: both documents entered history, and the
+  // registry can say things that comparing A to B never could — that this
+  // invoice was processed before, that the vendor's tax id moved, that the
+  // invoice contradicts ITSELF.
+  const rd=data||{}, rreg=rd.registry||{};
+  const rfinds=[];
+  Object.keys(rd.findings||{}).forEach(id=>(rd.findings[id]||[]).forEach(f=>rfinds.push(f)));
+  if(rd.dry_run){
+    h+=`<div class="dry-note"><b>Dry run</b> — evaluated against your history, nothing was added to it.
+        ${rreg.would_record?`Would have recorded ${rreg.would_record} document${rreg.would_record>1?'s':''}.`:''}</div>`;
+  }else if(rreg.consulted===false){
+    h+=`<div class="reg-warn"><b>History not checked</b> ${rreg.reason||''} — these documents were compared only to each other.</div>`;
+  }
+  if(rfinds.length){
+    h+=`<div class="sec"><div class="sec-h">Checked against your history<span class="count">${rfinds.length}</span></div>${findingsHtml(rfinds)}</div>`;
+  }
+
   if(exc.length){
     h+=`<div class="sec"><div class="sec-h">Needs your attention<span class="count">${exc.length}</span></div>`;
     exc.forEach(e=>{h+=excHTML(e);});h+=`</div>`;
   }else{
     h+=`<div class="sec"><div class="ok-line"><span class="check">✓</span>Every checked dimension aligned</div></div>`;
   }
-  document.getElementById('resBody').innerHTML=h;
+  h+=`</details>`;   // close Technical detail
+  document.getElementById('resBody').innerHTML=reportHtml(window.__lastReport)+h;
 }
 
 function excHTML(e){

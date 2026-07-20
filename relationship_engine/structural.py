@@ -156,15 +156,34 @@ def align_lines(
             b_by_sig.setdefault(sig, []).append(j)
 
     # score candidate pairs
+    #
+    # Candidacy is ONLY by identity signature — a line is compared against the
+    # lines on the other side that share its identity (same description/SKU),
+    # never against every line. This is deliberate: an all-pairs fallback would
+    # compare each item in A against each item in B (N×M), which both explodes
+    # combinatorially and manufactures spurious matches between unrelated items.
+    # A line with no identity signature has no candidates and is reported
+    # unmatched, rather than fished for a match across the whole other side.
     scored: List[Tuple[float, int, int, List[Dict[str, Any]]]] = []
     for i, al in enumerate(A):
         sig = _identity_signature(al, identity_fields)
-        candidates = b_by_sig.get(sig, []) if sig is not None else list(range(len(B)))
-        if sig is None and not identity_fields:
-            candidates = list(range(len(B)))
+        if sig is None:
+            continue                       # no identity → no candidates (never N×M)
+        candidates = b_by_sig.get(sig, [])
         for j in candidates:
             score, ev = _pair_evidence(al, B[j], weights)
-            if score >= ALIGN_THRESHOLD:
+            # Identity ESTABLISHES the match; the other weighted fields
+            # (unit_price, etc.) are COMPARISON RESULTS, not gates. Two lines
+            # with the same description are the same item even when the price
+            # differs — that price difference is the finding we want to surface
+            # ("same item, billed $380 vs ordered $350"), not a reason to declare
+            # the item missing on one side and unexpected on the other. So a
+            # matched identity signature clears the threshold on its own; the
+            # score is still recorded so disagreements are reported downstream.
+            sig_b = _identity_signature(B[j], identity_fields)
+            if sig_b is not None and sig_b == sig:
+                scored.append((max(score, ALIGN_THRESHOLD), i, j, ev))
+            elif score >= ALIGN_THRESHOLD:
                 scored.append((score, i, j, ev))
 
     # greedy best-first 1:1 assignment (deterministic: highest score wins,

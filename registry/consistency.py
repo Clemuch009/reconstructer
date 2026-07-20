@@ -58,6 +58,7 @@ from relationship_engine.evidence import gather_evidence
 from relationship_engine.classify import classify_relationship
 from relationship_engine.dedup_policy import decide_action
 from relationship_engine.canonicalize import canon_amount
+import re
 
 # finding kinds
 DUPLICATE              = "DUPLICATE"
@@ -68,6 +69,7 @@ MISSING_TAX_ID         = "MISSING_TAX_ID"
 TAX_ID_CHANGED         = "TAX_ID_CHANGED"
 TAX_RATE_DEVIATION     = "TAX_RATE_DEVIATION"
 PAYMENT_CONFLICT       = "PAYMENT_CONFLICT"
+NUMBER_FORMAT_DEVIATION = "NUMBER_FORMAT_DEVIATION"
 
 _TOL = 0.01
 # A baseline needs enough observations to BE a baseline. Below this we say
@@ -99,7 +101,19 @@ def _ev(text: str, a: Any, b: Any = None) -> Dict[str, Any]:
 def _check_duplicates(rec: RegistryRecord, provider) -> List[Finding]:
     """Prior documents sharing an identity. Delegates entirely to the tested
     dedup engine (stages 1-6) — the registry only supplies the candidates that
-    batch mode could never see, because real duplicates arrive weeks apart."""
+    batch mode could never see, because real duplicates arrive weeks apart.
+
+    Relationships the policy ALLOWs are NOT emitted. A RECURRING_INVOICE — same
+    vendor and amount, different billing month — is the engine concluding that
+    nothing is wrong. Reporting that as a "finding" is noise, and it does not
+    scale: a monthly vendor's 100th invoice would carry 99 of them, burying the
+    one finding that matters underneath. A finding is a PROBLEM; the absence of
+    a problem is not news.
+
+    The check still runs against every prior — nothing is skipped, and a
+    duplicate hiding among recurring invoices is still found. Only the
+    all-clear verdicts are left unsaid.
+    """
     query = rehydrate(rec)
     # same-type only: the registry is cross-type by design, so an invoice and the
     # PO it cites share keys. A duplicate is the same document twice.
@@ -112,6 +126,8 @@ def _check_duplicates(rec: RegistryRecord, provider) -> List[Finding]:
         ev = gather_evidence(prior, query)
         rel = classify_relationship(ev, prior, query)
         d = decide_action(rel)
+        if d["action"] == "ALLOW":
+            continue                     # checked, and nothing is wrong
         out.append(Finding(
             kind=DUPLICATE,
             subject=rec.doc_id,
@@ -139,10 +155,23 @@ def _check_internal(rec: RegistryRecord) -> List[Finding]:
     place a caller asks "is this document sound?"
     """
     c = rec.canonical
+
+    # The money-structure tree is the authority on arithmetic: it validates the
+    # WHOLE chain (subtotal − discount + shipping + tax = total). If it CONFIRMed
+    # the document, there is no inconsistency — and the flat subtotal+tax check
+    # below would false-positive on any invoice with a discount, shipping, or a
+    # multi-section structure it cannot see. Defer to the tree when it ruled.
+    if c.get("arithmetic_verdict") == "CONFIRM":
+        return []
+
     sub, tax, tot = c.get("subtotal_canon"), c.get("tax_canon"), c.get("amount_canon")
     if sub is None or tot is None:
         return []
-    expected = sub + (tax or 0.0)
+    # Fold in discount and shipping when present, so this check matches the chain
+    # the tree uses rather than a flat sum that ignores adjustments.
+    disc = c.get("discount_canon") or 0.0
+    ship = c.get("shipping_canon") or 0.0
+    expected = sub + disc + ship + (tax or 0.0)
     if abs(expected - tot) < _TOL:
         return []
     delta = round(tot - expected, 2)
@@ -332,6 +361,97 @@ def _check_tax_rate(rec: RegistryRecord, provider) -> List[Finding]:
     )]
 
 
+# ── invoice-number format against the vendor's own history ────────────────
+#
+# This is the honest answer to "can we verify the invoice number?"
+#
+# We CANNOT identify an invoice number label-free the way we identify the total.
+# The total is verifiable because it satisfies an EQUATION — total = subtotal +
+# tax − discount — a constraint the document enforces on itself, which is why no
+# amount of relabelling defeats it. An invoice number satisfies no equation. It
+# is an arbitrary string; nothing in the document constrains it, so there is
+# nothing to check it against. Measured on the corpus, a real invoice contains
+# several identifier-shaped tokens (invoice number, PO number, cost centre, bank
+# account fragments) and NOTHING intrinsic tells them apart. Picking by
+# type+position+cardinality would be a heuristic wearing verification's clothes,
+# and it would be confidently wrong.
+#
+# What CAN be checked is the number's SHAPE against what this vendor has always
+# used. That is not identification — it is verification against accumulated
+# observation, the same class of evidence as TAX_ID_CHANGED, and the same fraud
+# vector: an impersonator gets the vendor name right and the house style wrong.
+
+_SIG_ALPHA = re.compile(r"A{2,}")
+_SIG_DIGIT = re.compile(r"9{2,}")
+
+
+def _number_signature(value: str) -> Optional[str]:
+    """Shape of an identifier: letters→A+, digits→9+, runs collapsed.
+
+    Computed on the CANONICAL number, so punctuation is already gone. That is
+    deliberate: INV-2026-8819 and INV/2026/8819 are the SAME number to every
+    other part of the engine (canonicalisation exists precisely so INV-001 and
+    INV001 compare equal), so treating a separator change as a format deviation
+    would contradict that and manufacture false positives. What survives is the
+    STRUCTURE — the letter/digit arrangement — which is what actually
+    distinguishes a vendor's house style from an impostor's.
+    """
+    if not value:
+        return None
+    out = []
+    for ch in str(value).strip().upper():
+        out.append("A" if ch.isalpha() else "9" if ch.isdigit() else ch)
+    s = _SIG_DIGIT.sub("9+", "".join(out))
+    return _SIG_ALPHA.sub("A+", s) or None
+
+
+def _check_number_format(rec: RegistryRecord, provider) -> List[Finding]:
+    c = rec.canonical
+    vendor = c.get("vendor_canon")
+    num = c.get("invoice_number_canon")
+    if not vendor or not num or rec.doc_type != "invoice":
+        return []
+
+    this_sig = _number_signature(num)
+    if not this_sig:
+        return []
+
+    sigs = []
+    hist = [h for h in provider.vendor_history(vendor)
+            if h.doc_id != rec.doc_id and h.doc_type == "invoice"]
+    for h in hist:
+        hn = h.canonical.get("invoice_number_canon")
+        s = _number_signature(hn) if hn else None
+        if s:
+            sigs.append(s)
+    if len(sigs) < _MIN_BASELINE_N:
+        return []
+    distinct = sorted(set(sigs))
+    if len(distinct) != 1:
+        return []            # this vendor is not consistent — no baseline exists
+    norm = distinct[0]
+    if this_sig == norm:
+        return []
+    return [Finding(
+        kind=NUMBER_FORMAT_DEVIATION,
+        subject=rec.doc_id,
+        summary=(f"invoice number {rec.raw_fields.get('invoice_number') or num} "
+                 f"does not follow the structure this vendor has used on all "
+                 f"{len(sigs)} previous invoices"),
+        supporting=[_ev("Vendor", vendor)],
+        conflicts=[_ev("Invoice number format", this_sig, norm)],
+        evidence_from=[h.doc_id for h in hist][:5],
+        risk=("A known vendor's invoice number departs from its established "
+              "house format. This is weaker evidence than a changed tax id, but "
+              "it is the same pattern: correct vendor name, wrong details. Worth "
+              "confirming the invoice originated with the usual sender."),
+        unresolved=("Whether the vendor changed its numbering scheme cannot be "
+                    "established from the documents — confirm with the vendor."),
+        detail={"vendor": vendor, "number": num, "signature": this_sig,
+                "baseline": norm, "observations": len(sigs)},
+    )]
+
+
 # ── 7. payment conflicts ──────────────────────────────────────────────────
 def _check_payments(rec: RegistryRecord, provider) -> List[Finding]:
     """Payments already recorded against this invoice.
@@ -376,8 +496,17 @@ def _check_payments(rec: RegistryRecord, provider) -> List[Finding]:
 
 
 # ── the one entry point ───────────────────────────────────────────────────
-def evaluate(rec: RegistryRecord, provider) -> List[Finding]:
+def evaluate(rec: RegistryRecord, provider,
+             include_duplicates: bool = True) -> List[Finding]:
     """Evaluate one new document against everything the organisation knows.
+
+    `include_duplicates=False` omits the DUPLICATE findings. That is not a
+    weakening: callers that already run the dedup engine over a batch report
+    duplicates as PAIRWISE relationships (A vs B), which is the right shape for
+    them — a duplicate is a claim about two documents, not a property of one.
+    Emitting both would show the same fact twice under two vocabularies. The
+    other findings ARE properties of the single document under evaluation, so
+    they belong here.
 
     Returns findings — never a decision. The policy engine turns findings into
     Approve / Review / Reject, so a customer can change policy without touching
@@ -389,17 +518,20 @@ def evaluate(rec: RegistryRecord, provider) -> List[Finding]:
     """
     findings: List[Finding] = []
     findings += _check_internal(rec)
-    findings += _check_duplicates(rec, provider)
+    if include_duplicates:
+        findings += _check_duplicates(rec, provider)
     findings += _check_po(rec, provider)
     findings += _check_tax_id(rec, provider)
     findings += _check_tax_rate(rec, provider)
+    findings += _check_number_format(rec, provider)
     findings += _check_payments(rec, provider)
     return findings
 
 
-def evaluate_dict(rec: RegistryRecord, provider) -> Dict[str, Any]:
+def evaluate_dict(rec: RegistryRecord, provider,
+                  include_duplicates: bool = True) -> Dict[str, Any]:
     """`evaluate` as plain data, grouped by kind — the API/UI shape."""
-    fs = evaluate(rec, provider)
+    fs = evaluate(rec, provider, include_duplicates=include_duplicates)
     by_kind: Dict[str, List[Dict[str, Any]]] = {}
     for f in fs:
         by_kind.setdefault(f.kind, []).append(f.to_dict())

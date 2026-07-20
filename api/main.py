@@ -16,6 +16,8 @@ from api.routes.ingest    import router as ingest_router
 from api.routes.ingest_file import router as ingest_file_router
 from api.routes.reconcile  import router as reconcile_router
 from api.routes.dedupe     import router as dedupe_router
+from api.routes.cases      import router as cases_router
+from api.routes.knowledge  import router as knowledge_router
 from api.auth.router      import router as auth_router
 from api.routes.billing   import router as billing_router
 
@@ -64,6 +66,8 @@ app.include_router(ingest_router,      tags=["Pipeline"])
 app.include_router(ingest_file_router, tags=["File Ingestion"])
 app.include_router(reconcile_router,   tags=["Reconciliation"])
 app.include_router(dedupe_router,      tags=["Deduplication"])
+app.include_router(cases_router,       tags=["Review queue"])
+app.include_router(knowledge_router,   tags=["Knowledge"])
 
 
 # ---------------------------------

@@ -26,6 +26,7 @@
 from typing import Any, Dict, List, Optional
 
 from relationship_engine.candidates import InvoiceRecord
+from relationship_engine.canonicalize import instruments_conflict
 
 
 # ── signal weights (from the merged design) ────────────────────────────────
@@ -43,7 +44,9 @@ POSITIVE_WEIGHTS = {
 NEGATIVE_WEIGHTS = {
     "different_amount":         -0.40,
     "different_currency":       -0.60,
-    "different_customer":       -0.30,
+    "different_recipient":      -0.30,   # addressed to a different entity
+    "composition_differs":      -0.20,   # same total, built from different parts
+    "different_document_type":  -0.35,   # different accounting instruments
     "different_date_month":     -0.10,   # different billing month (recurring hint)
 }
 
@@ -136,6 +139,40 @@ def gather_evidence(a: InvoiceRecord, b: InvoiceRecord) -> Dict[str, Any]:
     if _both(curr_a, curr_b) and not currency_match:
         add("different_currency", "-", NEGATIVE_WEIGHTS["different_currency"], curr_a, curr_b)
 
+    # Different accounting INSTRUMENT. A debit memo and an invoice bearing the
+    # same reference, vendor, date and amount are not one obligation stated
+    # twice — they are different instruments with different accounting
+    # treatment, and only one of them (or both, or neither) may be payable.
+    # Without this they satisfy provable identity and auto-BLOCK.
+    dt_a, dt_b = ca.get("doc_type_canon"), cb.get("doc_type_canon")
+    doc_type_differs = instruments_conflict(dt_a, dt_b)
+    if doc_type_differs:
+        add("different_document_type", "-",
+            NEGATIVE_WEIGHTS["different_document_type"], dt_a, dt_b)
+
+    # Different bill-to entity. Two invoices addressed to DIFFERENT customers
+    # are not repetitions of one event, however identical the other fields — so
+    # this is the signal that separates a duplicate from two documents wearing
+    # the same invoice number. Fires only when both are present and disagree.
+    recip_a = ca.get("recipient_canon")
+    recip_b = cb.get("recipient_canon")
+    recipient_differs = _both(recip_a, recip_b) and recip_a != recip_b
+    if recipient_differs:
+        add("different_recipient", "-", NEGATIVE_WEIGHTS["different_recipient"], recip_a, recip_b)
+
+    # Same total, DIFFERENT composition. If two invoices agree on the total but
+    # disagree on how it is built (subtotal / tax), they are not the same
+    # document restated — they assert different underlying facts.
+    sub_a, sub_b = ca.get("subtotal_canon"), cb.get("subtotal_canon")
+    tax_a, tax_b = ca.get("tax_canon"), cb.get("tax_canon")
+    composition_differs = bool(
+        amount_match and (
+            (_both(sub_a, sub_b) and not _amounts_equal(sub_a, sub_b)) or
+            (_both(tax_a, tax_b) and not _amounts_equal(tax_a, tax_b))))
+    if composition_differs:
+        add("composition_differs", "-", NEGATIVE_WEIGHTS["composition_differs"],
+            f"subtotal {sub_a} / tax {tax_a}", f"subtotal {sub_b} / tax {tax_b}")
+
     if _both(date_a, date_b) and date_a[:7] != date_b[:7]:
         add("different_date_month", "-", NEGATIVE_WEIGHTS["different_date_month"], date_a[:7], date_b[:7])
 
@@ -177,7 +214,10 @@ def gather_evidence(a: InvoiceRecord, b: InvoiceRecord) -> Dict[str, Any]:
             "vendor_match":    vendor_match,
             "amount_match":    amount_match,
             "currency_match":  currency_match,
-            "po_match":        po_match,
+            "po_match":            po_match,
+            "recipient_differs":   recipient_differs,
+            "doc_type_differs":    doc_type_differs,
+            "composition_differs": composition_differs,
             "days_apart":      days,
             "same_month":      (date_a[:7] == date_b[:7]) if _both(date_a, date_b) else None,
         },

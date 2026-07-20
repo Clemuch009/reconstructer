@@ -6,6 +6,91 @@ from ingestion.result import ExtractionResult, ExtractionMetadata
 from ingestion.visual import EmbeddedVisual, make_visual_id, visual_placeholder
 
 
+# A 'table' this large whose cells hold this much text is a page, not a table.
+# Thresholds are set from measurement (see _is_layout_container), with a wide
+# margin: the real tables in the corpus sit at 12% / 54 chars.
+_LAYOUT_AREA_FRACTION = 0.60
+_LAYOUT_CELL_CHARS = 150
+
+# Minimum pixel dimension for a raster to count as content. Named in the code
+# that uses it ("a 32px floor removes only noise") but never defined, so every
+# PDF raised NameError on the visual path — caught, turned into the warning
+# string "raster extraction error: name '_MIN_VISUAL_DIM' is not defined", and
+# ignored. The visual extraction has therefore never run in production.
+_MIN_VISUAL_DIM = 32
+
+
+def _region_text(region, page_width: float) -> str:
+    """Text from a page region, with the columns put back in reading order.
+
+    This exists because the column fix was built and then never ran.
+    reconstruct_reading_order() was gated behind "only if this page has no
+    tables" — and every real invoice has a table, so on every real invoice the
+    fix was skipped and extract_text() flattened the header block. An invoice's
+    identity lives in that header: "Invoice to | Invoice from" side by side, the
+    vendor in one column and the customer in the other, the invoice number and
+    tax id beneath. Flattened, they concatenate into one line and stop being
+    key/values at all.
+
+    The region above and below a table is exactly where that header sits, so the
+    reconstruction has to happen HERE, not only on table-free pages.
+
+    Falls back to extract_text() when no columns are detected — single-column
+    layouts are unchanged, which is what makes this safe to apply everywhere.
+    """
+    try:
+        from ingestion.extractors.pdf_columns import reconstruct_reading_order
+        recovered = reconstruct_reading_order(region.extract_words(), page_width)
+        if recovered:
+            return recovered
+    except Exception:
+        pass
+    return region.extract_text() or ""
+
+
+def _is_layout_container(rows, bbox, page_w: float, page_h: float) -> bool:
+    """True when a 'table' pdfplumber found is really the page's layout.
+
+    Invoices generated from HTML — Paddle, Stripe, most modern billing systems —
+    are drawn with background shading and horizontal rules. pdfplumber's line
+    detection reads those as table borders and reports the whole page as one
+    table. The Paddle invoice comes back as 2 columns x 12 rows covering 84% of
+    the page, with the entire "Invoice to / Invoice from" block sitting in a
+    single 363-character cell.
+
+    Everything downstream then breaks, invisibly: the page is emitted as
+    comma-joined cells, "Subtotal $25.00 VAT $4.00 Total $29.00" lands mid-line
+    with no separators to parse, and the resolver — which is working perfectly —
+    is handed a document with no readable key/values. The invoice number, total
+    and tax id are all present on the paper and none of them survive.
+
+    The discriminator is what a cell CONTAINS. A data table's cell holds a value:
+    "$25.00", "Individual Plan", "16%". A layout container's cell holds a block
+    of the document. Measured across the corpus, the separation is not close:
+
+        real tables      <=12% of page area, longest cell  54 chars
+        the Paddle page   84% of page area, longest cell 363 chars
+
+    So: big AND blocky. Both are required, because either alone is legitimate —
+    a wide table of short values is a real table, and a small table with one
+    chatty description cell is a real table. Only their combination says "this is
+    not a grid of values, it is a page someone drew lines on".
+
+    Rejecting it costs nothing: the caller falls back to reading order
+    reconstruction, which recovers the columns properly (proven on this exact
+    document) and lets the borderless-table detection find the REAL line-item
+    table nested inside.
+    """
+    if not rows or not rows[0]:
+        return False
+    x0, top, x1, bottom = bbox
+    if not (page_w and page_h):
+        return False
+    area = ((x1 - x0) * (bottom - top)) / (page_w * page_h)
+    longest = max((len(c or "") for r in rows for c in r), default=0)
+    return area >= _LAYOUT_AREA_FRACTION and longest >= _LAYOUT_CELL_CHARS
+
+
 def _mime_from_filter(filters) -> str:
     """
     Infer MIME type from pdfplumber image filter names.
@@ -82,23 +167,41 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                 page_parts: List[str] = []
 
                 # ── Step 1: detect valid tables and get bboxes ──
-                tables = page.extract_tables()
-                valid_tables = [
-                    t for t in tables
-                    if t and len(t) >= 2 and len(t[0]) >= 2
-                    and not (len(t) <= 2 and len(t[0]) == 1)
-                ]
-
+                #
+                # Both come from find_tables(), deliberately. extract_tables()
+                # returns rows with no bbox, so a table found that way cannot be
+                # checked for being the page's layout — and the two lists would
+                # then disagree about what a valid table is. They did: the fake
+                # full-page table was excluded from the bboxes and still rendered
+                # as CSV, so the page came out BOTH ways at once.
+                #
+                # One definition, used for both. Two will always drift.
+                valid_tables = []
                 table_bboxes = []
                 try:
                     for pt in page.find_tables():
                         extracted = pt.extract()
-                        if (extracted and len(extracted) >= 2
+                        if not (extracted and len(extracted) >= 2
                                 and len(extracted[0]) >= 2
                                 and not (len(extracted) <= 2 and len(extracted[0]) == 1)):
-                            table_bboxes.append(pt.bbox)
+                            continue
+                        # An HTML-rendered invoice's shading reads as borders and
+                        # the whole page comes back as one "table". Treating it as
+                        # one silently destroys every key/value on the document.
+                        if _is_layout_container(extracted, pt.bbox,
+                                                page.width, page.height):
+                            continue
+                        valid_tables.append(extracted)
+                        table_bboxes.append(pt.bbox)
                 except Exception:
-                    pass
+                    # find_tables() failed; fall back to the row-only view. No
+                    # bbox means no layout check — accept, as before.
+                    valid_tables = [
+                        t for t in page.extract_tables()
+                        if t and len(t) >= 2 and len(t[0]) >= 2
+                        and not (len(t) <= 2 and len(t[0]) == 1)
+                    ]
+                    table_bboxes = []
 
                 # ── Step 2: extract text from non-table regions ──
                 if table_bboxes:
@@ -110,13 +213,13 @@ def extract_pdf(raw_bytes: bytes) -> ExtractionResult:
                             x0, top, x1, bottom = bbox
                             if top > prev_bottom:
                                 region = page.within_bbox((0, prev_bottom, page.width, top))
-                                t = region.extract_text()
+                                t = _region_text(region, page.width)
                                 if t and t.strip():
                                     non_table_parts.append(t.strip())
                             prev_bottom = bottom
                         if prev_bottom < page.height:
                             region = page.within_bbox((0, prev_bottom, page.width, page.height))
-                            t = region.extract_text()
+                            t = _region_text(region, page.width)
                             if t and t.strip():
                                 non_table_parts.append(t.strip())
                         page_text = "\n".join(non_table_parts)

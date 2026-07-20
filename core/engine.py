@@ -76,6 +76,61 @@ _PROSE_FALLBACK: ClassificationResult = {
 # ENGINE
 # ---------------------------------
 
+def _merge_sub_segments(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Combine the structure engine's sub-segment results for ONE engine segment.
+
+    Why this is not a `max()`:
+
+    `run_structure_engine` returns one result per sub-segment, splitting on
+    structural boundaries. The previous code kept the highest-confidence
+    sub-segment and DISCARDED the rest, announcing it with a stderr warning that
+    nobody reads in production. Its own comment claimed to "fail LOUD rather
+    than silently dropping" — it did not fail; it dropped, silently.
+
+    The loss would be total for the discarded regions. A payload of
+    kv-block / table / kv-block fans out three ways at confidences .47/.44/.47;
+    `max` keeps the FIRST kv block and throws away the table AND every field
+    below it — invoice total, tax id, line items — with no trace in the output.
+
+    In practice this is currently unreachable: the engine's own partition splits
+    on the same boundaries `sub_segment` does, so a payload arrives already
+    reduced to one structural unit (verified: 0/17 real documents, and no
+    synthetic could trigger it through the real path). That is a property of
+    today's segmenter, not a guarantee — and the failure mode if it ever changes
+    is silent data loss, which is the worst kind to leave armed.
+
+    So: keep every sub-segment's blocks and lines, in document order. Nothing is
+    dropped, whatever the segmenter does later.
+
+    The CLASSIFICATION still takes the highest-confidence sub-segment. That is a
+    label describing the segment's dominant shape, and picking the strongest
+    signal is the existing, tested behaviour — merging labels would change
+    classification semantics for every document to fix a path none of them take.
+    Data loss is the bug; the label is not.
+    """
+    if not results:
+        return {"classification": dict(_PROSE_FALLBACK), "blocks": [], "lines": []}
+
+    best = max(
+        results,
+        key=lambda r: r["classification"]["classification_confidence"]
+    )
+    if len(results) == 1:
+        return {
+            "classification": best["classification"],
+            "blocks":         best["blocks"],
+            "lines":          best["lines"],
+        }
+
+    blocks: List[Any] = []
+    lines:  List[Any] = []
+    for r in results:                      # document order — run_structure_engine
+        blocks.extend(r.get("blocks") or [])   # returns sub-segments in order
+        lines.extend(r.get("lines") or [])
+    return {"classification": best["classification"],
+            "blocks": blocks, "lines": lines}
+
+
 class TextReconstructionEngine:
 
     def __init__(self):
@@ -190,27 +245,7 @@ class TextReconstructionEngine:
             if not results:
                 return {"classification": dict(_PROSE_FALLBACK), "blocks": [], "lines": []}
 
-            # Fan-out guard — with the current segmenter one engine-segment maps
-            # to exactly one sub-segment. If that assumption is ever violated,
-            # fail LOUD rather than silently dropping the extra sub-segments.
-            if len(results) > 1:
-                print(
-                    f"[engine][WARN] segment fanned out into {len(results)} "
-                    f"sub-segments; using highest-confidence sub-segment, others "
-                    f"not represented. Fan-out handling not implemented.",
-                    file=sys.stderr,
-                )
-
-            # Pick highest confidence sub-segment result
-            best = max(
-                results,
-                key=lambda r: r["classification"]["classification_confidence"]
-            )
-            return {
-                "classification": best["classification"],
-                "blocks":         best["blocks"],
-                "lines":          best["lines"],
-            }
+            return _merge_sub_segments(results)
 
         # Run async — sequence_index guarantees document order on reassembly
         processed = asyncio.run(

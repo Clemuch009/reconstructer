@@ -62,11 +62,20 @@ PURCHASE_ORDER_PROFILE = {
                  # real-world variants
                  "vendor_name", "vendor", "supplier_name", "supplier",
                  "provider", "seller"]},
-            # vendor may be a bare heading under a "VENDOR" section label. Use
-            # ONLY the labeled section — NOT the prominent top line, because on
-            # a PURCHASE ORDER the top entity is the BUYER, not the vendor.
+            # vendor may be a bare heading under a "VENDOR" section label. Try
+            # the labeled section FIRST — on a classic PURCHASE ORDER the top
+            # entity is the BUYER, not the vendor, so the prominent top line is
+            # NOT a safe first choice.
             {"from": "heading", "after_label":
                 ["VENDOR", "Supplier", "Sold By", "Ship From", "Vendor Details"]},
+            # LAST-RESORT prominent line: only reached when no labeled vendor was
+            # found. Many real supplier-issued documents (a delivery note or an
+            # invoice that merely CITES a PO) get filed under this profile, and
+            # on those the top entity IS the seller. A possibly-buyer vendor that
+            # can be reviewed beats a blank "vendor missing" that blocks the
+            # document. The value is flagged low-authority so it never overrides
+            # a labeled one.
+            {"from": "heading", "prominent_line": True},
         ],
         "order_date": [
             {"from": "key_values", "aliases":

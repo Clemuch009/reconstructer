@@ -27,6 +27,13 @@ INVOICE_PO_RECONCILIATION = {
     # po_number is the primary link; vendor and currency corroborate. A missing
     # field weakens the edge but doesn't break it (other facts carry it).
     "identity": {
+        # po_number is the KEYSTONE: an invoice and its PO carry the SAME PO
+        # reference, so a match on it links the two documents on its own. Vendor
+        # and currency corroborate — a disagreement on them is surfaced as a
+        # warning (party mismatch on linked docs), not an identity failure. When
+        # no po_number is present on both sides, identity falls back to the
+        # weighted vendor+currency score against the threshold.
+        "keystone":  ["po_number"],
         "weights": {
             "po_number": {"b": "po_number", "w": 0.6},
             "vendor":    {"b": "vendor",    "w": 0.3},

@@ -12,8 +12,11 @@ from registry.ingest import record_from_view
 from registry.provider import (
     EvidenceProvider, InMemoryRegistry, FirestoreRegistry, rehydrate,
 )
+from registry.factory import get_registry
 from registry.consistency import (
     evaluate, evaluate_dict, Finding,
     DUPLICATE, INTERNAL_INCONSISTENCY, PO_MISMATCH, PO_NOT_FOUND,
     MISSING_TAX_ID, TAX_ID_CHANGED, TAX_RATE_DEVIATION, PAYMENT_CONFLICT,
+    NUMBER_FORMAT_DEVIATION,
 )
+from registry.knowledge import build_vendor_view

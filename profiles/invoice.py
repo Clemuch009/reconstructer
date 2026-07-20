@@ -51,6 +51,8 @@ INVOICE_PROFILE = {
     # `anchor_weight` is this field's contribution to boundary suspicion when
     # it repeats. Declared here as profile data — the engine invents nothing.
     "schema": {
+        "document_type":  {"type": "string",   "required": False,
+                           "description": "the accounting instrument this document is"},
         "tax_id":         {"type": "string",   "required": False,
                            "description": "vendor tax/VAT registration number"},
         "recipient":      {"type": "string",   "required": False,
@@ -89,6 +91,10 @@ INVOICE_PROFILE = {
     # Aliases are matched case-insensitively, trimmed, and ignoring a trailing
     # colon (the resolver handles normalization — the profile just lists names).
     "field_resolution": {
+        # The instrument type is a heading, not a labelled field.
+        "document_type": [
+            {"from": "doc_type", "scan_lines": 12},
+        ],
         "tax_id": [
             {"from": "key_values", "aliases":
                 ["Tax ID", "Tax ID Number", "TIN", "VAT Number", "VAT No",
@@ -118,6 +124,15 @@ INVOICE_PROFILE = {
                  "Inv No", "Inv #", "Document Number", "Bill No",
                  # statement / disguised-format variants
                  "REF NUMBER", "Ref Number", "Reference Number", "Ref No",
+                 # Generic reference labels. Legitimate coverage rather than the
+                 # alias treadmill: an IDENTIFIER cannot be recovered by
+                 # arithmetic the way a total can (there is no equation an
+                 # invoice number satisfies), so a label is the only evidence
+                 # available. These are standard across business documents, not
+                 # vendor inventions.
+                 "Ref", "Ref #", "Reference", "Reference #", "Our Ref",
+                 "Your Ref", "Document Ref", "Doc Ref", "Transaction Ref",
+                 "Billing Ref", "Charge Reference",
                  "Statement Number", "Statement No", "Doc Number", "Doc No",
                  # German / European
                  "Rechnungsnummer", "Rechnungs-Nr", "Rechnung Nr",
@@ -261,10 +276,25 @@ INVOICE_PROFILE = {
         {"id": "total_required", "type": "exists", "field": "total",
          "message": "Total is required"},
 
-        {"id": "invoice_date_format", "type": "match",
-         "field": "invoice_date", "format": "date_iso",
-         "requires": ["invoice_date"],
-         "message": "Invoice date should be ISO format (YYYY-MM-DD)"},
+        # REMOVED: invoice_date_format / date_iso.
+        #
+        # The rule demanded YYYY-MM-DD from a document WE DID NOT AUTHOR. A
+        # vendor prints the date in their own locale's format — "July 14, 2026",
+        # "14. Juli 2026", "14/07/2026" — and every one of those is a perfectly
+        # valid invoice date. The rule fired on 3 of our 6 dated real invoices,
+        # all of them correct, and told the user their valid invoice was
+        # defective.
+        #
+        # That is worse than useless. A check that cries wolf on valid input
+        # teaches people to skim past findings, and the cost is paid by the REAL
+        # findings sitting next to it in the same queue — the $500 over-charge,
+        # the changed tax id. Precision is not a nicety here; it is what makes
+        # the queue worth reading.
+        #
+        # The meaningful question — "is this a date at all?" — is now enforced
+        # where it belongs: the profile declares invoice_date as {"type":
+        # "date"} and the resolver honours that, so a non-date can no longer
+        # occupy the field. Format is the vendor's business; type is ours.
 
         {"id": "currency_valid", "type": "match",
          "field": "currency", "format": "currency_code",

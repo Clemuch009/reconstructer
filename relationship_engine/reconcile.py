@@ -31,8 +31,20 @@ from relationship_engine.structural import align_lines, _num
 def _edge_identity(a_fields, b_fields, spec):
     weights = spec.get("weights", {})          # {a_field: {"b": b_field, "w": w}}
     threshold = spec.get("threshold", 0.7)
+    # A "keystone" field is one whose EXACT match is sufficient on its own to
+    # establish that two documents are the same transaction — a purchase-order
+    # reference, a contract number. An invoice and its PO have DIFFERENT document
+    # numbers by nature, so identity cannot require them to match; what links
+    # them is the invoice quoting the PO's reference. When that reference agrees,
+    # the documents are linked, and a disagreement on a corroborating field
+    # (vendor spelled differently, currency absent) becomes a WARNING surfaced in
+    # the evidence — not an identity failure that hides the fact they are related.
+    keystones = set(spec.get("keystone", []))
+    threshold = spec.get("threshold", 0.7)
     total_w = got_w = 0.0
     evidence = []
+    keystone_hit = False
+    disagreements = []
     for a_field, m in weights.items():
         b_field = m["b"]; w = float(m["w"])
         if a_field in a_fields and b_field in b_fields:
@@ -44,13 +56,30 @@ def _edge_identity(a_fields, b_fields, spec):
                 agrees = str(a_fields[a_field]).strip().lower() == str(b_fields[b_field]).strip().lower()
             if agrees:
                 got_w += w
+                if a_field in keystones:
+                    keystone_hit = True
+            else:
+                disagreements.append(a_field)
             evidence.append({"a_field": a_field, "b_field": b_field, "weight": w,
                              "agrees": agrees, "a": a_fields[a_field], "b": b_fields[b_field]})
         else:
             evidence.append({"a_field": a_field, "b_field": b_field, "weight": w,
                              "agrees": None, "note": "field absent on a side"})
     score = round(got_w / total_w, 4) if total_w > 0 else 0.0
-    return (PASS if score >= threshold else FAIL), score, evidence
+
+    # A matched keystone establishes identity regardless of the weighted score,
+    # but any corroborating-field disagreement is recorded as a warning so a
+    # vendor mismatch on linked documents is never silently dropped.
+    if keystone_hit:
+        status = PASS
+        for f in disagreements:
+            for e in evidence:
+                if e["a_field"] == f:
+                    e["warning"] = (f"{f} disagrees on documents linked by a "
+                                    f"matching reference — review the parties")
+    else:
+        status = PASS if score >= threshold else FAIL
+    return status, score, evidence
 
 
 # ── Financial: declared rules via the Rules Engine ─────────────────────────

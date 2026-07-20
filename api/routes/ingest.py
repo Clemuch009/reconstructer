@@ -29,6 +29,34 @@ _session_store: OrderedDict = OrderedDict()
 MAX_SESSIONS = 200
 
 
+def raw_text_for(source_id: str) -> Optional[str]:
+    """The source text a document was resolved from, if still cached.
+
+    Exists so /document/{id}/profile can resolve with the same evidence
+    /process-* has. Without the source lines that endpoint silently does LESS:
+    no line-level key/value recovery (the trailing-label rescue that reads
+    "Acme Corporation PO #: X" as "PO #"), and no role verification at all —
+    so an invoice whose subtotal and tax contradict its stated total comes back
+    looking clean.
+
+    The text is NOT put on the envelope to make this work. The envelope is
+    persisted and deliberately carries STRUCTURE, not content — it stores a hash
+    of the source, never the source. Widening that to satisfy one endpoint would
+    change what the product retains about a customer's documents, which is not a
+    call to make in passing.
+
+    So this reads the in-process session cache: the same text, already held, no
+    new retention. It is capped and evicted (MAX_SESSIONS, LRU) and does not
+    survive a restart, so absence is normal and the caller must SAY the check
+    could not run rather than imply it passed.
+    """
+    s = _session_store.get(source_id)
+    if not s:
+        return None
+    raw = s.get("raw")
+    return raw if isinstance(raw, str) and raw.strip() else None
+
+
 def _evict_if_needed() -> None:
     while len(_session_store) >= MAX_SESSIONS:
         _session_store.popitem(last=False)
