@@ -1,0 +1,122 @@
+# Qrynt
+
+**Reliable structured data from messy text.**
+
+Qrynt is a deterministic, structure-aware engine that turns messy documents into typed, structured data — and, on top of that, reconciles records across documents to surface exactly what doesn't line up. It started life as a general-purpose **Text Reconstruction Engine (TRE)** and found its first product-market fit in **invoice processing and reconciliation**, which is what it now ships as.
+
+It ingests unstructured or semi-structured documents (PDFs, DOCX, XLSX, CSV, HTML, plain text), detects their underlying structure without relying on per-vendor templates, and reconstructs them into clean, typed output consumable by humans, AI systems, or downstream machine pipelines. It's exposed as a FastAPI service with auth, billing, a review-queue UI, and webhook/streaming support — a real product, not a one-off script.
+
+## Project history: from TRE to Qrynt
+
+The codebase was originally built as a general-purpose engine with no fixed document vertical — visible today in the still-present "TRE" branding on the internal developer console and enterprise observer pages, and in a core engine (`core/engine.py`, `analysis/`, `relationship_engine/`) that has no knowledge of invoices, purchase orders, or any other document type. It reads and classifies *structure* (tables, key-value blocks, hierarchies, prose), full stop.
+
+Commercial scaffolding — billing, accounts, pricing — was added next. The first concrete, sellable use case then became **invoice processing**: an invoice workspace and a rebrand to **Qrynt** followed, oriented around ledger-style reconciliation (matching invoices to payments and surfacing exceptions). The general engine underneath didn't change — it's the same structural core, now fronted by a specific product experience, which is why purchase order and payment profiles ship alongside invoices as declarative data rather than separate codebases.
+
+## Why it exists
+
+Most document-extraction tools work by matching known templates or prompting an LLM per document. Both break the moment a new layout appears. Qrynt instead tries to detect a document's *structure* generically, and only then layers **profiles** (invoice, purchase order, payment, …) on top as declarative data. The structural core never needs to know that invoices exist; teaching it a new document type is a matter of writing a new profile, not new engine code.
+
+## Core ideas
+
+- **Determinism first.** The structural engine is rule- and signal-based rather than model-based, so the same input reliably produces the same output — important when the output feeds financial reconciliation.
+- **Structure before meaning.** Documents are segmented and classified into structural types (table, key-value, hierarchy, prose, context) before any domain-specific interpretation happens.
+- **Profiles are data, not code.** Each document vertical (invoice, PO, payment) is a declarative spec — schema, field-resolution strategy, validation rules — read by a generic resolver and rules engine. Adding a new document type means writing a new profile, not touching the engine.
+- **One relationship engine, many uses.** Matching two record sets (normalization → identity resolution → candidate generation → pairwise matching → consistency checking → evidence-backed reporting) powers reconciliation, deduplication, version comparison, and cross-document linking from the same codepath.
+- **Adapters, not multiple pipelines.** A single internal representation (the Logical Document Model) is rendered into human-, AI-, or machine-oriented output by read-only adapters — the adapters can change representation, never meaning.
+
+## Pipeline overview
+
+```
+Ingestion → Preprocessing → Signal extraction → Structure engine → Classification
+   → Segmentation/Reconstruction → Profile resolution → Validation → Adapters (Human/AI/Machine)
+                                                            ↓
+                                         Relationship Engine (reconcile / dedupe / link)
+```
+
+1. **Ingestion** (`ingestion/`) — format detection and extraction for txt, csv, pdf, docx, xlsx, html, plus OCR for scanned input.
+2. **Preprocessing & signals** (`preprocess/`, `hints/`) — text normalization/sanitization and multi-source signal extraction (regex, token-level, spaCy-based, boundary detection).
+3. **Structure engine** (`analysis/structure_engine/`, `core/`) — segments and classifies content into structural types using a feature vector and rules engine, with confidence scoring. This is the TRE core — the part of the codebase with no knowledge of invoices or any other vertical.
+4. **Profiles** (`profiles/`) — declarative per-vertical specs (invoice, purchase order, payment) defining schema, field-resolution strategy, and validation rules, executed by a generic resolver.
+5. **Postprocessing** (`postprocess/`) — cleanup, formatting, and validation of the reconstructed document.
+6. **Adapters** (`adapters/`) — render the validated internal model into human-readable, AI-consumable, or machine-readable output.
+7. **Relationship engine** (`relationship_engine/`) — matches records across two sets and classifies each pairing as `MATCH`, `MISMATCH`, `LEFT_ONLY`, or `RIGHT_ONLY`, with per-field evidence — the basis for Qrynt's invoice-to-payment reconciliation, and generic enough to also power deduplication.
+8. **Registry & cases** (`registry/`, `cases/`) — a knowledge store for resolved records and a review queue for exceptions that need human sign-off.
+
+## Product surface
+
+Qrynt today ships as an invoice-focused workspace on top of the general engine:
+
+- **Invoice Workspace** (`/invoices`) — the primary product UI: upload, reconcile, and review invoices against payments, with exceptions surfaced first.
+- **Developer Console** (`/console`) and **Enterprise Observer** (`/observer`) — carried over from the original TRE branding, for lower-level pipeline inspection and monitoring.
+- **Signup, pricing, dashboard, billing** — standard SaaS scaffolding (Stripe and Paddle integrations).
+
+## API
+
+Built with FastAPI (`api/main.py`), exposing:
+
+| Area | Routes |
+|---|---|
+| Processing | text/file processing, document retrieval |
+| Pipeline | ingestion, segmented ingestion |
+| Reconciliation | record-set matching |
+| Deduplication | within-set matching |
+| Review queue | `cases` — exceptions routed for human review |
+| Knowledge | the resolved-record registry |
+| Auth & Billing | account auth, subscription billing |
+| Health | liveness/readiness |
+
+Interactive API docs are auto-generated at `/docs` (Swagger) and `/redoc`.
+
+## Tech stack
+
+- **Backend**: Python, FastAPI, Hypercorn/Uvicorn, Pydantic
+- **Document parsing**: pdfplumber, python-docx, openpyxl, BeautifulSoup/lxml
+- **NLP**: spaCy (`en_core_web_sm`)
+- **Auth/Billing**: Firebase Admin / Firestore, Stripe, Paddle
+- **Deployment**: Docker
+
+## Getting started
+
+```bash
+git clone https://github.com/Clemuch009/reconstructer.git
+cd reconstructer
+pip install -r requirements.txt
+cp .env.example .env   # fill in your own keys — never commit real credentials
+uvicorn api.main:app --reload
+```
+
+Or with Docker:
+
+```bash
+docker build -t qrynt .
+docker run -p 8080:8080 --env-file .env qrynt
+```
+
+Visit `http://localhost:8000/docs` for the interactive API, or `/invoices` for the workspace UI.
+
+## Project structure
+
+```
+adapters/             Human / AI / Machine output adapters over the LDM
+analysis/             Structure engine, rules engine, feature extraction (TRE core)
+api/                  FastAPI app: routes, auth, billing, frontend (Qrynt product)
+cases/                Human review queue for reconciliation exceptions
+core/                 Engine orchestration, segmentation, decisioning (TRE core)
+document_partition/   Document/segment partitioning utilities
+hints/                Signal extraction (text, token, spaCy, boundary)
+ingestion/            Format detection and per-format extractors
+postprocess/          Cleanup, formatting, validation of final output
+preprocess/           Text normalization and sanitization
+profiles/             Declarative document-type specs (invoice, PO, payment)
+registry/             Knowledge store for resolved records
+relationship_engine/  Generic record-matching engine (match/dedupe/link)
+tests/                Test suite
+```
+
+## Status
+
+This is an actively developed, single-maintainer project — not yet production-hardened. Test coverage is currently light relative to the codebase size, and the API's CORS policy is intentionally permissive for development (`allow_origins=["*"]`), to be tightened before any public deployment.
+
+## License
+
+*No license file is currently included — add one (e.g. MIT, Apache-2.0) if you intend this to be reused by others.*
